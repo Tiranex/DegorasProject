@@ -1,0 +1,1026 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AutoCloseDialog</class>
+ <widget class="QDialog" name="AutoCloseDialog">
+  <property name="windowModality">
+   <enum>Qt::ApplicationModal</enum>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>400</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>AutoCloseDialog</string>
+  </property>
+  <property name="windowOpacity">
+   <double>1.000000000000000</double>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QDialog { 
+
+                border-radius: 12px;
+                border: 5px solid; 
+                border-color: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 #141414, stop: 1 #1e1e1e); 
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 #353535, stop: 1 #464646); 
+
+                border-color:  gray;
+				background-color: rgb(53, 53, 53);
+	
+            }
+
+/*--------------------------------*/
+/* QWidget forms */
+/*--------------------------------*/
+QWidget[accessibleName=&quot;MainWindow&quot;]
+{
+	background-color: rgb(53, 53, 53);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QWidget forms */
+/*--------------------------------*/
+
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QMessageBox forms */
+/*--------------------------------*/
+QMessageBox
+{ 
+color: rgb(240,240,240);
+background-color: rgb(53, 53, 53);
+font: 13px &quot;Open Sans Semibold&quot;;
+}
+QMessageBox QTextEdit
+{
+color: rgb(240,240,240);
+background-color: rgb(80, 80, 80);
+font: 12px &quot;Open Sans Semibold&quot;;
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/*   QLabel   */
+/*--------------------------------*/
+QLabel[accessibleName=&quot;LabelInfoWhite&quot;]
+{
+color: rgb(240,240,240);
+font: 14px &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;LabelInfoWhite&quot;]:disabled
+{
+color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;LabelInfoOrange&quot;]
+{
+color:  rgb(250,150,0);
+font:  14px &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;LabelInfoOrange&quot;]:disabled
+{
+color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;LabelInfoBlue&quot;]
+{
+color:  rgb(0,80,80);
+font:  14px &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;LabelInfoBlue&quot;]:disabled
+{
+color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;LabelFooter&quot;]
+{
+color: rgb(240,240,240);
+font: 8pt &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;LabelFooter&quot;]:disabled
+{
+color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;LabelMainTitle&quot;]
+{
+color: rgb(240,240,240);
+font: 15pt &quot;Open Sans Extrabold&quot;;
+}
+QLabel[accessibleName=&quot;LabelMainTitle&quot;]:disabled
+{
+color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;LabelMainSubtitle&quot;]
+{
+color: rgb(240,240,240);
+font: 11pt &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;LabelMainSubtitle&quot;]:disabled
+{
+color: rgb(100, 100,100);
+}
+/*--------------------------------------------------------*/
+
+/*--------------------------------*/
+/* QPushButton */
+/*--------------------------------*/
+QPushButton
+{
+     color: rgb(253,245,230);
+     background-color: rgb(53,53,53);
+	 font:  10pt &quot;Open Sans Semibold&quot;;
+}
+QPushButton:disabled
+{
+	color: rgb(100, 100,100);
+}
+QPushButton[accessibleName=&quot;ButtonLilac&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+	background-color:  rgb(50,50,100);
+}
+QPushButton[accessibleName=&quot;ButtonLilac&quot;]:hover
+{
+	background-color:  rgb(50,60,100);
+}
+QPushButton[accessibleName=&quot;ButtonGreen&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+	background-color: rgb(50, 90, 0);
+}
+QPushButton[accessibleName=&quot;ButtonGreen&quot;]:hover
+{
+	background-color: rgb(50, 100, 0);
+}
+QPushButton[accessibleName=&quot;ButtonRed&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+     background-color:  rgb(140, 20, 0);
+}
+QPushButton[accessibleName=&quot;ButtonRed&quot;]:hover
+{
+     background-color:  rgb(150, 20, 0);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QComboBox */
+/*--------------------------------*/
+QComboBox
+{
+    font: 13px &quot;Open Sans Semibold&quot;;
+    color: rgb(253,245,230);
+    selection-background-color: rgb(0,80,80);
+	background-color:  rgb(70, 70,70);
+}
+QComboBox:disabled
+{
+	color: rgb(100, 100,100);
+}
+QComboBox QAbstractItemView
+{
+    background-color:  rgb(70, 70,70);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QLineEdit */
+/*--------------------------------*/
+QLineEdit
+{
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+    padding: 2px 2px;
+    font: 9pt &quot;Open Sans&quot;;
+}
+QLineEdit:disabled
+{
+    color: rgb(100, 100,100);
+}
+QLineEdit[error=true]
+{
+    background-color: rgb(180,8,0);
+}
+QLineEdit[error=true]:focus 
+{
+	border: 1px solid rgb(255,155,0);
+}
+QLineEdit:focus 
+{
+	border: 1px solid rgb(255,155,0);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QCheckBox */
+/*--------------------------------*/
+QCheckBox
+{
+    color: rgb(253,245,230);
+	font: 14px &quot;Open Sans Semibold&quot;;
+}
+QCheckBox::indicator:checked
+{
+   background:  rgb(0,80,80);
+}
+QCheckBox::indicator 
+{
+    border: 2px solid gray;
+    background: transparent;
+}
+QCheckBox:disabled
+{
+	color: rgb(100, 100,100);
+}
+QCheckBox::indicator:disabled
+{
+   background: rgb(53, 53,53);
+}
+QCheckBox::indicator:checked:disabled
+{
+   background:  rgb(70,70,70);
+}
+/*--------------------------------*/
+
+/*--------------------------------------------------------*/
+/*   QRadioButton   */
+/*--------------------------------------------------------*/
+QRadioButton
+{
+color: rgb(240,240,240);
+font:  14px &quot;Open Sans&quot;;
+}
+QRadioButton:disabled
+{
+color: rgb(100, 100,100);
+}
+QRadioButton::indicator
+{
+width: 9px;
+height: 9px;
+border-radius: 6px;
+border: 2px solid;
+border-color: gray;
+background-color: rgb(70, 70,70);
+}
+QRadioButton::indicator:checked
+{
+background-color:  rgb(250,150,0);
+}
+QRadioButton::indicator:checked:disabled
+{
+background:  rgb(100,100,100);
+}
+/*--------------------------------------------------------*/
+
+/*--------------------------------*/
+/* QSpinBox */
+/*--------------------------------*/
+QSpinBox
+{ 
+    font: 13px &quot;Open Sans Semibold&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+    padding: 2px 2px;
+}
+QSpinBox:disabled
+{
+    color: rgb(100, 100,100);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QDoubleSpinBox */
+/*--------------------------------*/
+QDoubleSpinBox
+{ 
+    font: 13px &quot;Open Sans Semibold&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+    padding: 2px 2px;
+}
+QDoubleSpinBox:disabled
+{
+	color: rgb(100, 100,100);
+}
+/*--------------------------------*/
+
+/*--------------------------------------------------------*/
+/*   QTimeEdit   &amp;   QDateTimeEdit   */
+/*--------------------------------------------------------*/
+QTimeEdit
+{ 
+    font: 13px &quot;Open Sans Semibold&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+}
+QTimeEdit:disabled
+{
+    color: rgb(100, 100,100);
+}
+
+QDateTimeEdit
+{ 
+    font: 13px &quot;Open Sans Semibold&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+}
+QDateTimeEdit:disabled
+{
+    color: rgb(100, 100,100);
+}
+/*--------------------------------------------------------*/
+
+/*------------------------------------------*/
+/* QProgressBar */
+/*------------------------------------------*/
+QProgressBar
+{
+border: 2px solid grey;
+padding: 1px;
+border-radius: 5px;
+text-align: center;
+font-family: Open Sans Semibold; 
+font-size: 10pt; 
+background-color: rgb(70,70,70)}
+
+QProgressBar::chunk
+{
+border-bottom-left-radius: 4px;
+border-bottom-right-radius: 4px;
+border-top-left-radius: 4px;
+border-top-right-radius: 4px;
+background-color: rgb(220,130,0);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QGroupBox */
+/*--------------------------------*/
+QGroupBox
+ {
+	font: 16px &quot;Open Sans Extrabold&quot;;
+    color: rgb(253,245,230);
+    border: 3px solid gray;
+    border-radius: 10px;
+    margin-top: 0.6em;
+    padding: 3px;
+}
+QGroupBox:disabled
+{
+    color: rgb(100, 100,100);
+}
+QGroupBox[accessibleName=&quot;Little&quot;]
+ {
+	font: 14px &quot;Open Sans Semibold&quot;;
+	color: rgb(253,245,230);
+    border: 2px solid gray;
+    border-radius: 10px;
+    margin-top: 0.6em;
+    padding: 3px;
+}
+QGroupBox[accessibleName=&quot;Little&quot;]:disabled
+{
+    color: rgb(100, 100,100);
+}
+/*--------------------------------*/
+
+/*------------------------------------------*/
+/* QTabWidget &amp;&amp;  QTabBar */
+/*------------------------------------------*/
+QTabWidget::pane
+{}
+QTabBar
+{
+color: rgb(253,245,230);
+font:  13px &quot;Open Sans Semibold&quot;;
+}
+QTabBar::tab 
+{
+border-top-left-radius: 6px;
+border-top-right-radius: 6px;
+border-top: 1px solid black;
+border-left: 1px solid black;
+border-right: 1px solid black;
+padding: 4px 10px 4px 10px;
+min-width: 10ex;
+margin-right: 0px;
+}
+QTabBar::tab:selected 
+{
+font:  13px &quot;Open Sans Semibold&quot;;
+background-color: rgb(0,80,80);
+}
+QTabBar::tab:!selected 
+{
+font:  13px &quot;Open Sans &quot;;
+background-color: rgb(70,70,70);
+margin-top: 4px;
+bottom: 1px;
+}
+QTabBar::tab:disabled
+{
+color: rgb(100,100,100)
+}
+/*--------------------------------------------*/
+
+/*--------------------------------------------------------*/
+/*   QMenu   &amp;   QMenuBar   */
+/*--------------------------------------------------------*/
+QMenu
+{
+color: rgb(240,240,240);
+background-color: rgb(70, 70, 70);
+font:  10pt &quot;Open Sans Semibold&quot;;
+}
+QMenu::item:selected
+{
+background-color: rgb(0, 80, 80);
+ } 
+QMenuBar 
+{
+color: rgb(240,240,240);
+background-color: rgb(70,70,70);
+font:  10pt &quot;Open Sans Semibold&quot;;
+ }
+QMenuBar::item
+{ 
+spacing: 3px; 
+padding: 1px 4px;
+background-color: rgb(70,70,70);
+border-radius: 4px;
+font:  10pt &quot;Open Sans Semibold&quot;;
+}
+QMenuBar::item:selected 
+{ 
+background-color: rgb(0,80,80);
+}
+QMenu::item:disabled 
+{ 
+color: rgb(100,100,100);
+}
+/*--------------------------------------------------------*/
+
+/*--------------------------------------------------------*/
+/*   QTableView   */
+/*--------------------------------------------------------*/
+QTableView
+{
+color: rgb(240,240,240);
+background-color: rgb(80,80,80);
+alternate-background-color: rgb(70,70,70);
+selection-background-color: rgb(0,80,80);
+font:   13px &quot;Open Sans Semibold&quot; ;
+border: 1px solid black;
+}
+QTableView::item
+{ 
+color: rgb(240,240,240);
+/*border-top: 2px solid gray;*/
+}
+QTableView::item:disabled
+{ 
+color: rgb(100, 100,100);
+}
+QTableView::indicator
+{
+border: 1px solid gray;
+}
+QTableView::indicator:unchecked
+{
+background-color:  rgb(140, 20, 0);
+}
+QTableView::indicator:checked
+{
+background-color: rgb(50, 90, 0);
+}
+/*--------------------------------------------------------*/
+
+/*--------------------------------------------------------*/
+/*   QTreeView   */
+/*--------------------------------------------------------*/
+QTreeView
+{
+color: rgb(240,240,240);
+background-color: rgb(80,80,80);
+alternate-background-color: rgb(70,70,70);
+selection-background-color: rgb(0,80,80);
+font:   13px &quot;Open Sans Semibold&quot; ;
+border: 1px solid black;
+
+}
+QTreeView::item
+{ 
+color: rgb(240,240,240);
+border-top: 2px solid gray;
+padding: 10px;
+}
+QTreeView::item:disabled
+{ 
+color: rgb(100, 100,100);
+}
+QTreeView::indicator
+{
+border: 1px solid gray;
+}
+QTreeView::indicator:unchecked
+{
+background-color:  rgb(140, 20, 0);
+}
+QTreeView::indicator:checked
+{
+background-color: rgb(50, 90, 0);
+}
+/*--------------------------------------------------------*/
+
+
+/*------------------------------------------*/
+/* QHeaderView */
+/*------------------------------------------*/
+QHeaderView::section
+{
+color: rgb(253,245,230);
+font:  13px &quot;Open Sans Extrabold&quot;;
+}
+QHeaderView::section:disabled
+{
+color: rgb(100, 100,100);
+}
+/*------------------------------------------*/
+
+/*--------------------------------*/
+/* QTableWidget */
+/*--------------------------------*/
+QTableWidget
+{
+color: rgb(253,245,230);
+background-color: rgb(80,80,80);
+alternate-background-color: rgb(70,70,70);
+selection-color: rgb(215,215,215);
+font:   12px &quot;Open Sans Semibold&quot; ;
+}
+
+QTableWidget::item
+{
+/*border-top: 2px solid gray;*/
+}
+QTableWidget::item:disabled
+{ 
+color: rgb(100, 100,100);
+}
+QTableWidget::item::focus 
+{ 
+background-color: transparent;
+alternate-background-color: transparent;
+
+}
+QTableWidget::item::selected
+{
+background-color: transparent;
+border-top: 2px solid rgb(190,75,30); 
+border-bottom: 2px solid rgb(190,75,30);
+
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QScrollBar */
+/*--------------------------------*/
+QScrollBar:vertical:disabled
+{
+color: rgb(100,100,100)
+}
+QScrollBar:horizontal:disabled
+{
+color: rgb(100,100,100)
+}
+/*--------------------------------*/
+
+
+
+
+
+
+QPushButton
+{
+     color: rgb(215, 215, 215);
+     background-color: rgb(53,53,53);
+	 font:  10pt &quot;Open Sans Semibold&quot;;
+}
+
+QPushButton:disabled
+{
+	color: rgb(100, 100,100);
+}
+
+QPushButton[accessibleName=&quot;Blue&quot;]
+{
+	background-color:  rgb(20,20,100);
+}
+
+QPushButton[accessibleName=&quot;Lilac&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+	background-color:  rgb(50,50,100);
+}
+QPushButton[accessibleName=&quot;Lilac&quot;]:hover
+{
+	background-color:  rgb(50,60,100);
+}
+
+QPushButton[accessibleName=&quot;Green&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+	background-color: rgb(50, 90, 0);
+}
+
+QPushButton[accessibleName=&quot;Green&quot;]:hover
+{
+	background-color: rgb(50, 100, 0);
+}
+
+QPushButton[accessibleName=&quot;Red&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+     background-color:  rgb(140, 20, 0);
+}
+
+QPushButton[accessibleName=&quot;Red&quot;]:hover
+{
+     background-color:  rgb(150, 20, 0);
+}
+
+
+
+
+
+QMenu
+{
+background:  rgb(70,70,70);
+}
+
+QMenuBar 
+{
+     background-color: rgb(60,60,60);
+	 font-family: Open Sans Semibold;
+     font-style: normal;
+     font-size: 9pt; 
+ }
+
+
+
+QMenuBar::item
+{ 
+    spacing: 3px; /* spacing between menu bar items */
+    padding: 1px 4px;
+    background:  rgb(60,60,60);
+    background-color: rgb(60,60,60);
+	 font-family: Open Sans Extrabold;
+     font-style: normal;
+     font-size: 9pt; 
+     font-weight: bold;
+    border-radius: 4px;
+}
+
+QMenuBar::item:selected 
+{ 
+    background: rgb(220,130,0);
+}
+
+
+QMenu::item:disabled 
+{ 
+    color: rgb(100,100,100);
+}
+
+
+/*--------------------------------*/
+/* Widget forms */
+/*--------------------------------*/
+QWidget[accessibleName=&quot;MainWindow&quot;]
+{
+	background-color: rgb(53, 53, 53);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QLineEdit */
+/*--------------------------------*/
+QLineEdit
+{
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+    padding: 2px 2px;
+    font: 10pt &quot;Open Sans&quot;;
+}
+QLineEdit:disabled
+{
+    color: rgb(100, 100,100);
+}
+QLineEdit[error=true]
+{
+    background-color: rgb(180,8,0);
+}
+QLineEdit[error=true]:focus 
+{
+	border: 1px solid rgb(255,155,0);
+}
+QLineEdit:focus 
+{
+	border: 1px solid rgb(255,155,0);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QSpinBox */
+/*--------------------------------*/
+QSpinBox
+{ 
+    font: 8pt &quot;Open Sans&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+    padding: 2px 2px;
+}
+QSpinBox:disabled
+{
+    color: rgb(100, 100,100);
+}
+/*--------------------------------*/
+
+/*--------------------------------*/
+/* QDoubleSpinBox */
+/*--------------------------------*/
+QDoubleSpinBox
+{ 
+    font: 8pt &quot;Open Sans&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+    padding: 2px 2px;
+}
+QDoubleSpinBox:disabled
+{
+	color: rgb(100, 100,100);
+}
+/*--------------------------------*/
+
+QTimeEdit
+{ 
+    font: 8pt &quot;Open Sans&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+}
+QTimeEdit:disabled
+{
+    color: rgb(100, 100,100);
+}
+
+QDateTimeEdit
+{ 
+    font: 8pt &quot;Open Sans&quot;;
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+}
+QDateTimeEdit:disabled
+{
+    color: rgb(100, 100,100);
+}
+
+/*--------------------------------*/
+/* QLabel */
+/*--------------------------------*/
+QLabel[accessibleName=&quot;Info&quot;]
+{
+    color: rgb(253,245,230);
+	font: 10pt &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;Info&quot;]:disabled
+{
+	color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;sign&quot;]
+{
+    color: rgb(253,245,230);
+	font: 8pt &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;sign&quot;]:disabled
+{
+	color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;MainTittle&quot;]
+{
+    color: rgb(253,245,230);
+	font: 14pt &quot;Open Sans Extrabold&quot;;
+}
+QLabel[accessibleName=&quot;MainTittle&quot;]:disabled
+{
+	color: rgb(100, 100,100);
+}
+QLabel[accessibleName=&quot;InfoData&quot;]
+{
+	color:  rgb(255,153,0);
+	font: 10pt &quot;Open Sans Semibold&quot;;
+}
+QLabel[accessibleName=&quot;InfoData&quot;]:disabled
+{
+	color: rgb(100, 100,100);
+}
+
+
+/*--------------------------------*/
+
+
+/*--------------------------------*/
+/* QGroupBox */
+/*--------------------------------*/
+QGroupBox
+ {
+	font: 12pt &quot;Open Sans Extrabold&quot;;
+	color: rgb(253,245,230);
+    border: 4px solid gray;
+    border-radius: 10px;
+    margin-top: 0.6em;
+    padding: 3px;
+}
+QGroupBox:disabled
+{
+    color: rgb(100, 100,100);
+}
+QGroupBox[accessibleName=&quot;Little&quot;]
+ {
+	font: 11pt &quot;Open Sans Semibold&quot;;
+	color: rgb(253,245,230);
+    border: 3px solid gray;
+    border-radius: 10px;
+    margin-top: 0.6em;
+    padding: 3px;
+}
+QGroupBox[accessibleName=&quot;Little&quot;]:disabled
+{
+    color: rgb(100, 100,100);
+}
+/*--------------------------------*/
+
+
+
+
+
+/*--------------------------------*/
+/* QComboBox */
+/*--------------------------------*/
+QComboBox
+{
+    font: 9pt &quot;Open Sans&quot;;
+    color: rgb(253,245,230);
+    selection-background-color: rgb(255,155,0);
+    background-color:  rgb(70, 70,70);
+}
+
+QComboBox:disabled
+{
+    color: rgb(100, 100,100);
+}
+
+QComboBox QAbstractItemView
+{
+    background-color:  rgb(70, 70,70);
+}
+
+/*
+  QCheckBox
+*/
+QCheckBox::indicator 
+{
+    border: 2px solid gray;
+    background: transparent;
+}
+
+QCheckBox::indicator:checked
+ {
+   background:  rgb(255,153,0);
+}
+/*--------------------------------*/
+
+
+/*
+QGraphicsView
+*/
+QGraphicsView
+{
+  background: rgb(80,80,80);
+}
+
+</string>
+  </property>
+  <property name="modal">
+   <bool>true</bool>
+  </property>
+  <layout class="QGridLayout" name="gridLayout" rowstretch="0,0">
+   <property name="leftMargin">
+    <number>15</number>
+   </property>
+   <property name="topMargin">
+    <number>15</number>
+   </property>
+   <property name="rightMargin">
+    <number>15</number>
+   </property>
+   <property name="bottomMargin">
+    <number>15</number>
+   </property>
+   <property name="horizontalSpacing">
+    <number>15</number>
+   </property>
+   <property name="verticalSpacing">
+    <number>10</number>
+   </property>
+   <item row="1" column="0">
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="button_close">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>270</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="cursor">
+        <cursorShape>PointingHandCursor</cursorShape>
+       </property>
+       <property name="text">
+        <string>   Closing this window in x seconds...</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../resources/common_resources.qrc">
+         <normaloff>:/icons/round_delete_icon&amp;48.png</normaloff>:/icons/round_delete_icon&amp;48.png</iconset>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="0" column="0">
+    <widget class="QGroupBox" name="group">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string> group </string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <layout class="QHBoxLayout" name="group_layout">
+      <property name="spacing">
+       <number>10</number>
+      </property>
+      <property name="leftMargin">
+       <number>10</number>
+      </property>
+      <property name="topMargin">
+       <number>10</number>
+      </property>
+      <property name="rightMargin">
+       <number>10</number>
+      </property>
+      <property name="bottomMargin">
+       <number>10</number>
+      </property>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources>
+  <include location="../resources/common_resources.qrc"/>
+  <include location="../resources/common_resources.qrc"/>
+ </resources>
+ <connections/>
+</ui>

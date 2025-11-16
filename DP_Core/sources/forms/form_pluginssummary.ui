@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PluginsSummary</class>
+ <widget class="QDialog" name="PluginsSummary">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>660</width>
+    <height>450</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>660</width>
+    <height>450</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <property name="accessibleName">
+   <string>Form</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/*--------------------------------*/
+/* QTextBrowser */
+/*--------------------------------*/
+QTextBrowser
+{
+    color: rgb(253,245,230);
+    background-color: rgb(70, 70,70);
+    padding: 2px 2px;
+    font: 9pt &quot;Open Sans&quot;;
+}
+QTextBrowser:disabled
+{
+    color: rgb(100, 100,100);
+}
+
+
+
+QPushButton
+{
+     color: rgb(215, 215, 215);
+     background-color: rgb(53,53,53);
+	 font:  9pt &quot;Open Sans Semibold&quot;;
+}
+
+QPushButton:disabled
+{
+	color: rgb(100, 100,100);
+}
+
+QPushButton[accessibleName=&quot;Blue&quot;]
+{
+	background-color:  rgb(20,20,100);
+}
+
+QPushButton[accessibleName=&quot;Lilac&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+	background-color:  rgb(50,50,100);
+}
+QPushButton[accessibleName=&quot;Lilac&quot;]:hover
+{
+	background-color:  rgb(50,60,100);
+}
+
+QPushButton[accessibleName=&quot;Green&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+	background-color: rgb(50, 90, 0);
+}
+
+QPushButton[accessibleName=&quot;Green&quot;]:hover
+{
+	background-color: rgb(50, 100, 0);
+}
+
+QPushButton[accessibleName=&quot;Red&quot;]
+{
+	border-style: solid;
+	border-width: 1px;
+	border-color: black;
+	border-radius: 5px;
+    background-color:  rgb(140, 20, 0);
+}
+
+QPushButton[accessibleName=&quot;Red&quot;]:hover
+{
+     background-color:  rgb(150, 20, 0);
+}
+
+/*--------------------------------*/
+/* Widget forms */
+/*--------------------------------*/
+QWidget[accessibleName=&quot;Form&quot;]
+{
+	background-color: rgb(53, 53, 53);
+}
+/*--------------------------------*/
+
+</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="bottomMargin">
+    <number>11</number>
+   </property>
+   <item>
+    <widget class="QLabel" name="label">
+     <property name="font">
+      <font>
+       <family>Open Sans Semibold</family>
+       <pointsize>11</pointsize>
+       <weight>75</weight>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="text">
+      <string>Plugins loaded for Space Objects Manager</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTextBrowser" name="tb_plugins">
+     <property name="font">
+      <font>
+       <family>Open Sans</family>
+       <pointsize>9</pointsize>
+       <weight>50</weight>
+       <italic>false</italic>
+       <bold>false</bold>
+      </font>
+     </property>
+     <property name="verticalScrollBarPolicy">
+      <enum>Qt::ScrollBarAlwaysOn</enum>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarAsNeeded</enum>
+     </property>
+     <property name="documentTitle">
+      <string/>
+     </property>
+     <property name="html">
+      <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Open Sans'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Open Sans Semibold'; font-size:10pt;&quot;&gt;SpaceObjectsData To SATELPRM&lt;/span&gt;&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;Category: &lt;/span&gt;Plugin ExternalTool&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;Author: &lt;/span&gt;(C) 2019 Ángel Vera Herrera&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;Version: &lt;/span&gt;1.0.0&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;File: &lt;/span&gt;&lt;span style=&quot; text-decoration: underline; color:#55aaff;&quot;&gt;D:/0-SALARA_PROJECT/build-SALARA_Project-Desktop_Qt_5_12_0_MinGW_64_bit-Debug/SP_Plugins/SP_PluginExternalTool_SATELPRMd.dll&lt;/span&gt;&lt;br /&gt;&lt;br /&gt;&lt;br /&gt;&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold'; font-size:10pt;&quot;&gt;ILRS Current Mission Engine&lt;/span&gt;&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;Category: &lt;/span&gt;Plugin SatelliteSearchEngine&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;Author: &lt;/span&gt;(C) 2018 Ángel Vera Herrera&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;Version: &lt;/span&gt;1.0.0&lt;br /&gt;&lt;span style=&quot; font-family:'Open Sans Semibold';&quot;&gt;File: &lt;/span&gt;&lt;span style=&quot; text-decoration: underline; color:#55aaff;&quot;&gt;D:/0-SALARA_PROJECT/build-SALARA_Project-Desktop_Qt_5_12_0_MinGW_64_bit-Debug/SP_Plugins/SP_PluginSatelliteSearchEngine_ILRSd.dll&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pb_close">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
