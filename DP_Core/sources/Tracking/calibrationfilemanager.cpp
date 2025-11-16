@@ -167,7 +167,7 @@ DegorasInformation CalibrationFileManager::readLastCalib(Calibration &calib)
             DegorasSettings::instance().getGlobalConfigString("SalaraProjectDataPaths/SP_HistoricalCalibrations");
     QStringList dirs = QDir(hist_calpath).entryList(QDir::Dirs, QDir::Name);
 
-    QDateTime last_calib_dt(QDateTime::fromMSecsSinceEpoch(0, Qt::UTC));
+    QDateTime last_calib_dt(QDateTime::fromMSecsSinceEpoch(0));
     QString last_calib_name;
     DegorasInformation errors;
     auto dir_it = dirs.crbegin();

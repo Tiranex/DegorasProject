@@ -366,7 +366,7 @@ DegorasInformation TrackingFileManager::readTrackingFromFile(const QString &file
         QJsonArray array = track_jsondocument[kCalDataKey].toArray();
         for (const auto& elem : std::as_const(array))
         {
-            QJsonObject obj = elem.toObject();
+            /*QJsonObject obj = elem.toObject();
             Calibration calib;
             DegorasInformation e = calib_path.isEmpty() ?
                         CalibrationFileManager::readCalibration(obj[kCalFileKey].toString(), calib) :
@@ -378,7 +378,7 @@ DegorasInformation TrackingFileManager::readTrackingFromFile(const QString &file
             {
                 Tracking::CalibrationSpan span = static_cast<decltype(span)>(obj[kCalSpanKey].toInt());
                 track.cal_data[span][calib.date_start] = calib;
-            }
+            }*/
         }
 
         // Ranges

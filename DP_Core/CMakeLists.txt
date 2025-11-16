@@ -70,6 +70,7 @@ add_library(DP_Core SHARED
 target_link_libraries(DP_Core PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt6::Widgets LibDegorasBase::LibDegorasBase LibDegorasSLR::LibDegorasSLR
   LibNovasCpp::LibNovasCpp)
 
-target_include_directories(DP_Core PRIVATE include)
-
+target_include_directories(DP_Core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
 target_compile_definitions(DP_Core PRIVATE DP_CORE_LIBRARY)

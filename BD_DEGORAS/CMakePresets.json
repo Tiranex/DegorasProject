@@ -30,6 +30,10 @@
         "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic-degoras",
         "VCPKG_MANIFEST_MODE": "OFF",
 		"CMAKE_PREFIX_PATH": "$env{VCPKG_ROOT}/installed/x64-mingw-dynamic-degoras"
+      },
+	  "environment": 
+	  {
+        "PATH": "$env{UCRT64_ROOT}/bin;$penv{PATH}"
       }
     },
 	
