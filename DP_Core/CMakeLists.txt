@@ -8,11 +8,6 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(LibDegorasBase_DIR "E:/deploys/LibDegorasBase_product_v1.0.1/mingw-x86_64-15.2.0-debug/share/cmake")
-set(LibDegorasSLR_DIR "E:/deploys/LibDegorasSLR_product_v1.9.6/mingw-x86_64-15.2.0-debug/share/cmake")
-set(LibNovasCpp_DIR "E:/deploys/LibNovasCpp_product_v3.1.1/mingw-x86_64-15.2.0-debug/share/cmake")
-set(QWT_ROOT_DIR "E:/Qwt-6.2.0" CACHE PATH "Root of Qwt installation")
-set(VCPKG_ROOT "E:/vcpkg")
 
 find_package(LibDegorasBase CONFIG REQUIRED)
 find_package(LibDegorasSLR CONFIG REQUIRED)

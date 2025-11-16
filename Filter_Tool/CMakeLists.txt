@@ -5,12 +5,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Define Paths to Dependencies ---
 # Using set() is fine for local development.
-set(LibDegorasBase_DIR "E:/deploys/LibDegorasBase_product_v1.0.1/mingw-x86_64-15.2.0-debug/share/cmake")
-set(LibDegorasSLR_DIR "E:/deploys/LibDegorasSLR_product_v1.9.6/mingw-x86_64-15.2.0-debug/share/cmake")
-set(LibNovasCpp_DIR "E:/deploys/LibNovasCpp_product_v3.1.1/mingw-x86_64-15.2.0-debug/share/cmake")
-set(VCPKG_ROOT "E:/vcpkg")
-set(VCPKG_TARGET_TRIPLET "x64-mingw-dynamic-degoras")
-set(CMAKE_TOOLCHAIN_FILE "E:/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE FILEPATH "Vcpkg toolchain file")
 
 find_package(unofficial-qwt CONFIG REQUIRED)
 
