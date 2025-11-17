@@ -12,6 +12,9 @@
         "DEGORAS_DEVDRIVE": "E:",
         "UCRT64_ROOT": "E:/msys64/ucrt64",
         "VCPKG_ROOT": "E:/vcpkg",
+        "LibDegorasBase_DIR": "E:/deploys/LibDegorasBase_product_v1.0.1/mingw-x86_64-15.2.0-debug/share/cmake",
+        "LibDegorasSLR_DIR": "E:/deploys/LibDegorasSLR_product_v1.9.6/mingw-x86_64-15.2.0-debug/share/cmake",
+        "LibNovasCpp_DIR": "E:/deploys/LibNovasCpp_product_v3.1.1/mingw-x86_64-15.2.0-debug/share/cmake",
         "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic-degoras",
         "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic-degoras"
       }
