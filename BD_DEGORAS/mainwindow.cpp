@@ -429,6 +429,8 @@ void MainWindow::on_refreshListButton_clicked()
 
     ui->objectListTable->setUpdatesEnabled(true);
     ui->objectListTable->setSortingEnabled(true);
+    //Tambien refrescamos los grupos
+    refreshGroupList();
     logMessage("[Info] Lista actualizada. " + QString::number(allObjects.size()) + " objetos cargados.");
 }
 
@@ -647,117 +649,230 @@ void MainWindow::on_deleteGroupButton_clicked()
 
 /**
  * @brief Slot: Pulsar "Refresh" (Pestaña "Sets")
+ *
+ * ¡VERSIÓN CORREGIDA!
+ * Esta función ahora limpia explícitamente las selecciones ANTES de
+ * restaurarlas para evitar conflictos con las funciones de refresco.
  */
 void MainWindow::on_refreshListButton_2_clicked()
 {
     if (!dbManager) return;
 
+    // --- 1. GUARDAR SELECCIÓN (Grupos) ---
+    QList<QListWidgetItem*> selectedGroupsItems = ui->listWidget->selectedItems();
+    QSet<QString> selectedGroupNames;
+    for (QListWidgetItem* item : selectedGroupsItems) {
+        selectedGroupNames.insert(item->text());
+    }
+
+    // --- 2. GUARDAR SELECCIÓN (Objetos) ---
+    auto selectedRowsIndexes = ui->setsObjectTable->selectionModel()->selectedRows();
+    QSet<int64_t> selectedObjectIDs;
+    for (const QModelIndex& rowIndex : selectedRowsIndexes) {
+        if (ui->setsObjectTable->item(rowIndex.row(), 0)) {
+            selectedObjectIDs.insert(ui->setsObjectTable->item(rowIndex.row(), 0)->text().toLongLong());
+        }
+    }
+
+    // --- 3. Lógica de refresco (tu código original) ---
     std::vector<nlohmann::json> objects;
 
-    // Opción 1: ¿Mostrar todos?
     if (ui->showAllObjectsCheckBox->isChecked())
     {
         logMessage("[Info] Mostrando todos los objetos...");
         objects = dbManager->getAllSpaceObjects();
     }
-    // Opción 2: Mostrar por grupos seleccionados
     else
     {
-        // Recoger los nombres de los grupos seleccionados
-        std::set<std::string> selectedGroups;
-        for (QListWidgetItem* item : ui->listWidget->selectedItems()) {
-            selectedGroups.insert(item->text().toStdString());
+        std::set<std::string> selectedGroupsForFilter;
+        for (const QString& name : selectedGroupNames) {
+            selectedGroupsForFilter.insert(name.toStdString());
         }
 
-        if (selectedGroups.empty()) {
+        if (selectedGroupsForFilter.empty()) {
             logMessage("[Info] Selecciona uno o más grupos para filtrar, o marca 'Mostrar todos los objetos'.");
-            ui->setsObjectTable->setRowCount(0); // Limpiar tabla
-            return;
+            ui->setsObjectTable->setRowCount(0);
+            objects.clear();
         }
-
-        logMessage("[Info] Filtrando por " + QString::number(selectedGroups.size()) + " grupo(s)...");
-        objects = dbManager->getSpaceObjectsByGroups(selectedGroups);
+        else
+        {
+            logMessage("[Info] Filtrando por " + QString::number(selectedGroupsForFilter.size()) + " grupo(s)...");
+            objects = dbManager->getSpaceObjectsByGroups(selectedGroupsForFilter);
+        }
     }
 
-    // Rellenar la tabla
+    // --- 4. Rellenar la tabla (pierde selección de tabla) ---
     populateSetsObjectTable(objects);
+
+    // --- 5. Refrescar lista de grupos (pierde selección de lista Y PONE UNA PROPIA) ---
+    refreshGroupList();
+
     logMessage("[Info] " + QString::number(objects.size()) + " objetos cargados en la tabla 'Sets'.");
+
+    // --- 6. RESTAURAR SELECCIÓN (Grupos) ---
+    ui->listWidget->blockSignals(true);
+
+    // --- ¡¡FIX!! ---
+    // Limpiamos la selección que 'refreshGroupList' haya podido poner
+    ui->listWidget->clearSelection();
+
+    for (int i = 0; i < ui->listWidget->count(); ++i) {
+        QListWidgetItem* item = ui->listWidget->item(i);
+        if (selectedGroupNames.contains(item->text())) {
+            item->setSelected(true);
+        }
+    }
+    ui->listWidget->blockSignals(false);
+
+    // --- 7. RESTAURAR SELECCIÓN (Objetos) ---
+    ui->setsObjectTable->blockSignals(true);
+
+    // --- ¡¡FIX!! ---
+    // Limpiamos por si acaso 'populateSetsObjectTable' cambiase en el futuro
+    ui->setsObjectTable->clearSelection();
+
+    for (int row = 0; row < ui->setsObjectTable->rowCount(); ++row) {
+        if (ui->setsObjectTable->item(row, 0)) {
+            int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
+            if (selectedObjectIDs.contains(objectId)) {
+                ui->setsObjectTable->selectRow(row);
+            }
+        }
+    }
+    ui->setsObjectTable->blockSignals(false);
 }
 
 /**
  * @brief Slot: Pulsar "Añadir objeto a grupo"
+ * (Versión simplificada: la lógica de refresco la hace on_refreshListButton_2_clicked)
  */
 void MainWindow::on_assignToGroupButton_clicked()
 {
     if (!dbManager) return;
 
-    // 1. Obtener el grupo seleccionado de la lista (listWidget)
-    QListWidgetItem* groupItem = ui->listWidget->currentItem();
-    if (!groupItem) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona el GRUPO al que quieres añadir el objeto.");
+    // 1. Obtener selecciones
+    QList<QListWidgetItem*> selectedGroups = ui->listWidget->selectedItems();
+    auto selectedRowsIndexes = ui->setsObjectTable->selectionModel()->selectedRows();
+
+    // 2. Validar selecciones
+    if (selectedGroups.isEmpty()) {
+        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un GRUPO al que quieres añadir los objetos.");
         return;
     }
-    QString groupName = groupItem->text();
-
-    // 2. Obtener el objeto seleccionado de la tabla (setsObjectTable)
-    auto selectedRows = ui->setsObjectTable->selectionModel()->selectedRows();
-    if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona el OBJETO de la tabla que quieres modificar.");
+    if (selectedRowsIndexes.isEmpty()) {
+        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un OBJETO de la tabla que quieres modificar.");
         return;
     }
-    int row = selectedRows.first().row();
 
-    // El ID está en la columna 0
-    int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
-    QString objectName = ui->setsObjectTable->item(row, 1)->text(); // Para el log
+    // 3. Ejecutar la acción (Bucle anidado)
+    int successCount = 0;
+    int failCount = 0;
 
-    // 3. Ejecutar la acción
-    logMessage("[Info] Añadiendo '" + objectName + "' al grupo '" + groupName + "'...");
-    if (dbManager->addObjectToGroup(objectId, groupName.toStdString()))
+    for (const QModelIndex& rowIndex : selectedRowsIndexes)
     {
-        logMessage("[OK] Objeto añadido al grupo.");
-        // Refrescar la tabla para ver el cambio
+        int row = rowIndex.row();
+        int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
+        QString objectName = ui->setsObjectTable->item(row, 1)->text();
+
+        for (QListWidgetItem* groupItem : selectedGroups)
+        {
+            QString groupName = groupItem->text();
+            logMessage(QString("[Info] Añadiendo '%1' al grupo '%2'...").arg(objectName).arg(groupName));
+
+            if (dbManager->addObjectToGroup(objectId, groupName.toStdString()))
+            {
+                successCount++;
+            } else {
+                failCount++;
+                logMessage(QString("[Error] No se pudo añadir '%1' al grupo '%2'.").arg(objectName).arg(groupName));
+            }
+        }
+    }
+
+    // 4. Informar al usuario y refrescar
+    logMessage(QString("--- Resumen de asignación: %1 éxito(s), %2 fallo(s). ---").arg(successCount).arg(failCount));
+
+    if (successCount > 0) {
+        QString msg = QString("Se realizaron %1 asignaciones con éxito.").arg(successCount);
+        if (failCount > 0) {
+            msg += QString("\nHUBO %1 ERRORES. Revisa el log.").arg(failCount);
+            QMessageBox::warning(this, "Resultado Parcial", msg);
+        } else {
+            QMessageBox::information(this, "Éxito", msg);
+        }
+
+        // --- 5. REFRESCAR ---
+        // Simplemente llamamos a la función inteligente. Ella se encargará de todo.
         on_refreshListButton_2_clicked();
+
     } else {
-        logMessage("[Error] No se pudo añadir el objeto al grupo.");
+        QMessageBox::critical(this, "Error", QString("No se pudo realizar ninguna de las %1 asignaciones.").arg(failCount));
     }
 }
 
 /**
  * @brief Slot: Pulsar "Quitar objeto de grupo"
+ * (Versión simplificada: la lógica de refresco la hace on_refreshListButton_2_clicked)
  */
 void MainWindow::on_removeFromGroupButton_clicked()
 {
     if (!dbManager) return;
 
-    // 1. Obtener el grupo seleccionado de la lista (listWidget)
-    QListWidgetItem* groupItem = ui->listWidget->currentItem();
-    if (!groupItem) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona el GRUPO del que quieres quitar el objeto.");
+    // 1. Obtener selecciones
+    QList<QListWidgetItem*> selectedGroups = ui->listWidget->selectedItems();
+    auto selectedRowsIndexes = ui->setsObjectTable->selectionModel()->selectedRows();
+
+    // 2. Validar selecciones
+    if (selectedGroups.isEmpty()) {
+        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un GRUPO del que quieres quitar los objetos.");
         return;
     }
-    QString groupName = groupItem->text();
-
-    // 2. Obtener el objeto seleccionado de la tabla (setsObjectTable)
-    auto selectedRows = ui->setsObjectTable->selectionModel()->selectedRows();
-    if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona el OBJETO de la tabla que quieres modificar.");
+    if (selectedRowsIndexes.isEmpty()) {
+        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un OBJETO de la tabla que quieres modificar.");
         return;
     }
-    int row = selectedRows.first().row();
 
-    // El ID está en la columna 0
-    int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
-    QString objectName = ui->setsObjectTable->item(row, 1)->text(); // Para el log
+    // 3. Ejecutar la acción (Bucle anidado)
+    int successCount = 0;
+    int failCount = 0;
 
-    // 3. Ejecutar la acción
-    logMessage("[Info] Quitando '" + objectName + "' del grupo '" + groupName + "'...");
-    if (dbManager->removeObjectFromGroup(objectId, groupName.toStdString()))
+    for (const QModelIndex& rowIndex : selectedRowsIndexes)
     {
-        logMessage("[OK] Objeto quitado del grupo.");
-        // Refrescar la tabla para ver el cambio
+        int row = rowIndex.row();
+        int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
+        QString objectName = ui->setsObjectTable->item(row, 1)->text();
+
+        for (QListWidgetItem* groupItem : selectedGroups)
+        {
+            QString groupName = groupItem->text();
+            logMessage(QString("[Info] Quitando '%1' del grupo '%2'...").arg(objectName).arg(groupName));
+
+            if (dbManager->removeObjectFromGroup(objectId, groupName.toStdString()))
+            {
+                successCount++;
+            } else {
+                failCount++;
+                logMessage(QString("[Error] No se pudo quitar '%1' del grupo '%2'.").arg(objectName).arg(groupName));
+            }
+        }
+    }
+
+    // 4. Informar al usuario y refrescar
+    logMessage(QString("--- Resumen de eliminación: %1 éxito(s), %2 fallo(s). ---").arg(successCount).arg(failCount));
+
+    if (successCount > 0) {
+        QString msg = QString("Se realizaron %1 eliminaciones de grupo con éxito.").arg(successCount);
+        if (failCount > 0) {
+            msg += QString("\nHUBO %1 ERRORES. Revisa el log.").arg(failCount);
+            QMessageBox::warning(this, "Resultado Parcial", msg);
+        } else {
+            QMessageBox::information(this, "Éxito", msg);
+        }
+
+        // --- 5. REFRESCAR ---
         on_refreshListButton_2_clicked();
+
     } else {
-        logMessage("[Error] No se pudo quitar el objeto del grupo.");
+        QMessageBox::critical(this, "Error", QString("No se pudo realizar ninguna de las %1 eliminaciones.").arg(failCount));
     }
 }
