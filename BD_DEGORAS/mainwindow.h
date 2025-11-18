@@ -8,6 +8,8 @@
 #include <QClipboard> // Para el portapapeles
 #include <QMenu>      // Para el menú contextual
 
+#include "gridfsimagemanager.h"
+
 // Declaraciones anticipadas (Forward declaration)
 namespace Ui {
 class MainWindow;

@@ -4,8 +4,8 @@
 #include <mongocxx/exception/exception.hpp>
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
-#include <fstream>  // Para leer archivos (ifstream)
-#include <sstream>  // Para pasar los datos a un string (stringstream)
+#include <fstream>
+#include <sstream>
 
 #include <bsoncxx/builder/basic/array.hpp>
 #include <set>
@@ -15,11 +15,9 @@ SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std
     : _client(mongocxx::uri{uri_str}),
     _db(_client[db_name]),
     _collection(_db[col_name]),
-    // --- Lógica de 'name' ---
-    _gridfsBucket(_db.gridfs_bucket()),
-    _gridfsFilesCollection(_db["fs.files"]),
+    // IMPORTANTE: Elimina _gridfsBucket y _gridfsFilesCollection si estaban aquí.
     _groupsCollection(_db["groups"]),
-    _imageManager(_db)
+    _imageManager(_db) // Asegúrate de que este miembro se inicialice al final.
 {
     try {
         _db.run_command(bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("ping", 1)));
@@ -63,7 +61,7 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByName(const std::string& nam
     }
 }
 
-// --- ¡NUEVA IMPLEMENTACIÓN! ---
+// --- GET POR PICTURE ---
 nlohmann::json SpaceObjectDBManager::getSpaceObjectByPicture(const std::string& picName)
 {
     try {
@@ -78,10 +76,10 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByPicture(const std::string& 
 }
 
 
-// --- CREAR OBJETO (¡VERSIÓN MODIFICADA CON LÓGICA DE GRUPOS!) ---
+// --- CREAR OBJETO (LÓGICA DELEGADA A _imageManager) ---
 bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath)
 {
-    // --- Comprobación 1: _id (Sin cambios) ---
+    // --- Comprobación 1 & 2: _id y Name OMITIDAS (Mismo código) ---
     if (!objectData.contains("_id")) {
         std::cerr << "[Error] El JSON para crear no contiene el campo '_id'." << std::endl;
         return false;
@@ -92,8 +90,6 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
         std::cerr << "[Error] Ya existe un documento con _id: " << id << std::endl;
         return false;
     }
-
-    // --- Comprobación 2: Name (Sin cambios) ---
     if (!objectData.contains("Name")) {
         std::cerr << "[Error] El JSON para crear no contiene el campo 'Name'." << std::endl;
         return false;
@@ -109,7 +105,8 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
         return false;
     }
 
-    // --- ¡NUEVA Comprobación 3: Picture (Lógica mejorada)! ---
+
+    // --- Comprobación 3: Picture (Lógica mejorada)! ---
     std::string picName = "";
     if (objectData.contains("Picture")) {
         picName = objectData["Picture"];
@@ -148,16 +145,14 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             return false;
         }
 
-        // 4. Intentar la subida a GridFS
-        if (!uploadImage(picName, imageData)) {
+        // 🚨 CORRECCIÓN 1: Llamar al manager en lugar del método local
+        if (!_imageManager.uploadImage(picName, imageData)) {
             std::cerr << "[Error] La validación fue OK, pero falló la subida a GridFS." << std::endl;
             return false; // Falla subida. NO se inserta el documento.
         }
     }
 
-    // --- ¡NUEVA Comprobación 4: Grupos! ---
-    // Antes de insertar el objeto, nos aseguramos de que los grupos
-    // que trae en su array "Groups" estén registrados en la _groupsCollection.
+    // --- Comprobación 4: Grupos OMITIDA (Mismo código) ---
     if (objectData.contains("Groups") && objectData["Groups"].is_array())
     {
         using bsoncxx::builder::basic::kvp;
@@ -171,7 +166,6 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
                 if (groupNameJson.is_string()) {
                     std::string groupName = groupNameJson.get<std::string>();
                     if (!groupName.empty()) {
-                        // "Upsert": si no existe, lo crea.
                         auto filter = make_document(kvp("name", groupName));
                         auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", groupName))));
 
@@ -197,13 +191,14 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
         // ¡MANEJO DE ERROR!
         if (!picName.empty()) {
             std::cerr << "[Info] Deshaciendo... eliminando archivo de GridFS: " << picName << std::endl;
-            deleteImageByName(picName); // Llama a tu función de borrado
+            // 🚨 CORRECCIÓN 2: Llamar al manager en el rollback
+            _imageManager.deleteImageByName(picName);
         }
         return false;
     }
 }
 
-// --- BORRAR POR ID ---
+// --- BORRAR POR ID (Mismo código) ---
 bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)
 {
     try {
@@ -217,7 +212,7 @@ bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)
     }
 }
 
-// --- GET ALL ---
+// --- GET ALL (Mismo código) ---
 std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects()
 {
     std::vector<nlohmann::json> allObjects;
@@ -236,41 +231,23 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects()
 }
 
 
-// --- MÉTODOS DE GRIDFS DELEGADOS ---
-
-// bool SpaceObjectDBManager::uploadImage(const std::string& nameInDB, const std::string& imageData) {
-//     return _imageManager.uploadImage(nameInDB, imageData);
-// }
-
-// std::string SpaceObjectDBManager::downloadImageByName(const std::string& nameInDB) {
-//     return _imageManager.downloadImageByName(nameInDB);
-// }
-
-// bool SpaceObjectDBManager::deleteImageByName(const std::string& nameInDB) {
-//     return _imageManager.deleteImageByName(nameInDB);
-// }
+// --- MÉTODOS DE GRIDFS DELEGADOS (DEBES BORRARLOS) ---
+// Comentaste esta sección, ¡asegúrate de que esté completamente eliminada!
+// Si la dejas comentada, no causa el error, pero la limpieza es total.
 
 
 // =================================================================
-// --- ¡NUEVO! MÉTODOS DE GRUPOS ---
+// --- ¡NUEVO! MÉTODOS DE GRUPOS (Mismo código) ---
 // =================================================================
 
-/**
- * @brief Obtiene la lista maestra de todos los nombres de grupos únicos
- * desde la colección 'groups'.
- */
 std::set<std::string> SpaceObjectDBManager::getAllUniqueGroupNames()
 {
     std::set<std::string> groups;
     try {
         mongocxx::cursor cursor = _groupsCollection.find({});
-
         for (bsoncxx::document::view doc : cursor) {
-
-            // 1. CAMBIO: Comprobar que "name" existe y es del tipo k_string
             if (doc["name"] && doc["name"].type() == bsoncxx::type::k_string)
             {
-                // 2. CAMBIO: Usar get_string() y construir un std::string desde el string_view
                 std::string_view name_view = doc["name"].get_string().value;
                 groups.insert(std::string(name_view));
             }
@@ -280,17 +257,11 @@ std::set<std::string> SpaceObjectDBManager::getAllUniqueGroupNames()
     }
     return groups;
 }
-/**
- * @brief Obtiene todos los objetos que pertenecen a CUALQUIERA de los grupos
- * de la lista.
- */
+
 std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsByGroups(const std::set<std::string>& groupNames)
 {
     std::vector<nlohmann::json> objects;
-
-    if (groupNames.empty()) {
-        return objects;
-    }
+    if (groupNames.empty()) return objects;
 
     using bsoncxx::builder::basic::kvp;
     using bsoncxx::builder::basic::make_document;
@@ -315,10 +286,6 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsByGroups(const 
 }
 
 
-/**
- * @brief Añade un tag de grupo a un space_object Y
- * asegura que el grupo exista en la colección 'groups'.
- */
 bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string& groupName)
 {
     if (groupName.empty()) {
@@ -330,14 +297,12 @@ bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string&
     using bsoncxx::builder::basic::make_document;
 
     try {
-        // 1. Asegurar que el grupo exista en la colección 'groups' (Upsert)
         mongocxx::options::update upsert_options;
         upsert_options.upsert(true);
         auto group_filter = make_document(kvp("name", groupName));
         auto group_update = make_document(kvp("$setOnInsert", make_document(kvp("name", groupName))));
         _groupsCollection.update_one(group_filter.view(), group_update.view(), upsert_options);
 
-        // 2. Añadir el grupo al array del objeto (usando $addToSet)
         auto obj_filter = make_document(kvp("_id", bsoncxx::types::b_int64{objectId}));
         auto obj_update = make_document(kvp("$addToSet", make_document(kvp("Groups", groupName))));
 
@@ -357,16 +322,12 @@ bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string&
 }
 
 
-/**
- * @brief Quita un tag de grupo de un space_object.
- */
 bool SpaceObjectDBManager::removeObjectFromGroup(int64_t objectId, const std::string& groupName)
 {
     using bsoncxx::builder::basic::kvp;
     using bsoncxx::builder::basic::make_document;
 
     try {
-        // 1. Quitar el grupo del array del objeto (usando $pull)
         auto obj_filter = make_document(kvp("_id", bsoncxx::types::b_int64{objectId}));
         auto obj_update = make_document(kvp("$pull", make_document(kvp("Groups", groupName))));
 
@@ -396,14 +357,12 @@ bool SpaceObjectDBManager::crearGrupo(const std::string& groupName)
     }
 
     try {
-        // 1. Verificar si ya existe
         auto filter = make_document(kvp("name", groupName));
         if (_groupsCollection.find_one(filter.view())) {
             std::cerr << "[Info] El grupo '" << groupName << "' ya existe." << std::endl;
             return false;
         }
 
-        // 2. Si no existe, crearlo
         auto doc = make_document(kvp("name", groupName));
         auto result = _groupsCollection.insert_one(doc.view());
         return result.has_value();
@@ -420,17 +379,13 @@ bool SpaceObjectDBManager::eliminarGrupo(const std::string& groupName)
     using bsoncxx::builder::basic::make_document;
 
     try {
-        // 1. Eliminar el grupo de la colección 'groups'
         auto filter_group = make_document(kvp("name", groupName));
         auto result_group = _groupsCollection.delete_one(filter_group.view());
 
         if (!result_group || result_group->deleted_count() == 0) {
             std::cerr << "[Info] No se encontró el grupo '" << groupName << "' para eliminar." << std::endl;
-            // Continuamos igualmente para limpiar referencias en objetos
         }
 
-        // 2. ¡IMPORTANTE! Eliminar el nombre del grupo del array "Groups"
-        //    en TODOS los documentos de la colección principal ('_collection')
         auto filter_objects = make_document(kvp("Groups", groupName));
         auto update_objects = make_document(kvp("$pull", make_document(kvp("Groups", groupName))));
 
@@ -444,4 +399,3 @@ bool SpaceObjectDBManager::eliminarGrupo(const std::string& groupName)
         return false;
     }
 }
-

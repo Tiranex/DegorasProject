@@ -182,7 +182,7 @@ void MainWindow::on_mostrarButton_clicked()
         }
 
         logMessage("[Info] Descargando imagen '" + QString::fromStdString(picName) + "' desde GridFS...");
-        std::string imageDataStd = dbManager->downloadImageByName(picName);
+        std::string imageDataStd = dbManager->getImageManager().downloadImageByName(picName);
         if (imageDataStd.empty()) {
             logMessage("[Error Imagen] No se pudo descargar la imagen de GridFS.");
             return;
@@ -328,7 +328,7 @@ void MainWindow::on_eliminarButton_clicked()
 
             if (!picName.empty()) {
                 logMessage("[Info] Eliminando imagen asociada '" + QString::fromStdString(picName) + "' de GridFS...");
-                if (dbManager->deleteImageByName(picName)) {
+                if (dbManager->getImageManager().deleteImageByName(picName)) {
                     logMessage("[OK] Imagen de GridFS eliminada.");
                 } else {
                     logMessage("[Warn] No se pudo eliminar la imagen de GridFS.");

@@ -42,23 +42,7 @@ public:
 
     // --- MÉTODOS DE GRIDFS (basados en 'name') ---
 
-    /**
-     * @brief Sube datos binarios a GridFS.
-     * @return true si la subida fue exitosa, false en caso contrario.
-     */
-    bool uploadImage(const std::string& nameInDB, const std::string& imageData);
-
-    /**
-     * @brief Descarga datos binarios desde GridFS usando su nombre.
-     * @return Un std::string con los datos binarios.
-     */
-    std::string downloadImageByName(const std::string& nameInDB);
-
-    /**
-     * @brief Borra un archivo de GridFS por su nombre.
-     * @return true si el borrado fue exitoso, false en caso contrario.
-     */
-    bool deleteImageByName(const std::string& nameInDB);
+    GridFSImageManager& getImageManager() { return _imageManager; }
 
 
     // =================================================================

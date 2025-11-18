@@ -90,6 +90,7 @@ set(PROJECT_SOURCES
     SpaceObjectDBManager.h  # Reutilizado
     SpaceObjectDBManager.cpp  # Reutilizado
     json_helpers.h          # Reutilizado
+    json_helpers.cpp
     gridfsimagemanager.h
     gridfsimagemanager.cpp
 )
@@ -97,6 +98,7 @@ set(PROJECT_SOURCES
 # Define the main executable target.
 add_executable(App_SpaceObjectManager
     ${PROJECT_SOURCES}
+
 
 )
 
