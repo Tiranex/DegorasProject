@@ -10,6 +10,11 @@
 #include <vector>
 #include <set>
 
+
+// Modulos
+#include "gridfsimagemanager.h"
+
+
 class SpaceObjectDBManager {
 public:
     SpaceObjectDBManager(const std::string& uri_str, const std::string& db_name, const std::string& col_name);
@@ -110,4 +115,5 @@ private:
     mongocxx::collection _gridfsFilesCollection; // Para buscar en 'fs.files'
 
     mongocxx::collection _groupsCollection; // Colección "groups"
+    GridFSImageManager _imageManager;
 };

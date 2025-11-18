@@ -18,7 +18,8 @@ SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std
     // --- Lógica de 'name' ---
     _gridfsBucket(_db.gridfs_bucket()),
     _gridfsFilesCollection(_db["fs.files"]),
-    _groupsCollection(_db["groups"])
+    _groupsCollection(_db["groups"]),
+    _imageManager(_db)
 {
     try {
         _db.run_command(bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("ping", 1)));
@@ -235,84 +236,19 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects()
 }
 
 
-// --- MÉTODOS DE GRIDFS (Lógica de 'name') ---
+// --- MÉTODOS DE GRIDFS DELEGADOS ---
 
-bool SpaceObjectDBManager::uploadImage(const std::string& nameInDB, const std::string& imageData)
-{
-    try {
-        auto uploader = _gridfsBucket.open_upload_stream(nameInDB);
-        uploader.write(
-            reinterpret_cast<const std::uint8_t*>(imageData.data()),
-            imageData.length()
-            );
-        uploader.close();
-        std::cout << "[Info] Imagen subida exitosamente a GridFS: " << nameInDB << std::endl;
-        return true;
-    } catch (const mongocxx::exception &e) {
-        std::cerr << "[Error] Falla en uploadImage: " << e.what() << std::endl;
-        return false;
-    }
-}
+// bool SpaceObjectDBManager::uploadImage(const std::string& nameInDB, const std::string& imageData) {
+//     return _imageManager.uploadImage(nameInDB, imageData);
+// }
 
-std::string SpaceObjectDBManager::downloadImageByName(const std::string& nameInDB)
-{
-    try {
-        // --- Lógica de búsqueda manual ---
-        bsoncxx::builder::basic::document filter{};
-        filter.append(bsoncxx::builder::basic::kvp("filename", nameInDB));
-        auto result = _gridfsFilesCollection.find_one(filter.view());
+// std::string SpaceObjectDBManager::downloadImageByName(const std::string& nameInDB) {
+//     return _imageManager.downloadImageByName(nameInDB);
+// }
 
-        if (!result) {
-            std::cerr << "[Info] No se encontró el archivo en fs.files: " << nameInDB << std::endl;
-            return std::string{};
-        }
-
-        bsoncxx::document::view file_view = result->view();
-
-        if (file_view["_id"].type() == bsoncxx::type::k_undefined ||
-            file_view["length"].type() == bsoncxx::type::k_undefined) {
-            std::cerr << "[Error] El archivo en fs.files no tiene _id o length." << std::endl;
-            return std::string{};
-        }
-
-        auto file_id = file_view["_id"].get_value();
-        auto fileSize = file_view["length"].get_int64().value;
-
-        auto downloader = _gridfsBucket.open_download_stream(file_id);
-        std::string imageData;
-        imageData.resize(fileSize);
-        downloader.read(reinterpret_cast<std::uint8_t*>(&imageData[0]), fileSize);
-
-        std::cout << "[Info] Imagen descargada exitosamente de GridFS: " << nameInDB << std::endl;
-        return imageData;
-    } catch (const mongocxx::exception &e) {
-        std::cerr << "[Error] Falla en downloadImageByName: " << e.what() << std::endl;
-        return std::string{};
-    }
-}
-
-bool SpaceObjectDBManager::deleteImageByName(const std::string& nameInDB)
-{
-    try {
-        // --- Lógica de búsqueda manual ---
-        bsoncxx::builder::basic::document filter{};
-        filter.append(bsoncxx::builder::basic::kvp("filename", nameInDB));
-        auto result = _gridfsFilesCollection.find_one(filter.view());
-
-        if (!result) {
-            std::cerr << "[Info] No se encontró el archivo para borrar: " << nameInDB << std::endl;
-            return false; // No es un error, solo no se encontró
-        }
-
-        auto file_id = result->view()["_id"].get_value();
-        _gridfsBucket.delete_file(file_id);
-        std::cout << "[Info] Imagen borrada exitosamente de GridFS: " << nameInDB << std::endl;
-        return true;
-    } catch (const mongocxx::exception &e) {
-        std::cerr << "[Error] Falla en deleteImageByName: " << e.what() << std::endl;
-        return false;
-    }
-}
+// bool SpaceObjectDBManager::deleteImageByName(const std::string& nameInDB) {
+//     return _imageManager.deleteImageByName(nameInDB);
+// }
 
 
 // =================================================================
