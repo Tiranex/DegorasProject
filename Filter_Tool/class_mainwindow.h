@@ -31,6 +31,8 @@ private slots:
     void on_actionLoad_triggered();
     void on_actionSave_triggered();
     void on_actionDiscard_triggered();
+    // adición MARIO: cargar fichero CPF
+    void on_pb_loadCPF_clicked();
     
     // Custom slots for plot interactions
     void onPlotSelectionChanged();
@@ -48,6 +50,9 @@ private slots:
     void onFilterSaved();
 
 
+
+
+
 private:
     void setupConnections();
     void loadTrackingData(const QString& filePath);
@@ -60,5 +65,7 @@ private:
     Ui::MainWindow *ui;
     TrackingData* m_trackingData;
     QString m_currentFilePath;
+    // adición MARIO: variable para guardar la ruta
+    QString m_cpfPath;
     bool m_isChanged;
 };

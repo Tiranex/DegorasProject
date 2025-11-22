@@ -3,6 +3,7 @@
 #include "tracking_data.h"
 #include "plot.h"
 #include "errorplot.h"
+#include "cpf.h"
 
 #include <LibDegorasSLR/ILRS/algorithms/statistics.h>
 #include <QFileDialog>
@@ -399,8 +400,80 @@ void MainWindow::on_pb_calcStats_clicked()
     DegorasInformation::showInfo("Filter Tool", "Statistics calculation successful.", "", this);
 }
 
+
+// adición MARIO: funcionamiento botón cargar CPF
+void MainWindow::on_pb_loadCPF_clicked()
+{
+    QString path = QFileDialog::getOpenFileName(this,
+                                                "Select CPF File",
+                                                QDir::homePath(),
+                                                "CPF Files (*.cpf *.npt);;All Files (*)");
+
+    if (!path.isEmpty()) {
+        m_cpfPath = path;               // Guardamos la ruta en la variable de clase
+        ui->le_cpfPath->setText(path);  // Mostramos la ruta en el cuadro de texto visual
+
+        // Habilitamos el botón de recalcular ahora que tenemos un archivo
+        ui->pb_recalculate->setEnabled(true);
+    }
+}
+
+
+// adición MARIO: funcionamiento botón recalcular una vez cargado el CPF (esta función estaba pero vacía)
 void MainWindow::on_pb_recalculate_clicked()
 {
+
+    /*
+    // 1. Validaciones de seguridad
+    if (!m_trackingData) return;
+
+    // Si el usuario escribió la ruta a mano en vez de usar el botón Load, la cogemos del texto
+    if (m_cpfPath.isEmpty()) {
+        m_cpfPath = ui->le_cpfPath->text();
+    }
+
+    if (m_cpfPath.isEmpty()) {
+        QMessageBox::warning(this, "Warning", "Please load a CPF file first.");
+        return;
+    }
+
+    // 2. Cargar el objeto CPF
+    CPF newPrediction;
+    if (!newPrediction.load(m_cpfPath)) {
+        QMessageBox::critical(this, "Error", "Could not parse the CPF file.");
+        return;
+    }
+
+    // 3. Procesamiento (Iterar sobre TODOS los datos, incluso el ruido)
+    // Usamos un ProgressDialog por si son muchos datos
+    QProgressDialog progress("Recalculating Residuals...", "Abort", 0, m_trackingData->listAll().size(), this);
+    progress.setWindowModality(Qt::WindowModal);
+
+    int counter = 0;
+    for (TrackingData::Echo* echo : m_trackingData->listAll()) {
+        if (progress.wasCanceled()) break;
+
+        // A. Calcular el TOF teórico con el nuevo CPF
+        // Pasamos el MJD y el tiempo en nanosegundos del disparo
+        long long predicted_ps = newPrediction.calculateTwoWayTOF(echo->mjd, echo->time);
+
+        // B. IMPORTANTE: Actualizar el residuo
+        // Residuo = Observado (Hardware) - Calculado (CPF)
+        // echo->flight_time es el valor crudo del láser.
+        echo->difference = echo->flight_time - predicted_ps;
+
+        counter++;
+        if (counter % 100 == 0) progress.setValue(counter);
+    }
+    progress.setValue(m_trackingData->listAll().size());
+
+    // 4. Actualizar la interfaz gráfica
+    updatePlots();      // Redibuja los puntos verdes con las nuevas alturas Y
+    onFilterChanged();  // Marca que hay cambios sin guardar
+
+    // Informar al usuario
+    ui->lbl_sessionID->setText("Recalculated with: " + QFileInfo(m_cpfPath).fileName());
+    */
 }
 
 
@@ -433,3 +506,8 @@ void MainWindow::syncPanFromHistogramPlot()
     ui->filterPlot->setAxisScale(QwtPlot::Axis::xBottom, interval.minValue(), interval.maxValue());
     ui->filterPlot->replot();
 }
+
+
+
+
+
