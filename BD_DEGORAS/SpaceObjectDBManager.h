@@ -31,8 +31,15 @@ public:
      */
     nlohmann::json getSpaceObjectByPicture(const std::string& picName);
 
-    bool createSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath);
+    bool createSpaceObject(const nlohmann::json& objectData,
+                           const std::string& localPicturePath,
+                           std::string& errorMsg);
+
+    bool updateSpaceObject(const nlohmann::json& objectData,
+                           const std::string& localPicturePath,
+                           std::string& errorMsg);
     bool deleteSpaceObjectById(int64_t id);
+
 
     /**
      * @brief (¡NUEVO!) Obtiene *todos* los SpaceObjects de la colección.

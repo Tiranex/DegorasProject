@@ -76,127 +76,341 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByPicture(const std::string& 
 }
 
 
-// --- CREAR OBJETO (LÓGICA DELEGADA A _imageManager) ---
-bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath)
+// En SpaceObjectDBManager.cpp
+
+bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg)
 {
-    // --- Comprobación 1 & 2: _id y Name OMITIDAS (Mismo código) ---
-    if (!objectData.contains("_id")) {
-        std::cerr << "[Error] El JSON para crear no contiene el campo '_id'." << std::endl;
-        return false;
-    }
-    int64_t id = objectData["_id"];
-    nlohmann::json existing_id = getSpaceObjectById(id);
-    if (!existing_id.empty() && !existing_id.is_null()) {
-        std::cerr << "[Error] Ya existe un documento con _id: " << id << std::endl;
-        return false;
-    }
-    if (!objectData.contains("Name")) {
-        std::cerr << "[Error] El JSON para crear no contiene el campo 'Name'." << std::endl;
-        return false;
-    }
-    std::string name = objectData["Name"];
-    if (name.empty()) {
-        std::cerr << "[Error] El campo 'Name' no puede estar vacío." << std::endl;
-        return false;
-    }
-    nlohmann::json existing_name = getSpaceObjectByName(name);
-    if (!existing_name.empty() && !existing_name.is_null()) {
-        std::cerr << "[Error] Ya existe un documento con Name: " << name << std::endl;
-        return false;
-    }
-
-
-    // --- Comprobación 3: Picture (Lógica mejorada)! ---
-    std::string picName = "";
-    if (objectData.contains("Picture")) {
-        picName = objectData["Picture"];
-    }
-
-    // Solo validamos y subimos si picName NO está vacío
-    if (!picName.empty()) {
-
-        // 1. VALIDAR UNICIDAD
-        nlohmann::json existing_pic = getSpaceObjectByPicture(picName);
-        if (!existing_pic.empty() && !existing_pic.is_null()) {
-            std::cerr << "[Error] Ya existe un documento con Picture: " << picName << std::endl;
-            return false; // Falla validación. NO se sube nada.
-        }
-
-        // 2. VALIDACIÓN OK. AHORA, PROCEDER A SUBIR.
-        if (localPicturePath.empty()) {
-            std::cerr << "[Error] El nombre de imagen es '" << picName << "' pero no se seleccionó ningún archivo (ruta local vacía)." << std::endl;
-            return false;
-        }
-
-        // 3. Leer el archivo desde la ruta local
-        std::ifstream file(localPicturePath, std::ios::binary);
-        if (!file.is_open()) {
-            std::cerr << "[Error] No se pudo abrir el archivo local: " << localPicturePath << std::endl;
-            return false;
-        }
-
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        std::string imageData = buffer.str();
-        file.close();
-
-        if (imageData.empty()) {
-            std::cerr << "[Error] El archivo local estaba vacío o no se pudo leer: " << localPicturePath << std::endl;
-            return false;
-        }
-
-        // 🚨 CORRECCIÓN 1: Llamar al manager en lugar del método local
-        if (!_imageManager.uploadImage(picName, imageData)) {
-            std::cerr << "[Error] La validación fue OK, pero falló la subida a GridFS." << std::endl;
-            return false; // Falla subida. NO se inserta el documento.
-        }
-    }
-
-    // --- Comprobación 4: Grupos OMITIDA (Mismo código) ---
-    if (objectData.contains("Groups") && objectData["Groups"].is_array())
-    {
+    // --- SEGURIDAD ANTI-CRASH ---
+    // Envolvemos todo en un try-catch para evitar que el programa se cierre
+    // si intentamos leer un null como string.
+    try {
         using bsoncxx::builder::basic::kvp;
         using bsoncxx::builder::basic::make_document;
 
-        mongocxx::options::update upsert_options;
-        upsert_options.upsert(true);
+        errorMsg = "";
 
-        try {
+        // --- 1. VALIDACIÓN: _id y Name ---
+        if (!objectData.contains("_id") || objectData["_id"].is_null()) {
+            errorMsg = "Error: El campo '_id' (NORAD) es obligatorio y no puede ser nulo.";
+            return false;
+        }
+        int64_t id = objectData["_id"];
+
+        nlohmann::json existing_id = getSpaceObjectById(id);
+        if (!existing_id.empty() && !existing_id.is_null()) {
+            errorMsg = "Ya existe un objeto con el NORAD (_id): " + std::to_string(id);
+            return false;
+        }
+
+        if (!objectData.contains("Name") || objectData["Name"].is_null()) {
+            errorMsg = "Error: El campo 'Name' es obligatorio.";
+            return false;
+        }
+        std::string name = objectData["Name"];
+        if (name.empty()) {
+            errorMsg = "Error: El campo 'Name' no puede estar vacío.";
+            return false;
+        }
+
+        nlohmann::json existing_name = getSpaceObjectByName(name);
+        if (!existing_name.empty() && !existing_name.is_null()) {
+            errorMsg = "Ya existe un objeto con el Nombre: " + name;
+            return false;
+        }
+
+        // --- 2. VALIDACIONES DE UNICIDAD (Alias, COSPAR, ILRS, SIC) ---
+
+        // Alias (Abbreviation)
+        if (objectData.contains("Abbreviation") && !objectData["Abbreviation"].is_null()) {
+            std::string val = objectData["Abbreviation"];
+            auto filter = make_document(kvp("Abbreviation", val));
+            if (_collection.count_documents(filter.view()) > 0) {
+                errorMsg = "Ya existe un objeto con el Alias: " + val;
+                return false;
+            }
+        }
+
+        // COSPAR (Obligatorio y Único)
+        if (!objectData.contains("COSPAR") || objectData["COSPAR"].is_null()) {
+            errorMsg = "Error: El campo COSPAR es obligatorio.";
+            return false;
+        }
+        std::string cosparVal = objectData["COSPAR"];
+        if(cosparVal.empty()) {
+            errorMsg = "Error: El COSPAR no puede estar vacío.";
+            return false;
+        }
+        auto filterCospar = make_document(kvp("COSPAR", cosparVal));
+        if (_collection.count_documents(filterCospar.view()) > 0) {
+            errorMsg = "Ya existe un objeto con el COSPAR: " + cosparVal;
+            return false;
+        }
+
+        // ILRSID (Opcional pero Único si existe)
+        if (objectData.contains("ILRSID") && !objectData["ILRSID"].is_null()) {
+            std::string val = objectData["ILRSID"];
+            if (!val.empty()) { // Solo chequeamos si tiene texto
+                auto filter = make_document(kvp("ILRSID", val));
+                if (_collection.count_documents(filter.view()) > 0) {
+                    errorMsg = "Ya existe un objeto con el ILRS ID: " + val;
+                    return false;
+                }
+            }
+        }
+
+        // SIC (Opcional pero Único si existe)
+        if (objectData.contains("SIC") && !objectData["SIC"].is_null()) {
+            std::string val = objectData["SIC"];
+            if (!val.empty()) {
+                auto filter = make_document(kvp("SIC", val));
+                if (_collection.count_documents(filter.view()) > 0) {
+                    errorMsg = "Ya existe un objeto con el SIC: " + val;
+                    return false;
+                }
+            }
+        }
+
+        // --- 3. GESTIÓN DE IMAGEN (AQUÍ SOLÍA ESTAR EL CRASH) ---
+        std::string picName = "";
+
+        // ¡FIX!: Comprobamos !is_null() antes de asignar
+        if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
+            picName = objectData["Picture"];
+        }
+
+        if (!picName.empty()) {
+            // A. Unicidad
+            nlohmann::json existing_pic = getSpaceObjectByPicture(picName);
+            if (!existing_pic.empty() && !existing_pic.is_null()) {
+                errorMsg = "Ya existe un objeto usando la imagen: " + picName;
+                return false;
+            }
+            // B. Ruta local
+            if (localPicturePath.empty()) {
+                errorMsg = "Se especificó nombre de imagen pero no se seleccionó archivo.";
+                return false;
+            }
+            // C. Leer archivo
+            std::ifstream file(localPicturePath, std::ios::binary);
+            if (!file.is_open()) {
+                errorMsg = "No se pudo leer el archivo de imagen local.";
+                return false;
+            }
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            std::string imageData = buffer.str();
+            file.close();
+
+            // D. Subir
+            if (!_imageManager.uploadImage(picName, imageData)) {
+                errorMsg = "Falló la subida de la imagen a GridFS.";
+                return false;
+            }
+        }
+
+        // --- 4. GRUPOS (Upsert) ---
+        if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array()) {
+            mongocxx::options::update upsert_options;
+            upsert_options.upsert(true);
             for (const auto& groupNameJson : objectData["Groups"]) {
                 if (groupNameJson.is_string()) {
-                    std::string groupName = groupNameJson.get<std::string>();
-                    if (!groupName.empty()) {
-                        auto filter = make_document(kvp("name", groupName));
-                        auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", groupName))));
-
-                        _groupsCollection.update_one(filter.view(), update.view(), upsert_options);
+                    std::string gName = groupNameJson.get<std::string>();
+                    if(!gName.empty()){
+                        try {
+                            auto filter = make_document(kvp("name", gName));
+                            auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", gName))));
+                            _groupsCollection.update_one(filter.view(), update.view(), upsert_options);
+                        } catch(...) {}
                     }
                 }
             }
-        } catch (const mongocxx::exception& ex) {
-            std::cerr << "[Error] Falla al hacer upsert de grupos en _groupsCollection: " << ex.what() << std::endl;
         }
-    }
-    // --- Fin de la Comprobación 4 ---
 
-
-    // --- 5. INSERCIÓN FINAL DEL DOCUMENTO (como antes) ---
-    try {
+        // --- 5. INSERCIÓN FINAL ---
         bsoncxx::document::value bdoc = njsonToBsoncxx(objectData);
         auto result = _collection.insert_one(bdoc.view());
-        return result.has_value(); // Devuelve true si la inserción tuvo resultado
-    } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en createSpaceObject (insert_one): " << ex.what() << std::endl;
+        return result.has_value();
 
-        // ¡MANEJO DE ERROR!
-        if (!picName.empty()) {
-            std::cerr << "[Info] Deshaciendo... eliminando archivo de GridFS: " << picName << std::endl;
-            // 🚨 CORRECCIÓN 2: Llamar al manager en el rollback
-            _imageManager.deleteImageByName(picName);
-        }
+    }
+    catch (const nlohmann::json::exception& e) {
+        // AQUÍ CAPTURAMOS EL CRASH si intentas leer un null como string
+        errorMsg = "Error de formato JSON (Posible campo nulo no controlado): " + std::string(e.what());
+        std::cerr << "[CRASH EVITADO] " << errorMsg << std::endl;
+        return false;
+    }
+    catch (const mongocxx::exception& ex) {
+        errorMsg = "Error de Base de Datos: " + std::string(ex.what());
+        std::cerr << "[Mongo Error] " << errorMsg << std::endl;
+        return false;
+    }
+    catch (const std::exception& ex) {
+        errorMsg = "Error genérico: " + std::string(ex.what());
         return false;
     }
 }
+
+
+//MODIFICA UN SPACEOBJECT SELECCIONADO
+//MANTIENE LOS DATOS EN LA PESTAÑA EMERGENTE Y LOS MODIFICA
+bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg)
+{
+    try {
+        using bsoncxx::builder::basic::kvp;
+        using bsoncxx::builder::basic::make_document;
+
+        errorMsg = "";
+
+        // 1. OBTENER EL ID (Es la clave para saber a quién actualizar)
+        if (!objectData.contains("_id") || objectData["_id"].is_null()) {
+            errorMsg = "Error interno: El objeto a editar no tiene _id.";
+            return false;
+        }
+        int64_t id = objectData["_id"];
+
+        // Verificar que el objeto existe realmente
+        nlohmann::json existing_obj = getSpaceObjectById(id);
+        if (existing_obj.empty() || existing_obj.is_null()) {
+            errorMsg = "Error: No se encontró el objeto original con _id: " + std::to_string(id);
+            return false;
+        }
+
+        // =================================================================
+        // 2. VALIDACIONES DE UNICIDAD (IGNORANDO AL PROPIO OBJETO)
+        // =================================================================
+        // La lógica es: Busco si alguien tiene ese Nombre/COSPAR...
+        // Si lo encuentro Y su _id NO es el mío -> ERROR (es un duplicado).
+
+        // Helper Lambda para validar unicidad excluyendo self
+        auto checkUniqueExceptSelf = [&](const std::string& field, const std::string& value, const std::string& fieldNameErr) -> bool {
+            auto filter = make_document(
+                kvp(field, value),
+                kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id}))) // $ne = Not Equal
+                );
+            if (_collection.count_documents(filter.view()) > 0) {
+                errorMsg = "Ya existe OTRO objeto con el " + fieldNameErr + ": " + value;
+                return false;
+            }
+            return true;
+        };
+
+        // Validar Name
+        if (!checkUniqueExceptSelf("Name", objectData["Name"], "Nombre")) return false;
+
+        // Validar COSPAR
+        if (!checkUniqueExceptSelf("COSPAR", objectData["COSPAR"], "COSPAR")) return false;
+
+        // Validar Alias (Si existe)
+        if (objectData.contains("Abbreviation") && !objectData["Abbreviation"].is_null()) {
+            if(!checkUniqueExceptSelf("Abbreviation", objectData["Abbreviation"], "Alias")) return false;
+        }
+
+        // Validar ILRSID (Si existe)
+        if (objectData.contains("ILRSID") && !objectData["ILRSID"].is_null()) {
+            std::string val = objectData["ILRSID"];
+            if(!val.empty()) if(!checkUniqueExceptSelf("ILRSID", val, "ILRS ID")) return false;
+        }
+
+        // Validar SIC (Si existe)
+        if (objectData.contains("SIC") && !objectData["SIC"].is_null()) {
+            std::string val = objectData["SIC"];
+            if(!val.empty()) if(!checkUniqueExceptSelf("SIC", val, "SIC")) return false;
+        }
+
+
+        // =================================================================
+        // 3. GESTIÓN DE IMAGEN (GridFS)
+        // =================================================================
+        // Lógica: Si el usuario seleccionó una foto NUEVA (localPicturePath no vacío),
+        // borramos la vieja (si había) y subimos la nueva.
+        // Si no seleccionó foto nueva, mantenemos la referencia actual.
+
+        std::string finalPicName = "";
+        if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
+            finalPicName = objectData["Picture"];
+        }
+
+        if (!localPicturePath.empty()) {
+            // A. El usuario quiere cambiar la foto. Validar nombre nuevo.
+            auto filterPic = make_document(
+                kvp("Picture", finalPicName),
+                kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id})))
+                );
+            if (_collection.count_documents(filterPic.view()) > 0) {
+                errorMsg = "Ya existe otro objeto usando la imagen: " + finalPicName;
+                return false;
+            }
+
+            // B. Borrar foto antigua de GridFS (si tenía una diferente)
+            std::string oldPic = "";
+            if(existing_obj.contains("Picture") && !existing_obj["Picture"].is_null())
+                oldPic = existing_obj["Picture"];
+
+            // Subir nueva
+            std::ifstream file(localPicturePath, std::ios::binary);
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            if (!_imageManager.uploadImage(finalPicName, buffer.str())) {
+                errorMsg = "Error al subir la nueva imagen.";
+                return false;
+            }
+
+            // Si subida OK, borramos la vieja si era distinta
+            if(!oldPic.empty() && oldPic != finalPicName) {
+                _imageManager.deleteImageByName(oldPic);
+            }
+        }
+        else {
+            // No hay foto nueva local. Mantenemos la que viene en el JSON
+            // (que debería ser la misma que ya tenía, a menos que quieras borrarla)
+        }
+
+
+        // =================================================================
+        // 4. ACTUALIZAR GRUPOS (Upsert de nombres en colección groups)
+        // =================================================================
+        if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array()) {
+            mongocxx::options::update upsert_options;
+            upsert_options.upsert(true);
+            for (const auto& groupNameJson : objectData["Groups"]) {
+                if (groupNameJson.is_string()) {
+                    std::string gName = groupNameJson.get<std::string>();
+                    if(!gName.empty()){
+                        try {
+                            auto filter = make_document(kvp("name", gName));
+                            auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", gName))));
+                            _groupsCollection.update_one(filter.view(), update.view(), upsert_options);
+                        } catch(...) {}
+                    }
+                }
+            }
+        }
+
+        // =================================================================
+        // 5. UPDATE FINAL (Reemplazar documento)
+        // =================================================================
+        // Usamos replace_one para sobrescribir todo el documento con los nuevos datos
+        bsoncxx::document::value bdoc = njsonToBsoncxx(objectData);
+
+        auto filter = make_document(kvp("_id", bsoncxx::types::b_int64{id}));
+        auto result = _collection.replace_one(filter.view(), bdoc.view());
+
+        if(result && result->modified_count() >= 0) return true;
+        else {
+            errorMsg = "No se modificó el documento (quizás los datos eran idénticos).";
+            return true; // Consideramos éxito si no hubo error, aunque no cambiara nada
+        }
+
+    } catch (const std::exception& ex) {
+        errorMsg = "Excepción en update: " + std::string(ex.what());
+        return false;
+    }
+}
+
+
+
+
+
+
 
 // --- BORRAR POR ID (Mismo código) ---
 bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)

@@ -98,7 +98,7 @@ set(PROJECT_SOURCES
 # Define the main executable target.
 add_executable(App_SpaceObjectManager
     ${PROJECT_SOURCES}
-
+    addobjectdialog.h addobjectdialog.cpp addobjectdialog.ui
 
 )
 

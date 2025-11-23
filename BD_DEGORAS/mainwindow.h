@@ -7,6 +7,7 @@
 
 #include <QClipboard> // Para el portapapeles
 #include <QMenu>      // Para el menú contextual
+#include <QInputDialog> // <--- IMPORTANTE
 
 #include "gridfsimagemanager.h"
 
@@ -32,7 +33,12 @@ private slots:
     void on_browseButton_clicked();
     void on_refreshListButton_clicked(); // Para la pestaña "Listado"
     void onObjectListTableContextMenuRequested(const QPoint &pos); // Clic derecho en "Listado"
-
+    void onSetsTableContextMenuRequested(const QPoint &pos);
+    void on_deleteObjectSetButton_clicked();
+    void on_showAllObjectsCheckBox_toggled(bool checked);
+    void on_listWidget_itemSelectionChanged();//Set list
+    void on_setsObjectTable_selectionChanged();//Table
+    void on_searchObjectButton_clicked();
     // --- ¡NUEVO! Slots para la Pestaña "Sets" (`tab_3`) ---
 
     /**
@@ -90,6 +96,14 @@ private:
      * @param objects Un vector de JSONs de objetos.
      */
     void populateSetsObjectTable(const std::vector<nlohmann::json>& objects);
+
+
+    /**
+    * @brief Botón "Añadir Nuevo Objeto (Popup)" en la pestaña Sets.
+    */
+    void on_addNewObjectSetButton_clicked();
+
+    void on_editObjectButton_clicked();
 
 
     // --- Miembros (Sin cambios) ---
