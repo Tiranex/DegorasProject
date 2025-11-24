@@ -33,10 +33,8 @@ qt_add_qml_module(appDegorasProject
         class_mainwindow.cpp
         class_mainwindow.h
 RESOURCES form_mainwindow.ui
-SOURCES class_mainwindow.cpp class_mainwindow.h errorplot.cpp errorplot.h histogramplot.cpp histogramplot.h main.cpp plot.cpp plot.h qwt_slrplot_picker.cpp qwt_slrplot_picker.h tracking_data.cpp tracking_data.h
+SOURCES class_mainwindow.cpp class_mainwindow.h errorplot.cpp errorplot.h main.cpp plot.cpp plot.h qwt_slrplot_picker.cpp qwt_slrplot_picker.h tracking_data.cpp tracking_data.h
 RESOURCES CMakeLists.txt form_mainwindow.ui
-SOURCES cpf_predictor.h
-SOURCES cpf_predictor.cpp
 )
 
 set_target_properties(appDegorasProject PROPERTIES

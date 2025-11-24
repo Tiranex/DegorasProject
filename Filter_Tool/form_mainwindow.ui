@@ -23,16 +23,6 @@
          <string>File Settings</string>
         </property>
         <layout class="QGridLayout" name="gridLayout">
-         <item row="0" column="3">
-          <widget class="QPushButton" name="pb_load">
-           <property name="text">
-            <string>Load</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QLineEdit" name="le_cpfPath"/>
-         </item>
          <item row="0" column="0">
           <widget class="QLabel" name="label_file">
            <property name="text">
@@ -40,48 +30,51 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="3">
-          <widget class="QPushButton" name="pb_recalculate">
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="le_filePath"/>
+         </item>
+         <item row="0" column="2">
+          <widget class="QPushButton" name="pb_load">
            <property name="text">
-            <string>Recalculate</string>
+            <string>Load</string>
            </property>
           </widget>
          </item>
-         <item row="3" column="1">
-          <widget class="QLabel" name="lbl_sessionID">
-           <property name="font">
-            <font>
-             <bold>true</bold>
-            </font>
-           </property>
-           <property name="text">
-            <string>...</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="label_sessionID">
-           <property name="text">
-            <string>Session ID:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
+         <item row="1" column="0">
           <widget class="QLabel" name="label_cpf">
            <property name="text">
             <string>CPF:</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="2">
-          <widget class="QPushButton" name="pb_loadCPF">
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="le_cpfPath"/>
+         </item>
+         <item row="1" column="2">
+          <widget class="QPushButton" name="pb_recalculate">
            <property name="text">
-            <string>Load CPF</string>
+            <string>Recalculate</string>
            </property>
           </widget>
          </item>
-         <item row="0" column="1" colspan="2">
-          <widget class="QLineEdit" name="le_filePath"/>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_sessionID">
+           <property name="text">
+            <string>Session ID:</string>           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLabel" name="lbl_sessionID">
+           <property name="text">
+            <string>...</string>
+           </property>
+           <property name="font">
+            <font>
+             <weight>75</weight>
+             <bold>true</bold>
+            </font>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>

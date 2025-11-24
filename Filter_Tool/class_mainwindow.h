@@ -4,7 +4,7 @@
 #include <QCloseEvent>
 
 // Forward declarations
-namespace Ui { class MainWindow; }
+namespace Ui { class MainWindow; } // MainWindow from UI, holds the pointers to every element in window and no extra logic
 class TrackingData;
 class Plot;
 class ErrorPlot;
@@ -38,8 +38,6 @@ private slots:
     void on_actionLoad_triggered();
     void on_actionSave_triggered();
     void on_actionDiscard_triggered();
-    // adición MARIO: cargar fichero CPF
-    void on_pb_loadCPF_clicked();
     
     // Custom slots for plot interactions
     void onPlotSelectionChanged();
@@ -76,9 +74,7 @@ private:
     int threshFilter();
 
     Ui::MainWindow *ui;
-    TrackingData* m_trackingData;
+    TrackingData* m_trackingData; // pointer to filepath where point data is
     QString m_currentFilePath;
-    // adición MARIO: variable para guardar la ruta
-    QString m_cpfPath;
     bool m_isChanged;
 };
