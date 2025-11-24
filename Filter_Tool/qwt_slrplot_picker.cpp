@@ -343,3 +343,16 @@ void QwtSLRPlotPicker::drawRubberBand(QPainter *painter) const
     if(pa[0] !=  pa.last())
         painter->drawLine(pa.last(), pa2.last());
 }
+
+void QwtSLRPlotPicker::clearSelection(){
+    // 1. Clear your custom secondary points
+    this->secondary_picked_points.clear();
+    this->secondary_picked_points.resize(0);
+
+    // 2. Reset the base QwtPicker state machine
+    // This sets isActive() to false, which stops drawRubberBand() from drawing
+    QwtPicker::reset();
+
+    // 3. Force the widget to update to remove visual artifacts immediately
+    updateDisplay();
+}

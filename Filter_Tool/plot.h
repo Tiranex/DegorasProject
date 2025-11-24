@@ -21,6 +21,7 @@
 #include <QList>
 #include <QPointF>
 #include <QDateTime>
+#include <QStack>
 
 #include <qwt/qwt_symbol.h>
 #include <qwt/qwt_scale_draw.h>
@@ -39,6 +40,11 @@
 
 class QwtPlotCurve;
 class QwtSymbol;
+
+struct PlotState {
+    QVector<QPointF> candidatePoints; // Data from plot_curve
+    QVector<QPointF> selectedPoints;  // Data from selected_curve
+};
 
 class QwtPsToMScaleDraw: public QwtScaleDraw
 {
@@ -119,6 +125,12 @@ public:
 
 };
 
+enum class PlotMode {
+    Navigation, // Zoom y Pan (comportamiento por defecto)
+    Selection,  // "Keep Inside": Mantiene lo de dentro, borra lo de fuera
+    Deletion    // "Remove Inside": Borra lo de dentro
+};
+
 class Plot : public QwtPlot
 {
     Q_OBJECT
@@ -160,6 +172,17 @@ public:
     void setSamples( const QVector<QPointF> &samples );
     void selectPoints(const QPolygonF& pol);
     void setBinSize(int bin_size);
+    bool undo();
+    bool redo();
+
+    void pushCurrentStateToUndo();
+    // Conecta estos slots a tus botones externos
+    void setNavigationMode();
+    void setSelectionMode();
+    void setDeletionMode();
+
+    // Botón "Deseleccionar / Resetear"
+    void resetSelection();
 
     virtual const QVector<QPointF> getSelectedSamples() const
     {
@@ -209,4 +232,33 @@ protected:
     QwtSLRPlotMagnifier *magnifier;
     QwtSLRPlotPicker *picker;
     int bin_size;
+    QStack<PlotState> m_undoStack;
+    QStack<PlotState> m_redoStack;
+    PlotMode currentMode;
+
+    // Helper to capture current state
+    void applyState(const PlotState& state);
 };
+
+class PlotSync
+{
+    PlotSync(QVector<Plot*>& v);
+    void setSymbol( QwtSymbol * );
+    void setSamples( const QVector<QPointF> &samples );
+    void selectPoints(const QPolygonF& pol);
+    void setBinSize(int bin_size);
+    bool undo();
+    bool redo();
+
+    void pushCurrentStateToUndo();
+    // Conecta estos slots a tus botones externos
+    void setNavigationMode();
+    void setSelectionMode();
+    void setDeletionMode();
+
+    // Botón "Deseleccionar / Resetear"
+    void resetSelection();
+private:
+    QVector<Plot*> reference_plot;
+};
+

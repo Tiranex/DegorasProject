@@ -35,6 +35,7 @@ public:
     // Observadores.
     QwtPlot *plot();
     const QwtPlot *plot() const;
+    void clearSelection();
     inline QWidget *canvas(){return parentWidget();}
     inline const QWidget *canvas() const{return parentWidget();}
     inline void enableSelector(bool flag){this->enable_selector=flag;}

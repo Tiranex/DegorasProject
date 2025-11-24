@@ -3,7 +3,12 @@
 #include "tracking_data.h"
 #include "plot.h"
 #include "errorplot.h"
+<<<<<<< HEAD
 #include "cpf_predictor.h"
+=======
+#include "histogramplot.h"
+#include "cpf.h"
+>>>>>>> bbb9722 (Updated Ui, added Histogram Added Redo/Undo Functionality)
 
 #include <LibDegorasSLR/ILRS/algorithms/statistics.h>
 #include <QFileDialog>
@@ -12,8 +17,13 @@
 #include <QtConcurrent/QtConcurrentRun>
 #include <QFutureWatcher>
 #include <set>
+#include <QFormLayout>
+#include <QSpinBox>
+#include <QDoubleSpinBox>
+
 
 #include <Tracking/trackingfilemanager.h>
+#include <datafilter.h>
 #include <LibDegorasSLR/ILRS/algorithms/data/statistics_data.h>
 
     MainWindow::MainWindow(QWidget *parent) :
@@ -50,12 +60,22 @@ void MainWindow::setupConnections()
 
     connect(ui->filterPlot, &Plot::startedPicking, this, &MainWindow::onPlotPickingStarted);
     connect(ui->filterPlot, &Plot::finishedPicking, this, &MainWindow::onPlotPickingFinished);
-    connect(ui->histogramPlot, &ErrorPlot::startedPicking, this, &MainWindow::onHistogramPickingStarted);
-    connect(ui->histogramPlot, &ErrorPlot::finishedPicking, this, &MainWindow::onHistogramPickingFinished);
+    // connect(ui->histogramPlot, &ErrorPlot::startedPicking, this, &MainWindow::onHistogramPickingStarted);
+    // connect(ui->histogramPlot, &ErrorPlot::finishedPicking, this, &MainWindow::onHistogramPickingFinished);
 
     // Sync panning between the two plots
     connect(ui->filterPlot->getPanner(), &QwtPlotPanner::panned, this, &MainWindow::syncPanFromMainPlot);
     connect(ui->histogramPlot->getPanner(), &QwtPlotPanner::panned, this, &MainWindow::syncPanFromHistogramPlot);
+    connect(ui->actionTreshFilter, &QAction::triggered, this, [this]() {
+        applyFilter(FilterOptions::TreshFilter);
+    });
+    connect(ui->actionMedianFilter, &QAction::triggered, this, [this]() {
+        applyFilter(FilterOptions::MedianFilter);
+    });
+    connect(ui->actionExponentialSmoothing, &QAction::triggered, this, [this]() {
+
+        applyFilter(FilterOptions::ExponentialSmoothing);
+    });
 }
 
 void MainWindow::updateUIState(bool hasData)
@@ -138,6 +158,13 @@ void MainWindow::updatePlots()
     ui->filterPlot->setSamples(all_samples);
     ui->filterPlot->setBinSize(m_trackingData->data.obj_bs);
     ui->histogramPlot->setBinSize(m_trackingData->data.obj_bs);
+    ui->realHistogramPlot->setNumBins(m_trackingData->data.obj_bs);
+
+    QVector<double> errors;
+    for (const auto& p : all_samples) {
+        errors.append(p.y());
+    }
+    ui->realHistogramPlot->setValues(errors);
 
     if(all_samples.size() != selected_samples.size())
         ui->filterPlot->selected_curve->setSamples(selected_samples);
@@ -147,7 +174,20 @@ void MainWindow::updatePlots()
 void MainWindow::onPlotSelectionChanged()
 {
     auto fit_errors = ui->filterPlot->getFitErrors();
+    auto selected = ui->filterPlot->getSelectedSamples();
     ui->histogramPlot->setSamples(fit_errors);
+
+    QVector<double> error_values;
+    for(const auto& p : fit_errors) {
+        error_values.append(p.y());
+    }
+    QVector<double> y_values;
+    for(const auto& p : selected){
+        y_values.push_back(p.y());
+    }
+
+    ui->realHistogramPlot->setValues(y_values);
+
     onFilterChanged();
 }
 
@@ -198,22 +238,78 @@ void MainWindow::onFilterSaved()
     ui->actionSave->setEnabled(false);
 }
 
-void MainWindow::on_pb_autoFilter_clicked()
+void MainWindow::applyFilter(FilterOptions f)
 {
     if (!m_trackingData) return;
+
+
+    int paramWindowSize = 5; // Valor por defecto
+    double paramAlpha = 0.2; // Valor por defecto
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Filter Parameters");
+    QFormLayout form(&dialog);
+
+    QSpinBox* sbWindow = nullptr;
+    QDoubleSpinBox* sbAlpha = nullptr;
+
+
+    if (f == FilterOptions::MedianFilter || f == FilterOptions::MovingAverage) {
+        sbWindow = new QSpinBox(&dialog);
+        sbWindow->setRange(3, 99);
+        sbWindow->setSingleStep(2); // Ventana impar usualmente
+        sbWindow->setValue(5);
+        form.addRow("Window Size (odd):", sbWindow);
+    }
+    else if (f == FilterOptions::ExponentialSmoothing) { // Suponiendo que tienes este
+        sbAlpha = new QDoubleSpinBox(&dialog);
+        sbAlpha->setRange(0.01, 1.0);
+        sbAlpha->setSingleStep(0.05);
+        sbAlpha->setValue(0.2);
+        form.addRow("Smoothing Factor (Alpha):", sbAlpha);
+    }
+
+    QDialogButtonBox buttonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, &dialog);
+    form.addRow(&buttonBox);
+    connect(&buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(&buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    if (sbWindow) paramWindowSize = sbWindow->value();
+    if (sbAlpha) paramAlpha = sbAlpha->value();
 
     ui->gb_tools->setEnabled(false);
     QProgressDialog pd("Autofiltering in progress...", "", 0, 0, this);
     pd.setCancelButton(nullptr);
 
-    auto future = QtConcurrent::run([this] {
-        int i = 0;
-        int changed_count;
-        do {
-            // Qt 6 Update: Using type-safe pointer-to-member-function instead of string-based invocation.
-            QMetaObject::invokeMethod(this, &MainWindow::threshFilter, Qt::BlockingQueuedConnection, &changed_count);
-            i++;
-        } while(changed_count > 0 && i < 20);
+    ui->filterPlot->pushCurrentStateToUndo();
+    ui->histogramPlot->pushCurrentStateToUndo();
+    auto future = QtConcurrent::run([this, f, paramWindowSize, paramAlpha] {
+        if(f == FilterOptions::TreshFilter){
+            int i = 0;
+            int changed_count;
+            do {
+                QMetaObject::invokeMethod(this, &MainWindow::threshFilter, Qt::BlockingQueuedConnection, &changed_count);
+                i++;
+            } while(changed_count > 0 && i < 20);
+        } else{
+            auto selectedSamples = ui->filterPlot->getSelectedSamples();
+            if(f == FilterOptions::MedianFilter){
+                auto res = DataFilter::applyMedianFilter(selectedSamples, paramWindowSize);
+                ui->filterPlot->setSamples(res);
+            }
+            else if(f == FilterOptions::MovingAverage){
+                auto res = DataFilter::applyMovingAverage(selectedSamples, paramWindowSize);
+                ui->filterPlot->setSamples(res);
+            }
+            else if(f == FilterOptions::ExponentialSmoothing){
+                auto res = DataFilter::applyExponentialSmoothing(selectedSamples, paramAlpha);
+                ui->filterPlot->setSamples(res);
+            }
+        }
     });
 
     QFutureWatcher<void> fw;
@@ -605,7 +701,43 @@ void MainWindow::syncPanFromHistogramPlot()
     ui->filterPlot->replot();
 }
 
+void MainWindow::on_selectNavMode_clicked()
+{
+    ui->filterPlot->setSelectionMode();
+    ui->histogramPlot->setSelectionMode();
+    ui->removeNavMode->setChecked(false);
+}
 
 
+void MainWindow::on_removeNavMode_clicked()
+{
+    ui->filterPlot->setDeletionMode();
+    ui->histogramPlot->setDeletionMode();
+    ui->selectNavMode->setChecked(false);
+}
 
+
+void MainWindow::on_undoButton_clicked()
+{
+    bool undo_status = ui->filterPlot->undo();
+    ui->filterPlot->undo();
+    if(!undo_status)
+        DegorasInformation::showInfo("Filter Tool", "No more actions to undo.", "", this);
+}
+
+
+void MainWindow::on_redoButton_clicked()
+{
+    bool redo_status = ui->filterPlot->redo();
+    ui->filterPlot->redo();
+    if(!redo_status)
+        DegorasInformation::showInfo("Filter Tool", "No more actions to undo.", "", this);
+}
+
+
+void MainWindow::on_deselectButton_clicked()
+{
+    ui->filterPlot->resetSelection();
+    ui->histogramPlot->resetSelection();
+}
 

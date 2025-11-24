@@ -43,9 +43,6 @@ public:
     void setSamples( const QVector<QPointF> &samples );
 
     QVector<QPointF> getThreshSamples() const;
-
-
-private:
     QwtPlotMarker *mark_thresh1;
     QwtPlotMarker *mark_thresh2;
 };

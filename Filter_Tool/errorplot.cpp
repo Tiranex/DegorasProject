@@ -15,24 +15,25 @@ ErrorPlot::ErrorPlot(QWidget *parent, QString title):
     this->setAxisScaleDraw(QwtPlot::Axis::xTop, new QwtNanoseconds2TimeScaleDraw);
     this->setAxisTitle(QwtPlot::Axis::xTop, "");
 
-    // Pinceles.
-    QPen pen_mark(Qt::SolidPattern, 1, Qt::DashLine);
-    pen_mark.setColor(QColor("yellow"));
 
-    // Marks.
+    QPen pen_mark_yellow(Qt::SolidPattern, 1, Qt::DashLine);
+    pen_mark_yellow.setColor(QColor("yellow"));
+
     this->mark_thresh1 = new QwtPlotMarker;
     this->mark_thresh1->setLineStyle(QwtPlotMarker::LineStyle::HLine);
-    this->mark_thresh1->setLinePen(pen_mark);
+    this->mark_thresh1->setLinePen(pen_mark_yellow);
     this->mark_thresh1->setZ(1);
     this->mark_thresh1->attach(this);
     this->mark_thresh2 = new QwtPlotMarker;
     this->mark_thresh2->setLineStyle(QwtPlotMarker::LineStyle::HLine);
-    this->mark_thresh2->setLinePen(pen_mark);
+    this->mark_thresh2->setLinePen(pen_mark_yellow);
     this->mark_thresh2->setZ(1);
     this->mark_thresh2->attach(this);
 
+
+
     // Others.
-    this->adjust_curve->detach();
+    // this->adjust_curve->detach();
 }
 
 void ErrorPlot::setSamples(const QVector<QPointF>& samples)
@@ -60,8 +61,21 @@ void ErrorPlot::setSamples(const QVector<QPointF>& samples)
     double margen_y = (plot_curve->maxYValue()-plot_curve->minYValue())/50.0;
 
     // Ajustamos Axis y repintamos.
+    std::vector<double> y_orig;
+    for(const auto& p : samples){
+        y_orig.push_back(p.y());
+    }
+
+    double std = dpbase::stats::measures::stddev(std::vector(y_orig.begin(), y_orig.end()));
+    double thresh = 2.5*std;
+    qInfo() << thresh;
+    this->mark_thresh1->setValue(0, thresh);
+    this->mark_thresh2->setValue(0, thresh*(-1));
+
     this->setAxisScale(QwtPlot::Axis::xBottom, plot_curve->minXValue()-margen_x, plot_curve->maxXValue()+margen_x);
     this->setAxisScale(QwtPlot::Axis::xTop, plot_curve->minXValue()-margen_x, plot_curve->maxXValue()+margen_x);
+
+
 
 
     //curve_data->clear();
@@ -75,13 +89,11 @@ void ErrorPlot::setSamples(const QVector<QPointF>& samples)
         y_vector.append(p.y());
     }
 
-    double std = dpbase::stats::measures::stddev(std::vector(y_vector.begin(), y_vector.end()));
-    double thresh = 2.5*std;
-    this->mark_thresh1->setValue(0, thresh);
-    this->mark_thresh2->setValue(0, thresh*(-1));
+    qInfo() << thresh;
 
     this->setAxisScale(QwtPlot::Axis::yLeft, -thresh - margen_y, thresh + margen_y);
     this->setAxisScale(QwtPlot::Axis::yRight, -thresh - margen_y, thresh + margen_y);
+
 
     for (const auto& p : std::as_const(samples))
     {
@@ -100,7 +112,7 @@ void ErrorPlot::setSamples(const QVector<QPointF>& samples)
     qInfo()<<"RMS meters -> "<< rms * light_speed;
     qInfo()<<"RMS ps -> "<< rms;
 
-    this->adjust_curve->detach();
+    //this->adjust_curve->detach();
 
 
     this->replot();

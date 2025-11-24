@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1400</width>
-    <height>800</height>
+    <width>1000</width>
+    <height>595</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>SLR Filter Tool</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout">
+   <layout class="QVBoxLayout" name="verticalLayout" stretch="0,3">
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_Top" stretch="3,1,2">
       <item>
@@ -92,24 +92,48 @@
          <string>Tools</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_2">
-         <item row="0" column="0">
-          <widget class="QPushButton" name="pb_autoFilter">
+         <item row="2" column="0" colspan="4">
+          <widget class="QPushButton" name="pb_calcStats">
            <property name="text">
-            <string>Auto Filter</string>
+            <string>Calculate Statistics</string>
            </property>
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QPushButton" name="pb_rmsFilter">
+          <widget class="QRadioButton" name="removeNavMode">
            <property name="text">
-            <string>Filter by RMS</string>
+            <string>REMOVE</string>
            </property>
           </widget>
          </item>
-         <item row="1" column="0" colspan="2">
-          <widget class="QPushButton" name="pb_calcStats">
+         <item row="0" column="0">
+          <widget class="QRadioButton" name="selectNavMode">
            <property name="text">
-            <string>Calculate Statistics</string>
+            <string>SELECT</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QPushButton" name="undoButton">
+           <property name="text">
+            <string>UNDO</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QPushButton" name="redoButton">
+           <property name="text">
+            <string>REDO</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2">
+          <widget class="QPushButton" name="deselectButton">
+           <property name="text">
+            <string>DESELECT</string>
            </property>
           </widget>
          </item>
@@ -122,29 +146,8 @@
          <string>Statistics</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_3">
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_rms">
-           <property name="text">
-            <string>RMS (ps):</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QLabel" name="lbl_rms_ps">
-           <property name="text">
-            <string>...</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="2">
-          <widget class="QLabel" name="label_returns">
-           <property name="text">
-            <string>Returns:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="3">
-          <widget class="QLabel" name="lbl_returns">
+         <item row="2" column="1">
+          <widget class="QLabel" name="lbl_peak_ps">
            <property name="text">
             <string>...</string>
            </property>
@@ -157,8 +160,15 @@
            </property>
           </widget>
          </item>
-         <item row="1" column="1">
-          <widget class="QLabel" name="lbl_mean_ps">
+         <item row="0" column="2">
+          <widget class="QLabel" name="label_returns">
+           <property name="text">
+            <string>Returns:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLabel" name="lbl_rms_ps">
            <property name="text">
             <string>...</string>
            </property>
@@ -185,8 +195,29 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QLabel" name="lbl_peak_ps">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_rms">
+           <property name="text">
+            <string>RMS (ps):</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="3">
+          <widget class="QLabel" name="lbl_noise">
+           <property name="text">
+            <string>...</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLabel" name="lbl_mean_ps">
+           <property name="text">
+            <string>...</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="3">
+          <widget class="QLabel" name="lbl_returns">
            <property name="text">
             <string>...</string>
            </property>
@@ -199,26 +230,19 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="3">
-          <widget class="QLabel" name="lbl_noise">
-           <property name="text">
-            <string>...</string>
-           </property>
-          </widget>
-         </item>
         </layout>
        </widget>
       </item>
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_Plots" stretch="3,1">
+     <layout class="QHBoxLayout" name="horizontalLayout_Plots" stretch="70,30">
       <item>
        <widget class="QGroupBox" name="gb_filterPlot">
         <property name="title">
          <string>Filter Plot</string>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayout_2">
+        <layout class="QHBoxLayout" name="horizontalLayout">
          <item>
           <widget class="Plot" name="filterPlot" native="true"/>
          </item>
@@ -234,6 +258,9 @@
          <item>
           <widget class="ErrorPlot" name="histogramPlot" native="true"/>
          </item>
+         <item>
+          <widget class="HistogramPlot" name="realHistogramPlot" native="true"/>
+         </item>
         </layout>
        </widget>
       </item>
@@ -246,8 +273,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1400</width>
-     <height>22</height>
+     <width>1000</width>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -260,7 +287,17 @@
     <addaction name="separator"/>
     <addaction name="actionExit"/>
    </widget>
+   <widget class="QMenu" name="menuAlgorithms">
+    <property name="title">
+     <string>Algorithms</string>
+    </property>
+    <addaction name="actionTreshFilter"/>
+    <addaction name="actionMovingAverage"/>
+    <addaction name="actionMedianFilter"/>
+    <addaction name="actionExponentialSmoothing"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuAlgorithms"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionLoad">
@@ -283,6 +320,26 @@
     <string>Exit</string>
    </property>
   </action>
+  <action name="actionTreshFilter">
+   <property name="text">
+    <string>TreshFilter</string>
+   </property>
+  </action>
+  <action name="actionMovingAverage">
+   <property name="text">
+    <string>MovingAverage</string>
+   </property>
+  </action>
+  <action name="actionMedianFilter">
+   <property name="text">
+    <string>MedianFilter</string>
+   </property>
+  </action>
+  <action name="actionExponentialSmoothing">
+   <property name="text">
+    <string>ExponentialSmoothing</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -295,6 +352,12 @@
    <class>ErrorPlot</class>
    <extends>QWidget</extends>
    <header>errorplot.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>HistogramPlot</class>
+   <extends>QWidget</extends>
+   <header>histogramplot.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

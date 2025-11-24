@@ -3,8 +3,75 @@
 #include <qwt/qwt_series_data.h>
 #include <qwt/qwt_point_data.h>
 #include <LibDegorasBase/Statistics/fitting.h>
-
+#include <window_message_box.h>
 #include <cmath>
+
+void Plot::pushCurrentStateToUndo()
+{
+    PlotState state;
+
+    // Get data from the main curve
+    auto* curveData = static_cast<QwtSLRArraySeriesData*>(this->plot_curve->data());
+    state.candidatePoints = curveData->samples();
+
+    // Get data from the selected curve
+    auto* selData = static_cast<QwtSLRArraySeriesData*>(this->selected_curve->data());
+    state.selectedPoints = selData->samples();
+
+    // Push to undo stack
+    m_undoStack.push(state);
+
+    // IMPORTANT: When you perform a new action, you must clear the Redo stack
+    // because the history has branched.
+    m_redoStack.clear();
+}
+
+void Plot::applyState(const PlotState& state)
+{
+    // Restore plot curve
+    auto* curveData = static_cast<QwtSLRArraySeriesData*>(this->plot_curve->data());
+    curveData->setSamples(state.candidatePoints);
+
+    // Restore selected curve
+    auto* selData = static_cast<QwtSLRArraySeriesData*>(this->selected_curve->data());
+    selData->setSamples(state.selectedPoints);
+
+    // Force redraw
+    this->replot();
+}
+
+bool Plot::undo()
+{
+    if (m_undoStack.isEmpty()){
+        return false;
+    }
+    // 1. Save current state to Redo stack before we change anything
+    PlotState currentState;
+    currentState.candidatePoints = static_cast<QwtSLRArraySeriesData*>(plot_curve->data())->samples();
+    currentState.selectedPoints = static_cast<QwtSLRArraySeriesData*>(selected_curve->data())->samples();
+    m_redoStack.push(currentState);
+
+    // 2. Pop the old state and apply it
+    PlotState oldState = m_undoStack.pop();
+    applyState(oldState);
+    return true;
+}
+
+bool Plot::redo()
+{
+    if (m_redoStack.isEmpty()) return false;
+
+    // 1. Save current state to Undo stack
+    PlotState currentState;
+    currentState.candidatePoints = static_cast<QwtSLRArraySeriesData*>(plot_curve->data())->samples();
+    currentState.selectedPoints = static_cast<QwtSLRArraySeriesData*>(selected_curve->data())->samples();
+    m_undoStack.push(currentState);
+
+    // 2. Pop the future state and apply it
+    PlotState futureState = m_redoStack.pop();
+    applyState(futureState);
+    return true;
+}
 
 void Plot::QwtSLRPlotMagnifier::rescale( double factor )
 {
@@ -117,7 +184,7 @@ Plot::Plot(QWidget *parent, QString title):
 
     // Curva de ajuste.
     this->adjust_curve = new QwtPlotCurve;
-    this->adjust_curve->setPen(QColor("Green"));
+    this->adjust_curve->setPen(QPen(QColor("Green"), 2));
     this->adjust_curve->setData(new QwtSLRArraySeriesData());
     this->adjust_curve->setZ(3);
     this->adjust_curve->attach(this); // PONER DE NUEVO!!!
@@ -178,8 +245,9 @@ Plot::Plot(QWidget *parent, QString title):
     this->setAxisScaleDraw(QwtPlot::Axis::xBottom, new QwtNanoseconds2TimeScaleDraw);
     //this->setAxisScaleDraw(QwtPlot::Axis::xTop, new QScaleDraw);
 
+    // Pinceles.
 
-
+    // Marks.
 
     // Grid.
         QwtPlotGrid *grid = new QwtPlotGrid();
@@ -222,58 +290,122 @@ Plot::Plot(QWidget *parent, QString title):
 
 void Plot::selectPoints(const QPolygonF& pol)
 {
-    if(pol.isEmpty())
+    if (pol.isEmpty() || this->currentMode == PlotMode::Navigation)
         return;
 
-    if (!this->picking)
-    {
-        emit this->startedPicking();
-        this->picking = true;
-        static_cast<QwtSLRArraySeriesData *>(this->selected_curve->data())->clear();
-    }
+    // 1. IMPORTANTE: Guardar estado para Undo (usando el código de la respuesta anterior)
+    this->pushCurrentStateToUndo();
 
-    QVector<QPointF> selected_points;
-    QVector<QPointF> deleted_points;
-    QwtSLRArraySeriesData *selected_data = static_cast<QwtSLRArraySeriesData *>(this->selected_curve->data());
     QwtSLRArraySeriesData *curve_data = static_cast<QwtSLRArraySeriesData *>(this->plot_curve->data());
+    QwtSLRArraySeriesData *selected_data = static_cast<QwtSLRArraySeriesData *>(this->selected_curve->data());
 
-    // Buscamos los limites para la eliminación de puntos.
-    double maxX = 0;
-    for(const auto& p : std::as_const(pol))
-        if(p.x()>maxX)
-            maxX = p.x();
+    QVector<QPointF> currentPoints = curve_data->samples();
+    QVector<QPointF> keptPoints;     // Puntos que se quedan en la curva blanca (plot_curve)
+    QVector<QPointF> newSelectedPoints; // Puntos que van a la curva verde/seleccionada
 
-    // Insertamos los puntos seleccionados.
-    for(size_t i=0; i<this->plot_curve->dataSize(); i++)
+    // 2. Iteramos sobre los puntos actuales
+    for (const QPointF &p : currentPoints)
     {
-        QPointF aux = this->plot_curve->sample(int(i));
-        bool inside = pol.containsPoint(aux, Qt::FillRule::OddEvenFill);
+        bool isInside = pol.containsPoint(p, Qt::FillRule::OddEvenFill);
 
-        if(inside)
+        if (this->currentMode == PlotMode::Deletion)
         {
-            selected_points.append(aux);
-            deleted_points.append(aux);
+            // MODO BORRAR:
+            // Si está dentro del polígono, NO lo añadimos a keptPoints (se borra).
+            // Si está fuera, lo mantenemos.
+            if (!isInside) {
+                keptPoints.append(p);
+            }
+            // Opcional: ¿Quieres guardar lo borrado en "deleted_points"?
+            // Normalmente borrar significa desaparecer.
         }
-        else if(aux.x()<=maxX)
-            deleted_points.append(aux);
+        else if (this->currentMode == PlotMode::Selection)
+        {
+            // MODO SELECCIONAR (Filtrar):
+            // La lógica clásica es: Lo que selecciono es lo "bueno", el resto se va.
+            // O, mueves lo seleccionado a "selected_curve" y borras de "plot_curve".
+
+            if (isInside) {
+                // Lo seleccionado se mueve a la curva de seleccionados (verde)
+                // O se mantiene en la blanca dependiendo de tu lógica visual.
+                // Asumiré que quieres moverlo a la curva de "seleccionados".
+                newSelectedPoints.append(p);
+                keptPoints.append(p); // Si quieres que siga visible en la lógica principal
+            }
+            // Si está fuera (else), no se añade a keptPoints, efectivamente se borra.
+        }
     }
 
-    // Eliminamos los puntos que no nos interesan (arriba y abajo de la zona seleccionada dentro de los intervalos.
-    curve_data->remove(deleted_points);
-    // Añadimos los puntos que nos interesan al contenedor.
-    selected_data->append(selected_points);
+    // 3. Actualizamos los datos según la lógica aplicada
 
-    // Si ya hemos seleccionado todos los puntos, actualizamos ejes.
-    if(curve_data->size()==0)
+    if (this->currentMode == PlotMode::Deletion)
     {
-        static_cast<QwtSLRArraySeriesData *>(this->error_curve->data())->clear();
-        this->setSamples(selected_data->samples());
-        this->picking = false;
-
-        emit this->finishedPicking();
+        curve_data->setSamples(keptPoints);
     }
-    else // Repintamos.
-        this->replot();
+    else if (this->currentMode == PlotMode::Selection)
+    {
+        // En tu código original, parecías mover cosas a selected_curve
+        // y limpiar plot_curve o mantener solo lo seleccionado.
+
+        // Opción A: Quedarse SOLO con lo seleccionado en la gráfica principal
+        curve_data->setSamples(newSelectedPoints);
+
+        // Opción B: Mover a la curva "selected_curve" (verde)
+        // selected_data->append(newSelectedPoints);
+    }
+
+    // 4. Recalcular fits y repintar
+    // Si tienes lógica de ajuste de curvas (polynomialFit), llámala aquí con los nuevos datos.
+
+    emit this->selectionChanged(); // Notificar cambios
+    this->replot();
+
+    // Opcional: Volver automáticamente a modo navegación tras una acción
+    // setNavigationMode();
+}
+
+void Plot::setNavigationMode()
+{
+    this->currentMode = PlotMode::Navigation;
+
+    // En modo navegación, desactivamos el picker y activamos zoom/pan
+    this->picker->setEnabled(false);
+    this->panner->setEnabled(true);
+    this->magnifier->setEnabled(true);
+}
+
+void Plot::setSelectionMode()
+{
+    this->currentMode = PlotMode::Selection;
+
+    // Feedback visual: Verde para seleccionar (conservar)
+    QPen pen(Qt::SolidPattern, 1.5, Qt::SolidLine, Qt::RoundCap);
+    pen.setColor(Qt::green);
+    this->picker->setRubberBandPen(pen);
+
+    this->picker->setEnabled(true);
+    this->panner->setEnabled(false);
+    this->magnifier->setEnabled(false);
+}
+
+void Plot::setDeletionMode()
+{
+    this->currentMode = PlotMode::Deletion;
+
+    // Feedback visual: Rojo para borrar (eliminar)
+    QPen pen(Qt::SolidPattern, 1.5, Qt::SolidLine, Qt::RoundCap);
+    pen.setColor(Qt::red);
+    this->picker->setRubberBandPen(pen);
+
+    this->picker->setEnabled(true);
+    this->panner->setEnabled(false);
+    this->magnifier->setEnabled(false);
+}
+
+void Plot::resetSelection()
+{
+    this->picker->clearSelection();
+    this->replot();
 }
 
 void Plot::setBinSize(int bin_size)
@@ -286,11 +418,18 @@ void Plot::setPickingEnabled(bool enabled)
     this->picker->enableSelector(enabled);
 }
 
-
-
-
 void Plot::setSamples(const QVector<QPointF> &samples)
 {
+    std::vector<double> y_orig;
+    for(const auto& p : samples){
+        y_orig.push_back(p.y());
+    }
+
+
+
+    //this->mark_thresh1->setValue(0, thresh);
+    //this->mark_thresh2->setValue(0, thresh*(-1));
+
     QwtSLRArraySeriesData *selected_data = static_cast<QwtSLRArraySeriesData *>(this->selected_curve->data());
     QwtSLRArraySeriesData *curve_data = static_cast<QwtSLRArraySeriesData *>(this->plot_curve->data());
     // Borramos los puntos anteriores.
@@ -394,6 +533,8 @@ void Plot::setSamples(const QVector<QPointF> &samples)
 }
 
 
+
+/* PLOT_SYNC*/
 
 
 

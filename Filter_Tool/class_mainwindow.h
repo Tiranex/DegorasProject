@@ -10,6 +10,13 @@ class Plot;
 class ErrorPlot;
 class CPF;
 
+enum class FilterOptions{
+    TreshFilter,
+    MovingAverage,
+    MedianFilter,
+    ExponentialSmoothing
+};
+
 class MainWindow: public QMainWindow
 {
     Q_OBJECT
@@ -25,7 +32,7 @@ private slots:
     // Slots for UI actions from .ui file (auto-connected)
     void on_pb_load_clicked();
     void on_pb_recalculate_clicked();
-    void on_pb_autoFilter_clicked();
+    void applyFilter(FilterOptions f);
     void on_pb_rmsFilter_clicked();
     void on_pb_calcStats_clicked();
     void on_actionLoad_triggered();
@@ -49,9 +56,15 @@ private slots:
     void onFilterChanged();
     void onFilterSaved();
 
+    void on_selectNavMode_clicked();
 
+    void on_removeNavMode_clicked();
 
+    void on_undoButton_clicked();
 
+    void on_redoButton_clicked();
+
+    void on_deselectButton_clicked();
 
 private:
     void setupConnections();

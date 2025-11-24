@@ -31,6 +31,7 @@ set(DP_CORE_HEADERS
     include/Tracking/meteodata.h
     include/Tracking/tracking.h
     include/Tracking/trackingfilemanager.h
+    include/datafilter.h
 )
 
 # Source files (.cpp)
@@ -45,6 +46,7 @@ set(DP_CORE_SOURCES
     sources/Tracking/meteodata.cpp
     sources/Tracking/tracking.cpp
     sources/Tracking/trackingfilemanager.cpp
+    sources/datafilter.cpp
 )
 
 # Qt Designer UI files (.ui)
