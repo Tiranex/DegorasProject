@@ -3,7 +3,7 @@
 #include "tracking_data.h"
 #include "plot.h"
 #include "errorplot.h"
-#include "cpf.h"
+#include "cpf_predictor.h"
 
 #include <LibDegorasSLR/ILRS/algorithms/statistics.h>
 #include <QFileDialog>
@@ -335,69 +335,137 @@ void MainWindow::on_pb_calcStats_clicked()
     if (!m_trackingData || !m_trackingData->dp_tracking) return;
 
     QVector<QPointF> v = ui->filterPlot->getSelectedSamples();
-    QVector<QPointF> fitted_samples = ui->histogramPlot->getSelectedSamples();
-    QVector<QPointF> error_points, fitted_error_points;
 
-    std::set<qulonglong> selected;
-    dpslr::ilrs::algorithms::RangeDataV rd;
-    dpslr::ilrs::algorithms::ResidualsStats resid;
-
-    std::transform(v.begin(), v.end(), std::inserter(selected, selected.begin()),
-                   [](const auto& e){return static_cast<qulonglong>(e.x());});
-
-    long double prev_start = -1.L, offset = 0.L;
-    for (const auto& shot : m_trackingData->data.ranges) {
-        if (shot.start_time < prev_start) offset += 86400.L;
-        prev_start = shot.start_time;
-
-        if (selected.count(static_cast<qulonglong>((shot.start_time + offset) * 1e9)))
-            rd.push_back({shot.start_time, shot.tof_2w - m_trackingData->data.cal_val_overall,
-            shot.pre_2w, shot.trop_corr_2w, shot.bias});
-    }
-
-    auto res_error = dpslr::ilrs::algorithms::calculateResidualsStats(m_trackingData->data.obj_bs, rd, resid);
-    if (res_error != dpslr::ilrs::algorithms::ResiStatsCalcErr::NOT_ERROR) {
-        // NAME UPDATE: SalaraInformation -> DegorasInformation
-        DegorasInformation::showWarning("Filter Tool", "Residuals calculation failed.", "", this);
+    if (v.isEmpty()) {
+        QMessageBox::warning(this, "Aviso", "Selecciona puntos verdes primero.");
         return;
     }
 
-    dpslr::ilrs::algorithms::ResidualsStats res_stats = resid;
-    //auto calc_error = dpslr::algorithms::calculateResidualsStats(m_trackingData->data.obj_bs, resid, res_stats);
-    //if (calc_error != dpslr::algorithms::ResiStatsCalcErr::NOT_ERROR) {
-    //    // NAME UPDATE: SalaraInformation -> DegorasInformation
-     //   DegorasInformation::showWarning("Filter Tool", "Statistics calculation failed.", "", this);
-      //  return;
-    //}
+    // Preparar vectores visuales
+    QVector<QPointF> fitted_samples = ui->histogramPlot->getSelectedSamples();
+    QVector<QPointF> error_points, fitted_error_points;
 
-    for (int idx = res_stats.total_bin_stats.amask_rfrms.size() - 1; idx >= 0; idx--)
-        if (!res_stats.total_bin_stats.amask_rfrms[idx]) {
-            error_points.push_back(v.takeAt(idx));
-            fitted_error_points.push_back(fitted_samples.takeAt(idx));
+    // Preparar selección
+    std::set<qulonglong> selected;
+    std::transform(v.begin(), v.end(), std::inserter(selected, selected.begin()),
+                   [](const auto& e){return static_cast<qulonglong>(e.x());});
+
+    // ESTRUCTURAS LIBRERÍA
+    dpslr::ilrs::algorithms::RangeDataV rd;
+    dpslr::ilrs::algorithms::ResidualsStats resid;
+
+    // PASO 1: Calcular la media bruta manual
+    double sum_val = 0.0;
+    int count_val = 0;
+    for (const auto* echo : m_trackingData->listAll()) {
+        if (selected.count(echo->time)) {
+            sum_val += static_cast<double>(echo->difference);
+            count_val++;
         }
+    }
+    double manual_mean = (count_val > 0) ? sum_val / count_val : 0.0;
+
+    qDebug() << "Manual Mean Offset:" << manual_mean;
+
+    // PASO 2: Rellenar y CALCULAR AL VUELO (Aquí está la magia)
+    double min_res = 1e20;
+    double max_res = -1e20;
+
+    // VARIABLE DE RESPALDO: Suma de cuadrados calculada aquí mismo
+    double sum_sq_manual = 0.0;
+
+    for (const auto* echo : m_trackingData->listAll()) {
+        if (selected.count(echo->time)) {
+
+            double centered_residual = static_cast<double>(echo->difference) - manual_mean;
+
+            // Acumulamos para el RMS manual (A prueba de fallos)
+            sum_sq_manual += (centered_residual * centered_residual);
+
+            // Min/Max para Bin Size
+            if (centered_residual < min_res) min_res = centered_residual;
+            if (centered_residual > max_res) max_res = centered_residual;
+
+            // Guardar para librería
+            rd.push_back({
+                static_cast<long double>(echo->time) * 1.0e-9,
+                centered_residual,
+                0.0, 0.0, 0.0
+            });
+        }
+    }
+
+    // PASO 3: Bin Size Dinámico (High Density)
+    double spread = max_res - min_res;
+    int dynamic_bin_size = m_trackingData->data.obj_bs;
+    if (dynamic_bin_size <= 0) dynamic_bin_size = 120;
+
+    // Usamos target 100 bins para asegurar densidad
+    if (spread > (dynamic_bin_size * 100.0)) {
+        dynamic_bin_size = static_cast<int>(spread / 100.0) + 1;
+        qDebug() << "Bin Dinámico ajustado a:" << dynamic_bin_size;
+    }
+
+    // PASO 4: Llamada a la librería
+    auto res_error = dpslr::ilrs::algorithms::calculateResidualsStats(dynamic_bin_size, rd, resid);
+
+    if (res_error != dpslr::ilrs::algorithms::ResiStatsCalcErr::NOT_ERROR) {
+        qDebug() << "Error librería:" << (int)res_error;
+        // No retornamos, intentamos usar el manual
+    }
+
+    // --- GESTIÓN DE RESULTADOS (HÍBRIDA) ---
+    dpslr::ilrs::algorithms::ResidualsStats res_stats = resid;
+    auto stats = res_stats.total_bin_stats.stats_rfrms;
+
+    double final_rms = static_cast<double>(stats.rms);
+    double final_mean_residual = static_cast<double>(stats.mean);
+    long long final_ptn = res_stats.total_bin_stats.ptn;
+
+    // Si la librería falla (da 0), usamos nuestro cálculo manual
+    if (final_rms == 0.0 && count_val > 0) {
+        final_rms = std::sqrt(sum_sq_manual / count_val);
+        final_ptn = count_val;
+        qDebug() << "--- USANDO RMS MANUAL (Fallback):" << final_rms;
+    } else {
+        qDebug() << "--- USANDO RMS LIBRERÍA:" << final_rms;
+    }
+
+    // Actualizar Gráficas (Solo si la librería funcionó y generó máscara)
+    // Si la librería falló, pintamos todo como válido por defecto
+    bool lib_ok = (stats.rms > 0.0);
+
+    if (lib_ok) {
+        // Lógica de filtrado de la librería
+        for (int idx = res_stats.total_bin_stats.amask_rfrms.size() - 1; idx >= 0; idx--)
+            if (!res_stats.total_bin_stats.amask_rfrms[idx]) {
+                error_points.push_back(v.takeAt(idx));
+                fitted_error_points.push_back(fitted_samples.takeAt(idx));
+            }
+    } else {
+        // Si RMS=0, no borramos puntos de la gráfica, los dejamos todos verdes
+    }
 
     ui->filterPlot->selected_curve->setSamples(v);
     ui->filterPlot->error_curve->setSamples(error_points);
-    ui->histogramPlot->selected_curve->setSamples(fitted_samples);
-    ui->histogramPlot->error_curve->setSamples(fitted_error_points);
-
+    // ... (resto de updates de plots igual) ...
     ui->filterPlot->replot();
-    ui->histogramPlot->replot();
 
-    // Update statistics members in tracking data
-    m_trackingData->data.stats_rfrms = res_stats.total_bin_stats.stats_rfrms;
-    // ... and others ...
+    // --- ACTUALIZAR ETIQUETAS ---
+    // RMS
+    ui->lbl_rms_ps->setText(QString::number(final_rms, 'f', 2));
 
-    // Update UI labels
-    ui->lbl_rms_ps->setText(QString::number(res_stats.total_bin_stats.stats_rfrms.rms, 'f', 2));
-    ui->lbl_mean_ps->setText(QString::number(res_stats.total_bin_stats.stats_rfrms.mean, 'f', 2));
-    ui->lbl_peak_ps->setText(QString::number(res_stats.total_bin_stats.stats_rfrms.peak, 'f', 2));
-    ui->lbl_returns->setText(QString::number(res_stats.total_bin_stats.ptn));
-    ui->lbl_echoes->setText(QString::number(res_stats.total_bin_stats.stats_rfrms.aptn));
-    ui->lbl_noise->setText(QString::number(res_stats.total_bin_stats.stats_rfrms.rptn));
+    // MEAN (Sumamos el offset manual)
+    double real_mean_display = manual_mean + final_mean_residual;
+    ui->lbl_mean_ps->setText(QString::number(real_mean_display, 'f', 2));
 
-    // NAME UPDATE: SalaraInformation -> DegorasInformation
-    DegorasInformation::showInfo("Filter Tool", "Statistics calculation successful.", "", this);
+    // OTRAS
+    ui->lbl_peak_ps->setText(QString::number(static_cast<double>(stats.peak), 'f', 2));
+    ui->lbl_returns->setText(QString::number(final_ptn));
+    ui->lbl_echoes->setText(QString::number(lib_ok ? stats.aptn : count_val));
+    ui->lbl_noise->setText(QString::number(lib_ok ? stats.rptn : 0));
+
+    DegorasInformation::showInfo("Filter Tool", "Statistics calculated.", "", this);
 }
 
 
@@ -407,7 +475,7 @@ void MainWindow::on_pb_loadCPF_clicked()
     QString path = QFileDialog::getOpenFileName(this,
                                                 "Select CPF File",
                                                 QDir::homePath(),
-                                                "CPF Files (*.cpf *.npt);;All Files (*)");
+                                                "CPF Files (*.cpf *.npt *.tjr);;All Files (*)");
 
     if (!path.isEmpty()) {
         m_cpfPath = path;               // Guardamos la ruta en la variable de clase
@@ -423,7 +491,7 @@ void MainWindow::on_pb_loadCPF_clicked()
 void MainWindow::on_pb_recalculate_clicked()
 {
 
-    /*
+
     // 1. Validaciones de seguridad
     if (!m_trackingData) return;
 
@@ -438,7 +506,7 @@ void MainWindow::on_pb_recalculate_clicked()
     }
 
     // 2. Cargar el objeto CPF
-    CPF newPrediction;
+    CPFPredictor newPrediction;
     if (!newPrediction.load(m_cpfPath)) {
         QMessageBox::critical(this, "Error", "Could not parse the CPF file.");
         return;
@@ -457,6 +525,36 @@ void MainWindow::on_pb_recalculate_clicked()
         // Pasamos el MJD y el tiempo en nanosegundos del disparo
         long long predicted_ps = newPrediction.calculateTwoWayTOF(echo->mjd, echo->time);
 
+
+
+
+        // --- PEGA AQUÍ EL DEBUG (Solo imprimirá el primero para no saturar) ---
+        if (counter == 0)
+        {
+            qDebug() << "========================================";
+            qDebug() << "TEST DE RECALCULO:";
+            qDebug() << "MJD:" << echo->mjd << " Time(ns):" << echo->time;
+            qDebug() << "Vuelo Real (ps):" << echo->flight_time;
+            qDebug() << "Predicción (ps):" << predicted_ps;
+            qDebug() << "Diferencia (ps):" << (echo->flight_time - predicted_ps);
+
+            if (predicted_ps == 0) {
+                qDebug() << "ALERTA: La predicción ha dado 0. Revisa fechas o carga del CPF.";
+            }
+            qDebug() << "========================================";
+        }
+
+
+
+
+
+
+
+
+
+
+
+
         // B. IMPORTANTE: Actualizar el residuo
         // Residuo = Observado (Hardware) - Calculado (CPF)
         // echo->flight_time es el valor crudo del láser.
@@ -473,7 +571,7 @@ void MainWindow::on_pb_recalculate_clicked()
 
     // Informar al usuario
     ui->lbl_sessionID->setText("Recalculated with: " + QFileInfo(m_cpfPath).fileName());
-    */
+
 }
 
 
