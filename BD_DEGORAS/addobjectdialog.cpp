@@ -5,6 +5,9 @@
 #include <QDir>
 #include <iostream>
 
+// LOGGING INCLUDE
+#include <spdlog/spdlog.h>
+
 AddObjectDialog::AddObjectDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::AddObjectDialog)
@@ -17,6 +20,8 @@ AddObjectDialog::AddObjectDialog(QWidget *parent) :
 
     // Habilitar selección múltiple para Grupos
     ui->setsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
+
+    spdlog::debug("AddObjectDialog initialized.");
 }
 
 AddObjectDialog::~AddObjectDialog()
@@ -24,13 +29,11 @@ AddObjectDialog::~AddObjectDialog()
     delete ui;
 }
 
-
 // Añade esto al principio o donde tengas las funciones
 void AddObjectDialog::setDbManager(SpaceObjectDBManager* dbManager)
 {
     m_dbManager = dbManager;
 }
-
 
 void AddObjectDialog::on_saveButton_clicked()
 {
@@ -41,7 +44,7 @@ void AddObjectDialog::on_saveButton_clicked()
     if(ui->nameEdit->text().trimmed().isEmpty()) errors += "- Field 'Name' is required.\n";
     if(ui->aliasEdit->text().trimmed().isEmpty()) errors += "- Field 'Alias' is required.\n";
 
-    // ¡CAMBIO AQUÍ! AÑADIMOS COSPAR A LA LISTA NEGRA DE VACÍOS
+    // COSPAR OBLIGATORIO
     if(ui->cosparEdit->text().trimmed().isEmpty()) errors += "- Field 'COSPAR' is required.\n";
 
     bool ok;
@@ -53,11 +56,13 @@ void AddObjectDialog::on_saveButton_clicked()
     if(ui->bsSpin->value() <= 0) errors += "- BinSize (BS) is required.\n";
 
     if(!errors.isEmpty()) {
+        spdlog::warn("AddObjectDialog validation failed:\n{}", errors.toStdString());
         QMessageBox::warning(this, "Invalid Data", "Please correct:\n\n" + errors);
         return;
     }
 
     if (!m_dbManager) {
+        spdlog::error("AddObjectDialog: No database connection available.");
         QMessageBox::critical(this, "Error", "No connection to the database.");
         return;
     }
@@ -65,19 +70,24 @@ void AddObjectDialog::on_saveButton_clicked()
     nlohmann::json newData = getNewObjectData();
     std::string errorDetails;
     bool success = false;
+
     // DECISIÓN CRÍTICA: ¿Creamos o Actualizamos?
     if (m_isEditMode) {
         // MODO EDICIÓN
+        spdlog::info("Attempting to update object with ID: {}", newData["_id"].dump());
         success = m_dbManager->updateSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
     } else {
         // MODO CREACIÓN
+        spdlog::info("Attempting to create new object with ID: {}", newData["_id"].dump());
         success = m_dbManager->createSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
     }
 
     if (success) {
+        spdlog::info("Operation successful. Object saved.");
         QMessageBox::information(this, "Success", m_isEditMode ? "Object updated." : "Object created.");
         accept();
     } else {
+        spdlog::error("Operation failed. Reason: {}", errorDetails);
         QMessageBox::critical(this, "Error", "Operation failed.\n\n" + QString::fromStdString(errorDetails));
     }
 }
@@ -89,7 +99,7 @@ void AddObjectDialog::setAvailableGroups(const std::set<std::string> &groups)
     for(const auto& groupName : groups) {
         ui->setsListWidget->addItem(QString::fromStdString(groupName));
     }
-
+    // spdlog::debug("Loaded {} groups into AddObjectDialog.", groups.size());
 }
 
 
@@ -103,6 +113,7 @@ void AddObjectDialog::on_browseImageBtn_clicked()
         m_selectedImagePath = filePath;
         QFileInfo fi(filePath);
         ui->imagePathEdit->setText(fi.fileName());
+        spdlog::info("Image selected: {}", filePath.toStdString());
     }
 }
 
@@ -140,7 +151,7 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
     j["Name"] = ui->nameEdit->text().trimmed().toStdString();
     j["Abbreviation"] = ui->aliasEdit->text().trimmed().toStdString();
 
-    // ¡CAMBIO AQUÍ! COSPAR AHORA ES OBLIGATORIO
+    // COSPAR AHORA ES OBLIGATORIO
     j["COSPAR"] = ui->cosparEdit->text().trimmed().toStdString();
 
     // OPCIONALES (Pueden ser Null)
@@ -178,12 +189,15 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
 
 void AddObjectDialog::on_cancelButton_clicked()
 {
+    spdlog::debug("AddObjectDialog cancelled by user.");
     reject();
 }
 
 // --- NUEVA FUNCIÓN: CARGAR DATOS ---
 void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
 {
+    spdlog::debug("Loading object data into form.");
+
     // Helper para no crashear con nulos
     auto getString = [&](const std::string& key) -> QString {
         if(obj.contains(key) && !obj[key].is_null())
@@ -223,7 +237,6 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     if(obj.contains("LaserRetroReflector")) {
         if(obj["LaserRetroReflector"].is_null()) ui->lrrCombo->setCurrentText("Unknown");
         else {
-            // Asumimos que guardamos 1/0, convertimos a string "True"/"False" para el combo
             int val = obj["LaserRetroReflector"];
             ui->lrrCombo->setCurrentText(val == 1 ? "True" : "False");
         }
@@ -249,10 +262,8 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
 
     if(obj.contains("Groups") && obj["Groups"].is_array()) {
         std::vector<std::string> groups = obj["Groups"];
-        // Recorremos la lista visual y seleccionamos los que coincidan
         for(int i=0; i < ui->setsListWidget->count(); ++i) {
             QListWidgetItem* item = ui->setsListWidget->item(i);
-            // Si el texto del item está en el vector groups del JSON
             for(const auto& g : groups) {
                 if(item->text().toStdString() == g) {
                     item->setSelected(true);
@@ -269,12 +280,13 @@ void AddObjectDialog::setEditMode(bool enable)
     m_isEditMode = enable;
     if(enable) {
         this->setWindowTitle("Edit Object");
-        // ID / NORAD NO SE PUEDE TOCAR AL EDITAR (Es la clave primaria)
         ui->noradEdit->setEnabled(false);
         ui->saveButton->setText("Update Object");
+        spdlog::debug("AddObjectDialog set to EDIT mode.");
     } else {
         this->setWindowTitle("Create New Object");
         ui->noradEdit->setEnabled(true);
         ui->saveButton->setText("Save Object");
+        spdlog::debug("AddObjectDialog set to CREATE mode.");
     }
 }

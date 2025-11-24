@@ -1,9 +1,11 @@
 #include "GridFSImageManager.h"
-#include <iostream>
 #include <vector>
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
 #include <mongocxx/exception/exception.hpp>
+
+// LOGGING INCLUDE
+#include <spdlog/spdlog.h>
 
 // --- CONSTRUCTOR ---
 GridFSImageManager::GridFSImageManager(mongocxx::database& db)
@@ -23,10 +25,11 @@ bool GridFSImageManager::uploadImage(const std::string& nameInDB, const std::str
             imageData.length()
             );
         uploader.close();
-        std::cout << "[Info] Image successfully uploaded to GridFS: " << nameInDB << std::endl;
+
+        spdlog::info("Image successfully uploaded to GridFS: {}", nameInDB);
         return true;
     } catch (const mongocxx::exception &e) {
-        std::cerr << "[Error] Failed in uploadImage: " << e.what() << std::endl;
+        spdlog::error("Failed in uploadImage: {}", e.what());
         return false;
     }
 }
@@ -40,7 +43,8 @@ std::string GridFSImageManager::downloadImageByName(const std::string& nameInDB)
         auto result = _gridfsFilesCollection.find_one(filter.view());
 
         if (!result) {
-            std::cerr << "[Info] File not found in fs.files: " << nameInDB << std::endl;
+            // Originalmente usabas cerr con etiqueta [Info], lo paso a warn para que destaque sin ser error crítico
+            spdlog::warn("File not found in fs.files: {}", nameInDB);
             return std::string{};
         }
 
@@ -48,7 +52,7 @@ std::string GridFSImageManager::downloadImageByName(const std::string& nameInDB)
 
         if (file_view["_id"].type() == bsoncxx::type::k_undefined ||
             file_view["length"].type() == bsoncxx::type::k_undefined) {
-            std::cerr << "[Error] File in fs.files is missing _id or length." << std::endl;
+            spdlog::error("File in fs.files is missing _id or length.");
             return std::string{};
         }
 
@@ -60,10 +64,10 @@ std::string GridFSImageManager::downloadImageByName(const std::string& nameInDB)
         imageData.resize(fileSize);
         downloader.read(reinterpret_cast<std::uint8_t*>(&imageData[0]), fileSize);
 
-        std::cout << "[Info] Image successfully downloaded from GridFS: " << nameInDB << std::endl;
+        spdlog::info("Image successfully downloaded from GridFS: {}", nameInDB);
         return imageData;
     } catch (const mongocxx::exception &e) {
-        std::cerr << "[Error] Failed in downloadImageByName: " << e.what() << std::endl;
+        spdlog::error("Failed in downloadImageByName: {}", e.what());
         return std::string{};
     }
 }
@@ -77,16 +81,17 @@ bool GridFSImageManager::deleteImageByName(const std::string& nameInDB)
         auto result = _gridfsFilesCollection.find_one(filter.view());
 
         if (!result) {
-            std::cerr << "[Info] File to delete not found: " << nameInDB << std::endl;
+            spdlog::warn("File to delete not found: {}", nameInDB);
             return false;
         }
 
         auto file_id = result->view()["_id"].get_value();
         _gridfsBucket.delete_file(file_id);
-        std::cout << "[Info] Image successfully deleted from GridFS: " << nameInDB << std::endl;
+
+        spdlog::info("Image successfully deleted from GridFS: {}", nameInDB);
         return true;
     } catch (const mongocxx::exception &e) {
-        std::cerr << "[Error] Failed in deleteImageByName: " << e.what() << std::endl;
+        spdlog::error("Failed in deleteImageByName: {}", e.what());
         return false;
     }
 }

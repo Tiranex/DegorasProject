@@ -77,6 +77,9 @@ find_package(bsoncxx CONFIG REQUIRED)
 # Mongo C++ driver
 find_package(mongocxx CONFIG REQUIRED)
 
+#Logs
+find_package(spdlog REQUIRED)
+
 # ----------------------------------------------------------------------------------------------------------------------
 # BUILD TARGETS
 
@@ -99,6 +102,7 @@ set(PROJECT_SOURCES
 add_executable(App_SpaceObjectManager
     ${PROJECT_SOURCES}
     addobjectdialog.h addobjectdialog.cpp addobjectdialog.ui
+    loggersetup.h loggersetup.cpp
 
 )
 
@@ -106,7 +110,7 @@ add_executable(App_SpaceObjectManager
 target_link_libraries(App_SpaceObjectManager PRIVATE
     mongo::mongocxx_static
     mongo::bsoncxx_static
-
+    spdlog::spdlog
     Qt::Core
     Qt::Gui
     Qt::Widgets
@@ -114,6 +118,8 @@ target_link_libraries(App_SpaceObjectManager PRIVATE
 
 # Static Mongo and Bson.
 target_compile_definitions(App_SpaceObjectManager PRIVATE MONGOCXX_STATIC BSONCXX_STATIC)
+#Logs
+target_compile_definitions(App_SpaceObjectManager PRIVATE SPDLOG_COMPILED_LIB)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # COMPILER CONFIGURATION

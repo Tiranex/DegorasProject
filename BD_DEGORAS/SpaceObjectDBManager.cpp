@@ -1,39 +1,39 @@
 #include "SpaceObjectDBManager.h"
-#include "json_helpers.h" // ¡IMPORTANTE! Para bsoncxxToNjson y njsonToBsoncxx
-#include <iostream>
+#include "json_helpers.h"
 #include <mongocxx/exception/exception.hpp>
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
 #include <fstream>
 #include <sstream>
-
 #include <bsoncxx/builder/basic/array.hpp>
 #include <set>
+
+// LOGGING INCLUDE
+#include <spdlog/spdlog.h>
 
 // --- CONSTRUCTOR ---
 SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std::string& db_name, const std::string& col_name)
     : _client(mongocxx::uri{uri_str}),
     _db(_client[db_name]),
     _collection(_db[col_name]),
-    // IMPORTANTE: Elimina _gridfsBucket y _gridfsFilesCollection si estaban aquí.
     _groupsCollection(_db["groups"]),
-    _imageManager(_db) // Asegúrate de que este miembro se inicialice al final.
+    _imageManager(_db)
 {
     try {
         _db.run_command(bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("ping", 1)));
-        std::cout << "[Info] SpaceObjectDBManager successfully connected..." << std::endl;
+        spdlog::info("SpaceObjectDBManager successfully connected to database.");
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed to initialize SpaceObjectDBManager: " << ex.what() << std::endl;
+        spdlog::error("Failed to initialize SpaceObjectDBManager: {}", ex.what());
         throw;
     }
 }
 
 // --- DESTRUCTOR ---
 SpaceObjectDBManager::~SpaceObjectDBManager() {
-    std::cout << "[Info] SpaceObjectDBManager disconnected." << std::endl;
+    spdlog::info("SpaceObjectDBManager disconnected.");
 }
 
-// --- GET POR ID ---
+// --- GET BY ID ---
 nlohmann::json SpaceObjectDBManager::getSpaceObjectById(int64_t id)
 {
     try {
@@ -42,12 +42,12 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectById(int64_t id)
         auto result = _collection.find_one(filter.view());
         return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in getSpaceObjectById: " << ex.what() << std::endl;
+        spdlog::error("Failed in getSpaceObjectById: {}", ex.what());
         return nlohmann::json{};
     }
 }
 
-// --- GET POR NOMBRE ---
+// --- GET BY NAME ---
 nlohmann::json SpaceObjectDBManager::getSpaceObjectByName(const std::string& name)
 {
     try {
@@ -56,12 +56,12 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByName(const std::string& nam
         auto result = _collection.find_one(filter.view());
         return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in getSpaceObjectByName: " << ex.what() << std::endl;
+        spdlog::error("Failed in getSpaceObjectByName: {}", ex.what());
         return nlohmann::json{};
     }
 }
 
-// --- GET POR PICTURE ---
+// --- GET BY PICTURE ---
 nlohmann::json SpaceObjectDBManager::getSpaceObjectByPicture(const std::string& picName)
 {
     try {
@@ -70,26 +70,21 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByPicture(const std::string& 
         auto result = _collection.find_one(filter.view());
         return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in getSpaceObjectByPicture: " << ex.what() << std::endl;
+        spdlog::error("Failed in getSpaceObjectByPicture: {}", ex.what());
         return nlohmann::json{};
     }
 }
 
-
-// En SpaceObjectDBManager.cpp
-
+// --- CREATE OBJECT ---
 bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg)
 {
-    // --- SEGURIDAD ANTI-CRASH ---
-    // Envolvemos todo en un try-catch para evitar que el programa se cierre
-    // si intentamos leer un null como string.
     try {
         using bsoncxx::builder::basic::kvp;
         using bsoncxx::builder::basic::make_document;
 
         errorMsg = "";
 
-        // --- 1. VALIDACIÓN: _id y Name ---
+        // 1. VALIDATION: _id and Name
         if (!objectData.contains("_id") || objectData["_id"].is_null()) {
             errorMsg = "Error: Field '_id' (NORAD) is required and cannot be null.";
             return false;
@@ -118,7 +113,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             return false;
         }
 
-        // --- 2. VALIDACIONES DE UNICIDAD (Alias, COSPAR, ILRS, SIC) ---
+        // 2. UNIQUENESS VALIDATIONS (Alias, COSPAR, ILRS, SIC)
 
         // Alias (Abbreviation)
         if (objectData.contains("Abbreviation") && !objectData["Abbreviation"].is_null()) {
@@ -130,7 +125,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // COSPAR (Obligatorio y Único)
+        // COSPAR (Required and Unique)
         if (!objectData.contains("COSPAR") || objectData["COSPAR"].is_null()) {
             errorMsg = "Error: Field 'COSPAR' is required.";
             return false;
@@ -146,10 +141,10 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             return false;
         }
 
-        // ILRSID (Opcional pero Único si existe)
+        // ILRSID (Optional but Unique if exists)
         if (objectData.contains("ILRSID") && !objectData["ILRSID"].is_null()) {
             std::string val = objectData["ILRSID"];
-            if (!val.empty()) { // Solo chequeamos si tiene texto
+            if (!val.empty()) {
                 auto filter = make_document(kvp("ILRSID", val));
                 if (_collection.count_documents(filter.view()) > 0) {
                     errorMsg = "An object with ILRS ID already exists: " + val;
@@ -158,7 +153,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // SIC (Opcional pero Único si existe)
+        // SIC (Optional but Unique if exists)
         if (objectData.contains("SIC") && !objectData["SIC"].is_null()) {
             std::string val = objectData["SIC"];
             if (!val.empty()) {
@@ -170,27 +165,25 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // --- 3. GESTIÓN DE IMAGEN (AQUÍ SOLÍA ESTAR EL CRASH) ---
+        // 3. IMAGE MANAGEMENT
         std::string picName = "";
-
-        // ¡FIX!: Comprobamos !is_null() antes de asignar
         if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
             picName = objectData["Picture"];
         }
 
         if (!picName.empty()) {
-            // A. Unicidad
+            // A. Uniqueness
             nlohmann::json existing_pic = getSpaceObjectByPicture(picName);
             if (!existing_pic.empty() && !existing_pic.is_null()) {
                 errorMsg = "An object is already using image: " + picName;
                 return false;
             }
-            // B. Ruta local
+            // B. Local path
             if (localPicturePath.empty()) {
                 errorMsg = "Image name specified but no file selected.";
                 return false;
             }
-            // C. Leer archivo
+            // C. Read file
             std::ifstream file(localPicturePath, std::ios::binary);
             if (!file.is_open()) {
                 errorMsg = "Could not read local image file.";
@@ -201,14 +194,14 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             std::string imageData = buffer.str();
             file.close();
 
-            // D. Subir
+            // D. Upload
             if (!_imageManager.uploadImage(picName, imageData)) {
                 errorMsg = "Failed to upload image to GridFS.";
                 return false;
             }
         }
 
-        // --- 4. GRUPOS (Upsert) ---
+        // 4. GROUPS (Upsert)
         if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array()) {
             mongocxx::options::update upsert_options;
             upsert_options.upsert(true);
@@ -226,32 +219,30 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // --- 5. INSERCIÓN FINAL ---
+        // 5. FINAL INSERT
         bsoncxx::document::value bdoc = njsonToBsoncxx(objectData);
         auto result = _collection.insert_one(bdoc.view());
         return result.has_value();
 
     }
     catch (const nlohmann::json::exception& e) {
-        // AQUÍ CAPTURAMOS EL CRASH si intentas leer un null como string
         errorMsg = "JSON format error (Possible uncontrolled null field): " + std::string(e.what());
-        std::cerr << "[CRASH AVOIDED] " << errorMsg << std::endl;
+        spdlog::error("[CRASH AVOIDED] {}", errorMsg);
         return false;
     }
     catch (const mongocxx::exception& ex) {
         errorMsg = "Database Error: " + std::string(ex.what());
-        std::cerr << "[Mongo Error] " << errorMsg << std::endl;
+        spdlog::error("[Mongo Error] {}", errorMsg);
         return false;
     }
     catch (const std::exception& ex) {
         errorMsg = "Generic error: " + std::string(ex.what());
+        spdlog::error("Generic error in createSpaceObject: {}", ex.what());
         return false;
     }
 }
 
-
-//MODIFICA UN SPACEOBJECT SELECCIONADO
-//MANTIENE LOS DATOS EN LA PESTAÑA EMERGENTE Y LOS MODIFICA
+// --- UPDATE OBJECT ---
 bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg)
 {
     try {
@@ -260,31 +251,24 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
 
         errorMsg = "";
 
-        // 1. OBTENER EL ID (Es la clave para saber a quién actualizar)
+        // 1. GET ID
         if (!objectData.contains("_id") || objectData["_id"].is_null()) {
             errorMsg = "Internal error: The object to edit has no _id.";
             return false;
         }
         int64_t id = objectData["_id"];
 
-        // Verificar que el objeto existe realmente
         nlohmann::json existing_obj = getSpaceObjectById(id);
         if (existing_obj.empty() || existing_obj.is_null()) {
             errorMsg = "Error: Original object not found with _id: " + std::to_string(id);
             return false;
         }
 
-        // =================================================================
-        // 2. VALIDACIONES DE UNICIDAD (IGNORANDO AL PROPIO OBJETO)
-        // =================================================================
-        // La lógica es: Busco si alguien tiene ese Nombre/COSPAR...
-        // Si lo encuentro Y su _id NO es el mío -> ERROR (es un duplicado).
-
-        // Helper Lambda para validar unicidad excluyendo self
+        // 2. UNIQUENESS VALIDATIONS (IGNORING SELF)
         auto checkUniqueExceptSelf = [&](const std::string& field, const std::string& value, const std::string& fieldNameErr) -> bool {
             auto filter = make_document(
                 kvp(field, value),
-                kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id}))) // $ne = Not Equal
+                kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id})))
                 );
             if (_collection.count_documents(filter.view()) > 0) {
                 errorMsg = "Another object already exists with " + fieldNameErr + ": " + value;
@@ -293,44 +277,30 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             return true;
         };
 
-        // Validar Name
         if (!checkUniqueExceptSelf("Name", objectData["Name"], "Name")) return false;
-
-        // Validar COSPAR
         if (!checkUniqueExceptSelf("COSPAR", objectData["COSPAR"], "COSPAR")) return false;
 
-        // Validar Alias (Si existe)
         if (objectData.contains("Abbreviation") && !objectData["Abbreviation"].is_null()) {
             if(!checkUniqueExceptSelf("Abbreviation", objectData["Abbreviation"], "Alias")) return false;
         }
 
-        // Validar ILRSID (Si existe)
         if (objectData.contains("ILRSID") && !objectData["ILRSID"].is_null()) {
             std::string val = objectData["ILRSID"];
             if(!val.empty()) if(!checkUniqueExceptSelf("ILRSID", val, "ILRS ID")) return false;
         }
 
-        // Validar SIC (Si existe)
         if (objectData.contains("SIC") && !objectData["SIC"].is_null()) {
             std::string val = objectData["SIC"];
             if(!val.empty()) if(!checkUniqueExceptSelf("SIC", val, "SIC")) return false;
         }
 
-
-        // =================================================================
-        // 3. GESTIÓN DE IMAGEN (GridFS)
-        // =================================================================
-        // Lógica: Si el usuario seleccionó una foto NUEVA (localPicturePath no vacío),
-        // borramos la vieja (si había) y subimos la nueva.
-        // Si no seleccionó foto nueva, mantenemos la referencia actual.
-
+        // 3. IMAGE MANAGEMENT
         std::string finalPicName = "";
         if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
             finalPicName = objectData["Picture"];
         }
 
         if (!localPicturePath.empty()) {
-            // A. El usuario quiere cambiar la foto. Validar nombre nuevo.
             auto filterPic = make_document(
                 kvp("Picture", finalPicName),
                 kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id})))
@@ -340,12 +310,10 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
                 return false;
             }
 
-            // B. Borrar foto antigua de GridFS (si tenía una diferente)
             std::string oldPic = "";
             if(existing_obj.contains("Picture") && !existing_obj["Picture"].is_null())
                 oldPic = existing_obj["Picture"];
 
-            // Subir nueva
             std::ifstream file(localPicturePath, std::ios::binary);
             std::stringstream buffer;
             buffer << file.rdbuf();
@@ -354,20 +322,12 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
                 return false;
             }
 
-            // Si subida OK, borramos la vieja si era distinta
             if(!oldPic.empty() && oldPic != finalPicName) {
                 _imageManager.deleteImageByName(oldPic);
             }
         }
-        else {
-            // No hay foto nueva local. Mantenemos la que viene en el JSON
-            // (que debería ser la misma que ya tenía, a menos que quieras borrarla)
-        }
 
-
-        // =================================================================
-        // 4. ACTUALIZAR GRUPOS (Upsert de nombres en colección groups)
-        // =================================================================
+        // 4. GROUPS (Upsert)
         if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array()) {
             mongocxx::options::update upsert_options;
             upsert_options.upsert(true);
@@ -385,29 +345,25 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // =================================================================
-        // 5. UPDATE FINAL (Reemplazar documento)
-        // =================================================================
-        // Usamos replace_one para sobrescribir todo el documento con los nuevos datos
+        // 5. FINAL UPDATE
         bsoncxx::document::value bdoc = njsonToBsoncxx(objectData);
-
         auto filter = make_document(kvp("_id", bsoncxx::types::b_int64{id}));
         auto result = _collection.replace_one(filter.view(), bdoc.view());
 
         if(result && result->modified_count() >= 0) return true;
         else {
             errorMsg = "Document was not modified (data might be identical).";
-            return true; // Consideramos éxito si no hubo error, aunque no cambiara nada
+            return true;
         }
 
     } catch (const std::exception& ex) {
         errorMsg = "Exception in update: " + std::string(ex.what());
+        spdlog::error("Exception in updateSpaceObject: {}", ex.what());
         return false;
     }
 }
 
-
-// --- BORRAR POR ID (Mismo código) ---
+// --- DELETE BY ID ---
 bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)
 {
     try {
@@ -416,38 +372,27 @@ bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)
         auto result = _collection.delete_one(filter.view());
         return result && result->deleted_count() > 0;
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in deleteSpaceObjectById: " << ex.what() << std::endl;
+        spdlog::error("Failed in deleteSpaceObjectById: {}", ex.what());
         return false;
     }
 }
 
-// --- GET ALL (Mismo código) ---
+// --- GET ALL ---
 std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects()
 {
     std::vector<nlohmann::json> allObjects;
-
     try {
         mongocxx::cursor cursor = _collection.find({});
-
         for (bsoncxx::document::view doc : cursor) {
             allObjects.push_back(bsoncxxToNjson(doc));
         }
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in getAllSpaceObjects: " << ex.what() << std::endl;
+        spdlog::error("Failed in getAllSpaceObjects: {}", ex.what());
     }
-
     return allObjects;
 }
 
-
-// --- MÉTODOS DE GRIDFS DELEGADOS (DEBES BORRARLOS) ---
-// Comentaste esta sección, ¡asegúrate de que esté completamente eliminada!
-// Si la dejas comentada, no causa el error, pero la limpieza es total.
-
-
-// =================================================================
-// --- ¡NUEVO! MÉTODOS DE GRUPOS (Mismo código) ---
-// =================================================================
+// --- GROUPS METHODS ---
 
 std::set<std::string> SpaceObjectDBManager::getAllUniqueGroupNames()
 {
@@ -462,7 +407,7 @@ std::set<std::string> SpaceObjectDBManager::getAllUniqueGroupNames()
             }
         }
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in getAllUniqueGroupNames: " << ex.what() << std::endl;
+        spdlog::error("Failed in getAllUniqueGroupNames: {}", ex.what());
     }
     return groups;
 }
@@ -484,21 +429,19 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsByGroups(const 
     try {
         auto filter = make_document(kvp("Groups", make_document(kvp("$in", group_array))));
         mongocxx::cursor cursor = _collection.find(filter.view());
-
         for (bsoncxx::document::view doc : cursor) {
             objects.push_back(bsoncxxToNjson(doc));
         }
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in getSpaceObjectsByGroups: " << ex.what() << std::endl;
+        spdlog::error("Failed in getSpaceObjectsByGroups: {}", ex.what());
     }
     return objects;
 }
 
-
 bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string& groupName)
 {
     if (groupName.empty()) {
-        std::cerr << "[Error] Group name cannot be empty." << std::endl;
+        spdlog::error("Group name cannot be empty.");
         return false;
     }
 
@@ -518,18 +461,16 @@ bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string&
         auto result = _collection.update_one(obj_filter.view(), obj_update.view());
 
         if (!result || result->matched_count() == 0) {
-            std::cerr << "[Error] Object with _id: " << objectId << " not found to add group." << std::endl;
+            spdlog::error("Object with _id: {} not found to add group.", objectId);
             return false;
         }
-
         return true;
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in addObjectToGroup: " << ex.what() << std::endl;
+        spdlog::error("Failed in addObjectToGroup: {}", ex.what());
         return false;
     }
 }
-
 
 bool SpaceObjectDBManager::removeObjectFromGroup(int64_t objectId, const std::string& groupName)
 {
@@ -543,14 +484,13 @@ bool SpaceObjectDBManager::removeObjectFromGroup(int64_t objectId, const std::st
         auto result = _collection.update_one(obj_filter.view(), obj_update.view());
 
         if (!result || result->matched_count() == 0) {
-            std::cerr << "[Error] Object with _id: " << objectId << " not found to remove group." << std::endl;
+            spdlog::error("Object with _id: {} not found to remove group.", objectId);
             return false;
         }
-
         return true;
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in removeObjectFromGroup: " << ex.what() << std::endl;
+        spdlog::error("Failed in removeObjectFromGroup: {}", ex.what());
         return false;
     }
 }
@@ -561,14 +501,14 @@ bool SpaceObjectDBManager::crearGrupo(const std::string& groupName)
     using bsoncxx::builder::basic::make_document;
 
     if (groupName.empty()) {
-        std::cerr << "[Error] Group name cannot be empty." << std::endl;
+        spdlog::error("Group name cannot be empty.");
         return false;
     }
 
     try {
         auto filter = make_document(kvp("name", groupName));
         if (_groupsCollection.find_one(filter.view())) {
-            std::cerr << "[Info] Group '" << groupName << "' already exists." << std::endl;
+            spdlog::info("Group '{}' already exists.", groupName);
             return false;
         }
 
@@ -577,7 +517,7 @@ bool SpaceObjectDBManager::crearGrupo(const std::string& groupName)
         return result.has_value();
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in crearGrupo: " << ex.what() << std::endl;
+        spdlog::error("Failed in crearGrupo: {}", ex.what());
         return false;
     }
 }
@@ -592,7 +532,7 @@ bool SpaceObjectDBManager::eliminarGrupo(const std::string& groupName)
         auto result_group = _groupsCollection.delete_one(filter_group.view());
 
         if (!result_group || result_group->deleted_count() == 0) {
-            std::cerr << "[Info] Group '" << groupName << "' not found for deletion." << std::endl;
+            spdlog::warn("Group '{}' not found for deletion.", groupName);
         }
 
         auto filter_objects = make_document(kvp("Groups", groupName));
@@ -600,11 +540,11 @@ bool SpaceObjectDBManager::eliminarGrupo(const std::string& groupName)
 
         _collection.update_many(filter_objects.view(), update_objects.view());
 
-        std::cout << "[Info] Group '" << groupName << "' deleted and references cleaned." << std::endl;
+        spdlog::info("Group '{}' deleted and references cleaned.", groupName);
         return true;
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Failed in eliminarGrupo: " << ex.what() << std::endl;
+        spdlog::error("Failed in eliminarGrupo: {}", ex.what());
         return false;
     }
 }

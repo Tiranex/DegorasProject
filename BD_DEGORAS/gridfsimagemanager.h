@@ -21,4 +21,5 @@ private:
     mongocxx::collection _gridfsFilesCollection;
 };
 
+
 #endif // GRIDFS_IMAGE_MANAGER_H
