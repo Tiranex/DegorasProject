@@ -21,16 +21,16 @@ SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std
 {
     try {
         _db.run_command(bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("ping", 1)));
-        std::cout << "[Info] SpaceObjectDBManager conectado exitosamente..." << std::endl;
+        std::cout << "[Info] SpaceObjectDBManager successfully connected..." << std::endl;
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla al inicializar SpaceObjectDBManager: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed to initialize SpaceObjectDBManager: " << ex.what() << std::endl;
         throw;
     }
 }
 
 // --- DESTRUCTOR ---
 SpaceObjectDBManager::~SpaceObjectDBManager() {
-    std::cout << "[Info] SpaceObjectDBManager desconectado." << std::endl;
+    std::cout << "[Info] SpaceObjectDBManager disconnected." << std::endl;
 }
 
 // --- GET POR ID ---
@@ -42,7 +42,7 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectById(int64_t id)
         auto result = _collection.find_one(filter.view());
         return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en getSpaceObjectById: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in getSpaceObjectById: " << ex.what() << std::endl;
         return nlohmann::json{};
     }
 }
@@ -56,7 +56,7 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByName(const std::string& nam
         auto result = _collection.find_one(filter.view());
         return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en getSpaceObjectByName: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in getSpaceObjectByName: " << ex.what() << std::endl;
         return nlohmann::json{};
     }
 }
@@ -70,7 +70,7 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByPicture(const std::string& 
         auto result = _collection.find_one(filter.view());
         return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en getSpaceObjectByPicture: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in getSpaceObjectByPicture: " << ex.what() << std::endl;
         return nlohmann::json{};
     }
 }
@@ -91,30 +91,30 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
 
         // --- 1. VALIDACIÓN: _id y Name ---
         if (!objectData.contains("_id") || objectData["_id"].is_null()) {
-            errorMsg = "Error: El campo '_id' (NORAD) es obligatorio y no puede ser nulo.";
+            errorMsg = "Error: Field '_id' (NORAD) is required and cannot be null.";
             return false;
         }
         int64_t id = objectData["_id"];
 
         nlohmann::json existing_id = getSpaceObjectById(id);
         if (!existing_id.empty() && !existing_id.is_null()) {
-            errorMsg = "Ya existe un objeto con el NORAD (_id): " + std::to_string(id);
+            errorMsg = "An object with NORAD (_id) already exists: " + std::to_string(id);
             return false;
         }
 
         if (!objectData.contains("Name") || objectData["Name"].is_null()) {
-            errorMsg = "Error: El campo 'Name' es obligatorio.";
+            errorMsg = "Error: Field 'Name' is required.";
             return false;
         }
         std::string name = objectData["Name"];
         if (name.empty()) {
-            errorMsg = "Error: El campo 'Name' no puede estar vacío.";
+            errorMsg = "Error: Field 'Name' cannot be empty.";
             return false;
         }
 
         nlohmann::json existing_name = getSpaceObjectByName(name);
         if (!existing_name.empty() && !existing_name.is_null()) {
-            errorMsg = "Ya existe un objeto con el Nombre: " + name;
+            errorMsg = "An object with Name already exists: " + name;
             return false;
         }
 
@@ -125,24 +125,24 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             std::string val = objectData["Abbreviation"];
             auto filter = make_document(kvp("Abbreviation", val));
             if (_collection.count_documents(filter.view()) > 0) {
-                errorMsg = "Ya existe un objeto con el Alias: " + val;
+                errorMsg = "An object with Alias already exists: " + val;
                 return false;
             }
         }
 
         // COSPAR (Obligatorio y Único)
         if (!objectData.contains("COSPAR") || objectData["COSPAR"].is_null()) {
-            errorMsg = "Error: El campo COSPAR es obligatorio.";
+            errorMsg = "Error: Field 'COSPAR' is required.";
             return false;
         }
         std::string cosparVal = objectData["COSPAR"];
         if(cosparVal.empty()) {
-            errorMsg = "Error: El COSPAR no puede estar vacío.";
+            errorMsg = "Error: 'COSPAR' cannot be empty.";
             return false;
         }
         auto filterCospar = make_document(kvp("COSPAR", cosparVal));
         if (_collection.count_documents(filterCospar.view()) > 0) {
-            errorMsg = "Ya existe un objeto con el COSPAR: " + cosparVal;
+            errorMsg = "An object with COSPAR already exists: " + cosparVal;
             return false;
         }
 
@@ -152,7 +152,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             if (!val.empty()) { // Solo chequeamos si tiene texto
                 auto filter = make_document(kvp("ILRSID", val));
                 if (_collection.count_documents(filter.view()) > 0) {
-                    errorMsg = "Ya existe un objeto con el ILRS ID: " + val;
+                    errorMsg = "An object with ILRS ID already exists: " + val;
                     return false;
                 }
             }
@@ -164,7 +164,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             if (!val.empty()) {
                 auto filter = make_document(kvp("SIC", val));
                 if (_collection.count_documents(filter.view()) > 0) {
-                    errorMsg = "Ya existe un objeto con el SIC: " + val;
+                    errorMsg = "An object with SIC already exists: " + val;
                     return false;
                 }
             }
@@ -182,18 +182,18 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             // A. Unicidad
             nlohmann::json existing_pic = getSpaceObjectByPicture(picName);
             if (!existing_pic.empty() && !existing_pic.is_null()) {
-                errorMsg = "Ya existe un objeto usando la imagen: " + picName;
+                errorMsg = "An object is already using image: " + picName;
                 return false;
             }
             // B. Ruta local
             if (localPicturePath.empty()) {
-                errorMsg = "Se especificó nombre de imagen pero no se seleccionó archivo.";
+                errorMsg = "Image name specified but no file selected.";
                 return false;
             }
             // C. Leer archivo
             std::ifstream file(localPicturePath, std::ios::binary);
             if (!file.is_open()) {
-                errorMsg = "No se pudo leer el archivo de imagen local.";
+                errorMsg = "Could not read local image file.";
                 return false;
             }
             std::stringstream buffer;
@@ -203,7 +203,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
 
             // D. Subir
             if (!_imageManager.uploadImage(picName, imageData)) {
-                errorMsg = "Falló la subida de la imagen a GridFS.";
+                errorMsg = "Failed to upload image to GridFS.";
                 return false;
             }
         }
@@ -234,17 +234,17 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
     }
     catch (const nlohmann::json::exception& e) {
         // AQUÍ CAPTURAMOS EL CRASH si intentas leer un null como string
-        errorMsg = "Error de formato JSON (Posible campo nulo no controlado): " + std::string(e.what());
-        std::cerr << "[CRASH EVITADO] " << errorMsg << std::endl;
+        errorMsg = "JSON format error (Possible uncontrolled null field): " + std::string(e.what());
+        std::cerr << "[CRASH AVOIDED] " << errorMsg << std::endl;
         return false;
     }
     catch (const mongocxx::exception& ex) {
-        errorMsg = "Error de Base de Datos: " + std::string(ex.what());
+        errorMsg = "Database Error: " + std::string(ex.what());
         std::cerr << "[Mongo Error] " << errorMsg << std::endl;
         return false;
     }
     catch (const std::exception& ex) {
-        errorMsg = "Error genérico: " + std::string(ex.what());
+        errorMsg = "Generic error: " + std::string(ex.what());
         return false;
     }
 }
@@ -262,7 +262,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
 
         // 1. OBTENER EL ID (Es la clave para saber a quién actualizar)
         if (!objectData.contains("_id") || objectData["_id"].is_null()) {
-            errorMsg = "Error interno: El objeto a editar no tiene _id.";
+            errorMsg = "Internal error: The object to edit has no _id.";
             return false;
         }
         int64_t id = objectData["_id"];
@@ -270,7 +270,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
         // Verificar que el objeto existe realmente
         nlohmann::json existing_obj = getSpaceObjectById(id);
         if (existing_obj.empty() || existing_obj.is_null()) {
-            errorMsg = "Error: No se encontró el objeto original con _id: " + std::to_string(id);
+            errorMsg = "Error: Original object not found with _id: " + std::to_string(id);
             return false;
         }
 
@@ -287,14 +287,14 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
                 kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id}))) // $ne = Not Equal
                 );
             if (_collection.count_documents(filter.view()) > 0) {
-                errorMsg = "Ya existe OTRO objeto con el " + fieldNameErr + ": " + value;
+                errorMsg = "Another object already exists with " + fieldNameErr + ": " + value;
                 return false;
             }
             return true;
         };
 
         // Validar Name
-        if (!checkUniqueExceptSelf("Name", objectData["Name"], "Nombre")) return false;
+        if (!checkUniqueExceptSelf("Name", objectData["Name"], "Name")) return false;
 
         // Validar COSPAR
         if (!checkUniqueExceptSelf("COSPAR", objectData["COSPAR"], "COSPAR")) return false;
@@ -336,7 +336,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
                 kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id})))
                 );
             if (_collection.count_documents(filterPic.view()) > 0) {
-                errorMsg = "Ya existe otro objeto usando la imagen: " + finalPicName;
+                errorMsg = "Another object is already using image: " + finalPicName;
                 return false;
             }
 
@@ -350,7 +350,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             std::stringstream buffer;
             buffer << file.rdbuf();
             if (!_imageManager.uploadImage(finalPicName, buffer.str())) {
-                errorMsg = "Error al subir la nueva imagen.";
+                errorMsg = "Error uploading new image.";
                 return false;
             }
 
@@ -396,20 +396,15 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
 
         if(result && result->modified_count() >= 0) return true;
         else {
-            errorMsg = "No se modificó el documento (quizás los datos eran idénticos).";
+            errorMsg = "Document was not modified (data might be identical).";
             return true; // Consideramos éxito si no hubo error, aunque no cambiara nada
         }
 
     } catch (const std::exception& ex) {
-        errorMsg = "Excepción en update: " + std::string(ex.what());
+        errorMsg = "Exception in update: " + std::string(ex.what());
         return false;
     }
 }
-
-
-
-
-
 
 
 // --- BORRAR POR ID (Mismo código) ---
@@ -421,7 +416,7 @@ bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)
         auto result = _collection.delete_one(filter.view());
         return result && result->deleted_count() > 0;
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en deleteSpaceObjectById: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in deleteSpaceObjectById: " << ex.what() << std::endl;
         return false;
     }
 }
@@ -438,7 +433,7 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects()
             allObjects.push_back(bsoncxxToNjson(doc));
         }
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en getAllSpaceObjects: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in getAllSpaceObjects: " << ex.what() << std::endl;
     }
 
     return allObjects;
@@ -467,7 +462,7 @@ std::set<std::string> SpaceObjectDBManager::getAllUniqueGroupNames()
             }
         }
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en getAllUniqueGroupNames: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in getAllUniqueGroupNames: " << ex.what() << std::endl;
     }
     return groups;
 }
@@ -494,7 +489,7 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsByGroups(const 
             objects.push_back(bsoncxxToNjson(doc));
         }
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en getSpaceObjectsByGroups: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in getSpaceObjectsByGroups: " << ex.what() << std::endl;
     }
     return objects;
 }
@@ -503,7 +498,7 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsByGroups(const 
 bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string& groupName)
 {
     if (groupName.empty()) {
-        std::cerr << "[Error] El nombre del grupo no puede estar vacío." << std::endl;
+        std::cerr << "[Error] Group name cannot be empty." << std::endl;
         return false;
     }
 
@@ -523,14 +518,14 @@ bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string&
         auto result = _collection.update_one(obj_filter.view(), obj_update.view());
 
         if (!result || result->matched_count() == 0) {
-            std::cerr << "[Error] No se encontró el objeto con _id: " << objectId << " para añadir grupo." << std::endl;
+            std::cerr << "[Error] Object with _id: " << objectId << " not found to add group." << std::endl;
             return false;
         }
 
         return true;
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en addObjectToGroup: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in addObjectToGroup: " << ex.what() << std::endl;
         return false;
     }
 }
@@ -548,14 +543,14 @@ bool SpaceObjectDBManager::removeObjectFromGroup(int64_t objectId, const std::st
         auto result = _collection.update_one(obj_filter.view(), obj_update.view());
 
         if (!result || result->matched_count() == 0) {
-            std::cerr << "[Error] No se encontró el objeto con _id: " << objectId << " para quitar grupo." << std::endl;
+            std::cerr << "[Error] Object with _id: " << objectId << " not found to remove group." << std::endl;
             return false;
         }
 
         return true;
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en removeObjectFromGroup: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in removeObjectFromGroup: " << ex.what() << std::endl;
         return false;
     }
 }
@@ -566,14 +561,14 @@ bool SpaceObjectDBManager::crearGrupo(const std::string& groupName)
     using bsoncxx::builder::basic::make_document;
 
     if (groupName.empty()) {
-        std::cerr << "[Error] El nombre del grupo no puede estar vacío." << std::endl;
+        std::cerr << "[Error] Group name cannot be empty." << std::endl;
         return false;
     }
 
     try {
         auto filter = make_document(kvp("name", groupName));
         if (_groupsCollection.find_one(filter.view())) {
-            std::cerr << "[Info] El grupo '" << groupName << "' ya existe." << std::endl;
+            std::cerr << "[Info] Group '" << groupName << "' already exists." << std::endl;
             return false;
         }
 
@@ -582,7 +577,7 @@ bool SpaceObjectDBManager::crearGrupo(const std::string& groupName)
         return result.has_value();
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en crearGrupo: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in crearGrupo: " << ex.what() << std::endl;
         return false;
     }
 }
@@ -597,7 +592,7 @@ bool SpaceObjectDBManager::eliminarGrupo(const std::string& groupName)
         auto result_group = _groupsCollection.delete_one(filter_group.view());
 
         if (!result_group || result_group->deleted_count() == 0) {
-            std::cerr << "[Info] No se encontró el grupo '" << groupName << "' para eliminar." << std::endl;
+            std::cerr << "[Info] Group '" << groupName << "' not found for deletion." << std::endl;
         }
 
         auto filter_objects = make_document(kvp("Groups", groupName));
@@ -605,11 +600,11 @@ bool SpaceObjectDBManager::eliminarGrupo(const std::string& groupName)
 
         _collection.update_many(filter_objects.view(), update_objects.view());
 
-        std::cout << "[Info] Grupo '" << groupName << "' eliminado y referencias limpiadas." << std::endl;
+        std::cout << "[Info] Group '" << groupName << "' deleted and references cleaned." << std::endl;
         return true;
 
     } catch (const mongocxx::exception& ex) {
-        std::cerr << "[Error] Falla en eliminarGrupo: " << ex.what() << std::endl;
+        std::cerr << "[Error] Failed in eliminarGrupo: " << ex.what() << std::endl;
         return false;
     }
 }

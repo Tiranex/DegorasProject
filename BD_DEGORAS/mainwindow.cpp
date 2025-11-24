@@ -16,6 +16,7 @@
 #include <QVBoxLayout>
 #include <QListWidget>
 #include <QLabel>
+#include <QInputDialog> // Faltaba este include para QInputDialog
 
 #include <string>
 #include <memory>      // Para std::make_unique
@@ -28,6 +29,7 @@
 
 
 // Lista completa de cabeceras basada en tu imagen
+// NOTA: Estas strings son claves de la BBDD, no se deben traducir o la lógica fallará.
 const QStringList g_tableHeaders = {
     "_id", "Name", "Altitude", "Amplification", "BinSize",
     "COSPAR", "Classification", "CounterID", "DetectorID",
@@ -36,11 +38,6 @@ const QStringList g_tableHeaders = {
     "NormalPointIndicator", "Picture", "Priority", "ProviderCPF",
     "RadarCrossSection", "SIC", "TrackPolicy"
 };
-
-
-
-
-
 
 // --- CONSTRUCTOR (¡MODIFICADO!) ---
 MainWindow::MainWindow(QWidget *parent)
@@ -74,11 +71,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     try {
         dbManager = std::make_unique<SpaceObjectDBManager>(URI, DB_NAME, COLLECTION_NAME);
-        logMessage("[Info] Conectado exitosamente a " + QString::fromStdString(DB_NAME) + "/" + QString::fromStdString(COLLECTION_NAME));
+        logMessage("[Info] Successfully connected to " + QString::fromStdString(DB_NAME) + "/" + QString::fromStdString(COLLECTION_NAME));
     }
     catch (const std::exception& e)
     {
-        logMessage("[Error Fatal] No se pudo conectar a MongoDB: " + QString(e.what()));
+        logMessage("[Fatal Error] Could not connect to MongoDB: " + QString(e.what()));
         // Deshabilitar todo si falla la BBDD
         ui->mostrarButton->setEnabled(false);
         ui->eliminarButton->setEnabled(false);
@@ -147,15 +144,6 @@ void MainWindow::setupObjectListTable()
 // ... (on_mostrarButton_clicked - Sin cambios) ...
 /**
  * @brief Slot que se ejecuta al pulsar el botón "Mostrar".
- *
- * Lógica actualizada:
- * 1. Limpia todos los campos (del 1 al 6).
- * 2. Busca el objeto en MongoDB.
- * 3. Rellena la interfaz con lógica dinámica:
- * - Caja 1: Si buscaste por ID, muestra el Nombre. Si buscaste por Nombre, muestra el ID.
- * - Caja 2 y 3: Altitud e Inclinación.
- * - Caja 4, 5 y 6: Datos técnicos (LaserID, RetroReflector, RCS).
- * 4. Gestiona la descarga y visualización de la imagen.
  */
 void MainWindow::on_mostrarButton_clicked()
 {
@@ -173,7 +161,7 @@ void MainWindow::on_mostrarButton_clicked()
     ui->mostrar_texto_5->clear();
     ui->mostrar_texto_6->clear();
 
-    logMessage("[Info] Buscando...");
+    logMessage("[Info] Searching...");
 
     std::string searchText = ui->idLineEdit->text().toStdString();
     nlohmann::json obj;
@@ -185,7 +173,7 @@ void MainWindow::on_mostrarButton_clicked()
         if (searchedById) // Búsqueda por ID
         {
             if (searchText.empty()) {
-                logMessage("[Error] El _id no puede estar vacío.");
+                logMessage("[Error] The _id cannot be empty.");
                 return;
             }
             int64_t id = std::stoll(searchText);
@@ -194,25 +182,25 @@ void MainWindow::on_mostrarButton_clicked()
         else // Búsqueda por NOMBRE
         {
             if (searchText.empty()) {
-                logMessage("[Error] El Name no puede estar vacío.");
+                logMessage("[Error] The Name cannot be empty.");
                 return;
             }
             obj = dbManager->getSpaceObjectByName(searchText);
         }
     }
     catch (const std::exception& e) {
-        logMessage("[Error] Excepción durante la búsqueda: " + QString(e.what()));
+        logMessage("[Error] Exception during search: " + QString(e.what()));
         return;
     }
 
     // 3. VERIFICACIÓN
     if (obj.empty() || obj.is_null()) {
-        logMessage("[Info] Objeto no encontrado.");
-        ui->mostrar_texto_1->setText("Estado: No encontrado");
+        logMessage("[Info] Object not found.");
+        ui->mostrar_texto_1->setText("Status: Not found");
         return;
     }
 
-    logMessage("[OK] Objeto encontrado.");
+    logMessage("[OK] Object found.");
 
     // =========================================================
     // 4. ACTUALIZACIÓN DE LA INTERFAZ
@@ -223,9 +211,9 @@ void MainWindow::on_mostrarButton_clicked()
     {
         // Si busqué por ID -> Muestro el NOMBRE
         if (obj.contains("Name")) {
-            ui->mostrar_texto_1->setText("Nombre: " + jsonValueToQString(obj["Name"]));
+            ui->mostrar_texto_1->setText("Name: " + jsonValueToQString(obj["Name"]));
         } else {
-            ui->mostrar_texto_1->setText("Nombre: Desconocido");
+            ui->mostrar_texto_1->setText("Name: Unknown");
         }
     }
     else
@@ -240,16 +228,16 @@ void MainWindow::on_mostrarButton_clicked()
 
     // --- CAJA 2: ALTITUD ---
     if (obj.contains("Altitude")) {
-        ui->mostrar_texto_2->setText("Altitud: " + jsonValueToQString(obj["Altitude"]) + " km");
+        ui->mostrar_texto_2->setText("Altitude: " + jsonValueToQString(obj["Altitude"]) + " km");
     } else {
-        ui->mostrar_texto_2->setText("Altitud: -");
+        ui->mostrar_texto_2->setText("Altitude: -");
     }
 
     // --- CAJA 3: INCLINACIÓN ---
     if (obj.contains("Inclination")) {
-        ui->mostrar_texto_3->setText("Inclinación: " + jsonValueToQString(obj["Inclination"]) + "°");
+        ui->mostrar_texto_3->setText("Inclination: " + jsonValueToQString(obj["Inclination"]) + "°");
     } else {
-        ui->mostrar_texto_3->setText("Inclinación: -");
+        ui->mostrar_texto_3->setText("Inclination: -");
     }
 
     // --- CAJA 4: LASER ID ---
@@ -291,9 +279,9 @@ void MainWindow::on_mostrarButton_clicked()
 
     // 2. Si NO hay campo Picture O el nombre está vacío (""), avisamos
     if (picName.empty() || picName == "\"\"") {
-        logMessage("[Info] Este objeto no tiene imagen asignada (Sin foto).");
+        logMessage("[Info] This object has no assigned image (No photo).");
         // Opcional: Poner un texto en el hueco de la foto para que se note
-        ui->imageDisplayLabel->setText("SIN FOTO");
+        ui->imageDisplayLabel->setText("NO PHOTO");
         return; // Salimos, no hay nada que descargar
     }
 
@@ -303,8 +291,8 @@ void MainWindow::on_mostrarButton_clicked()
 
     if (imageDataStd.empty()) {
         // Caso: El JSON dice que hay foto, pero el archivo no está en la base de datos
-        logMessage("[Aviso] El objeto pide la foto '" + QString::fromStdString(picName) + "', pero no se encontró en GridFS.");
-        ui->imageDisplayLabel->setText("Archivo no encontrado");
+        logMessage("[Warning] The object requests photo '" + QString::fromStdString(picName) + "', but it was not found in GridFS.");
+        ui->imageDisplayLabel->setText("File not found");
     }
     else {
         // Caso: Éxito total
@@ -317,9 +305,9 @@ void MainWindow::on_mostrarButton_clicked()
                 Qt::KeepAspectRatio,
                 Qt::SmoothTransformation
                 ));
-            logMessage("[Info] Imagen cargada: " + QString::fromStdString(picName));
+            logMessage("[Info] Image loaded: " + QString::fromStdString(picName));
         } else {
-            logMessage("[Error] Se descargaron datos, pero no son una imagen válida.");
+            logMessage("[Error] Data downloaded, but it is not a valid image.");
         }
     }
 }
@@ -341,22 +329,22 @@ void MainWindow::on_anadirButton_clicked()
     // 2. Validar
     int64_t id;
     if (id_str.empty()) {
-        logMessage("[Error] El _id es obligatorio para crear un objeto.");
+        logMessage("[Error] The _id is required to create an object.");
         return;
     }
     try {
         id = std::stoll(id_str);
     } catch (...) {
-        logMessage("[Error] El _id introducido no es un número válido.");
+        logMessage("[Error] The entered _id is not a valid number.");
         return;
     }
     if (name_str.empty()) {
-        logMessage("[Error] El nombre es obligatorio para crear un objeto.");
+        logMessage("[Error] The name is required to create an object.");
         return;
     }
     if (norad_str.empty()) {
         norad_str = id_str;
-        logMessage("[Info] Campo NORAD vacío. Usando _id como NORAD.");
+        logMessage("[Info] NORAD field empty. Using _id as NORAD.");
     }
 
     // 3. Crear el objeto JSON
@@ -369,7 +357,7 @@ void MainWindow::on_anadirButton_clicked()
         {"Groups", nlohmann::json::array()}
     };
 
-    logMessage("[Info] Intentando crear objeto con _id: " + QString::fromStdString(id_str) + "...");
+    logMessage("[Info] Attempting to create object with _id: " + QString::fromStdString(id_str) + "...");
 
     // --- CORRECCIÓN AQUÍ ---
     std::string errorMsg; // 1. Creamos la variable para recibir el error
@@ -377,7 +365,7 @@ void MainWindow::on_anadirButton_clicked()
     // 2. La pasamos como tercer argumento
     if (dbManager->createSpaceObject(newObj, m_localPicturePath.toStdString(), errorMsg))
     {
-        logMessage("[OK] ¡Objeto creado exitosamente!");
+        logMessage("[OK] Object successfully created!");
 
         // Limpiar campos
         ui->idLineEdit_add->clear();
@@ -391,7 +379,7 @@ void MainWindow::on_anadirButton_clicked()
 
     } else {
         // 3. Mostramos el error específico que nos devuelve la BBDD
-        logMessage("[Error] No se pudo crear el objeto: " + QString::fromStdString(errorMsg));
+        logMessage("[Error] Could not create object: " + QString::fromStdString(errorMsg));
     }
 }
 
@@ -401,14 +389,14 @@ void MainWindow::on_eliminarButton_clicked()
     if (!dbManager) return;
 
     if (ui->searchByNameRadioButton->isChecked()) {
-        logMessage("[Error] No se puede eliminar por 'Name'.");
-        logMessage("[Info] Por favor, busca el objeto por '_id' para poder eliminarlo.");
+        logMessage("[Error] Cannot delete by 'Name'.");
+        logMessage("[Info] Please search the object by '_id' to delete it.");
         return;
     }
 
     std::string id_str = ui->idLineEdit->text().toStdString();
     if (id_str.empty()) {
-        logMessage("[Error] Introduce un _id en el campo de búsqueda para eliminar.");
+        logMessage("[Error] Enter an _id in the search field to delete.");
         return;
     }
 
@@ -418,7 +406,7 @@ void MainWindow::on_eliminarButton_clicked()
         nlohmann::json obj = dbManager->getSpaceObjectById(id);
 
         if (obj.empty() || obj.is_null()) {
-            logMessage("[Error] No se encontró ningún objeto con _id: " + QString::fromStdString(id_str));
+            logMessage("[Error] No object found with _id: " + QString::fromStdString(id_str));
             return;
         }
 
@@ -428,36 +416,36 @@ void MainWindow::on_eliminarButton_clicked()
         }
 
         QMessageBox::StandardButton reply;
-        reply = QMessageBox::question(this, "Confirmar borrado",
-                                      "¿Estás seguro de que quieres eliminar el objeto con _id: " + QString::fromStdString(id_str) + "?",
+        reply = QMessageBox::question(this, "Confirm deletion",
+                                      "Are you sure you want to delete the object with _id: " + QString::fromStdString(id_str) + "?",
                                       QMessageBox::Yes | QMessageBox::No);
 
         if (reply == QMessageBox::No) {
-            logMessage("[Info] Borrado cancelado por el usuario.");
+            logMessage("[Info] Deletion cancelled by user.");
             return;
         }
 
-        logMessage("[Info] Eliminando objeto con _id: " + QString::fromStdString(id_str) + "...");
+        logMessage("[Info] Deleting object with _id: " + QString::fromStdString(id_str) + "...");
 
         if (dbManager->deleteSpaceObjectById(id)) {
-            logMessage("[OK] Objeto eliminado exitosamente.");
+            logMessage("[OK] Object successfully deleted.");
             ui->idLineEdit->clear();
             ui->imageDisplayLabel->clear();
 
             if (!picName.empty()) {
-                logMessage("[Info] Eliminando imagen asociada '" + QString::fromStdString(picName) + "' de GridFS...");
+                logMessage("[Info] Deleting associated image '" + QString::fromStdString(picName) + "' from GridFS...");
                 if (dbManager->getImageManager().deleteImageByName(picName)) {
-                    logMessage("[OK] Imagen de GridFS eliminada.");
+                    logMessage("[OK] GridFS image deleted.");
                 } else {
-                    logMessage("[Warn] No se pudo eliminar la imagen de GridFS.");
+                    logMessage("[Warn] Could not delete image from GridFS.");
                 }
             }
         } else {
-            logMessage("[Error] No se pudo eliminar el objeto.");
+            logMessage("[Error] Could not delete the object.");
         }
     }
     catch (...) {
-        logMessage("[Error] El _id introducido no es un número válido.");
+        logMessage("[Error] The entered _id is not a valid number.");
     }
 }
 
@@ -467,9 +455,9 @@ void MainWindow::on_browseButton_clicked()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this,
-        "Seleccionar imagen",
+        "Select Image",
         QDir::homePath(),
-        "Imágenes (*.png *.jpg *.jpeg *.bmp)"
+        "Images (*.png *.jpg *.jpeg *.bmp)"
         );
 
     if (filePath.isEmpty()) {
@@ -488,11 +476,11 @@ void MainWindow::on_browseButton_clicked()
 void MainWindow::on_refreshListButton_clicked()
 {
     if (!dbManager) {
-        logMessage("[Error] No se puede refrescar la lista, no hay conexión a la BBDD.");
+        logMessage("[Error] Cannot refresh list, no DB connection.");
         return;
     }
 
-    logMessage("[Info] Refrescando lista de objetos desde la BBDD...");
+    logMessage("[Info] Refreshing object list from DB...");
     ui->objectListTable->setRowCount(0);
     std::vector<nlohmann::json> allObjects = dbManager->getAllSpaceObjects();
 
@@ -519,7 +507,7 @@ void MainWindow::on_refreshListButton_clicked()
     ui->objectListTable->setSortingEnabled(true);
     //Tambien refrescamos los grupos
     refreshGroupList();
-    logMessage("[Info] Lista actualizada. " + QString::number(allObjects.size()) + " objetos cargados.");
+    logMessage("[Info] List updated. " + QString::number(allObjects.size()) + " objects loaded.");
 }
 
 // ... (onObjectListTableContextMenuRequested - Pestaña "Listado" - Sin cambios) ...
@@ -532,14 +520,14 @@ void MainWindow::onObjectListTableContextMenuRequested(const QPoint &pos)
 
     int row = item->row();
     QMenu contextMenu(this);
-    QAction *copyJsonAction = contextMenu.addAction("Copiar JSON");
+    QAction *copyJsonAction = contextMenu.addAction("Copy JSON");
     QAction *selectedAction = contextMenu.exec(ui->objectListTable->mapToGlobal(pos));
 
     if (selectedAction == copyJsonAction)
     {
         QTableWidgetItem* idItem = ui->objectListTable->item(row, 0);
         if (!idItem) {
-            logMessage("[Error] No se pudo encontrar el item _id de la fila seleccionada.");
+            logMessage("[Error] Could not find item _id for the selected row.");
             return;
         }
         QString idString = idItem->text();
@@ -548,15 +536,15 @@ void MainWindow::onObjectListTableContextMenuRequested(const QPoint &pos)
             int64_t id = idString.toLongLong();
             nlohmann::json obj = dbManager->getSpaceObjectById(id);
             if (obj.empty() || obj.is_null()) {
-                logMessage("[Error] No se encontró el objeto con _id " + idString + " en la BBDD.");
+                logMessage("[Error] Object with _id " + idString + " not found in DB.");
                 return;
             }
             std::string jsonString = obj.dump(2);
             QClipboard *clipboard = QGuiApplication::clipboard();
             clipboard->setText(QString::fromStdString(jsonString));
-            logMessage("[Info] JSON del objeto " + idString + " copiado al portapapeles.");
+            logMessage("[Info] JSON of object " + idString + " copied to clipboard.");
         } catch (const std::exception& e) {
-            logMessage("[Error] El _id '" + idString + "' no es un número válido.");
+            logMessage("[Error] The _id '" + idString + "' is not a valid number.");
         }
     }
 }
@@ -571,6 +559,7 @@ void MainWindow::onObjectListTableContextMenuRequested(const QPoint &pos)
  */
 void MainWindow::setupSetsObjectTable()
 {
+
     // 1. Preparamos las cabeceras: Todas las normales + "Groups"
     QStringList headers = g_tableHeaders;
     headers << "Groups"; // Añadimos la columna extra al final
@@ -622,7 +611,7 @@ void MainWindow::refreshGroupList()
         ui->listWidget->setCurrentItem(itemToSelect);
     }
 
-    logMessage("[Info] Lista de grupos actualizada.");
+    logMessage("[Info] Group list updated.");
 }
 
 /**
@@ -690,16 +679,16 @@ void MainWindow::on_createGroupButton_clicked()
 
     QString groupName = ui->newGroupLineEdit->text().trimmed(); // .trimmed() quita espacios
     if (groupName.isEmpty()) {
-        QMessageBox::warning(this, "Error", "El nombre del grupo no puede estar vacío.");
+        QMessageBox::warning(this, "Error", "Group name cannot be empty.");
         return;
     }
 
     if (dbManager->crearGrupo(groupName.toStdString())) {
-        logMessage("[OK] Grupo '" + groupName + "' creado.");
+        logMessage("[OK] Group '" + groupName + "' created.");
         ui->newGroupLineEdit->clear();
         refreshGroupList(); // Actualizar la lista
     } else {
-        QMessageBox::warning(this, "Error", "No se pudo crear el grupo.\nEs posible que ya exista.");
+        QMessageBox::warning(this, "Error", "Could not create group.\nIt may already exist.");
     }
 }
 
@@ -713,7 +702,7 @@ void MainWindow::on_deleteGroupButton_clicked()
     // 1. Obtener el grupo seleccionado de la lista
     QListWidgetItem* selectedItem = ui->listWidget->currentItem();
     if (!selectedItem) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona un grupo de la lista para eliminar.");
+        QMessageBox::warning(this, "Error", "Please select a group from the list to delete.");
         return;
     }
 
@@ -721,22 +710,22 @@ void MainWindow::on_deleteGroupButton_clicked()
 
     // 2. Pedir confirmación
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirmar borrado",
-                                  "¿Estás seguro de que quieres eliminar el grupo '" + groupName + "'?\n\nEsto también lo eliminará de TODOS los objetos que lo contengan.",
+    reply = QMessageBox::question(this, "Confirm deletion",
+                                  "Are you sure you want to delete group '" + groupName + "'?\n\nThis will also remove it from ALL objects containing it.",
                                   QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::No) {
-        logMessage("[Info] Borrado de grupo cancelado.");
+        logMessage("[Info] Group deletion cancelled.");
         return;
     }
 
     // 3. Proceder con el borrado
     if (dbManager->eliminarGrupo(groupName.toStdString())) {
-        logMessage("[OK] Grupo '" + groupName + "' eliminado.");
+        logMessage("[OK] Group '" + groupName + "' deleted.");
         refreshGroupList(); // Actualizar la lista de grupos
         on_refreshListButton_2_clicked(); // Actualizar la tabla de objetos
     } else {
-        QMessageBox::warning(this, "Error", "Ocurrió un error al eliminar el grupo.");
+        QMessageBox::warning(this, "Error", "An error occurred while deleting the group.");
     }
 }
 
@@ -794,9 +783,9 @@ void MainWindow::on_refreshListButton_2_clicked()
     // --- 3. REFRESCAR TABLA (Esto es seguro) ---
     populateSetsObjectTable(objects);
 
-    QString infoMsg = "[Info] Tabla actualizada. " + QString::number(objects.size()) + " objetos visibles.";
+    QString infoMsg = "[Info] Table updated. " + QString::number(objects.size()) + " objects visible.";
     if(!ui->showAllObjectsCheckBox->isChecked() && !selectedGroupNames.isEmpty()) {
-        infoMsg += " (Filtrado por grupo)";
+        infoMsg += " (Filtered by group)";
     }
     logMessage(infoMsg);
 
@@ -851,11 +840,11 @@ void MainWindow::on_assignToGroupButton_clicked()
 
     // 2. Validar selecciones
     if (selectedGroups.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un GRUPO al que quieres añadir los objetos.");
+        QMessageBox::warning(this, "Error", "Please select at least one GROUP to add objects to.");
         return;
     }
     if (selectedRowsIndexes.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un OBJETO de la tabla que quieres modificar.");
+        QMessageBox::warning(this, "Error", "Please select at least one OBJECT from the table.");
         return;
     }
 
@@ -872,28 +861,28 @@ void MainWindow::on_assignToGroupButton_clicked()
         for (QListWidgetItem* groupItem : selectedGroups)
         {
             QString groupName = groupItem->text();
-            logMessage(QString("[Info] Añadiendo '%1' al grupo '%2'...").arg(objectName).arg(groupName));
+            logMessage(QString("[Info] Adding '%1' to group '%2'...").arg(objectName).arg(groupName));
 
             if (dbManager->addObjectToGroup(objectId, groupName.toStdString()))
             {
                 successCount++;
             } else {
                 failCount++;
-                logMessage(QString("[Error] No se pudo añadir '%1' al grupo '%2'.").arg(objectName).arg(groupName));
+                logMessage(QString("[Error] Could not add '%1' to group '%2'.").arg(objectName).arg(groupName));
             }
         }
     }
 
     // 4. Informar al usuario y refrescar
-    logMessage(QString("--- Resumen de asignación: %1 éxito(s), %2 fallo(s). ---").arg(successCount).arg(failCount));
+    logMessage(QString("--- Assignment summary: %1 success(es), %2 failure(s). ---").arg(successCount).arg(failCount));
 
     if (successCount > 0) {
-        QString msg = QString("Se realizaron %1 asignaciones con éxito.").arg(successCount);
+        QString msg = QString("Successfully performed %1 assignments.").arg(successCount);
         if (failCount > 0) {
-            msg += QString("\nHUBO %1 ERRORES. Revisa el log.").arg(failCount);
-            QMessageBox::warning(this, "Resultado Parcial", msg);
+            msg += QString("\nTHERE WERE %1 ERRORS. Check the log.").arg(failCount);
+            QMessageBox::warning(this, "Partial Result", msg);
         } else {
-            QMessageBox::information(this, "Éxito", msg);
+            QMessageBox::information(this, "Success", msg);
         }
 
         // --- 5. REFRESCAR ---
@@ -901,7 +890,7 @@ void MainWindow::on_assignToGroupButton_clicked()
         on_refreshListButton_2_clicked();
 
     } else {
-        QMessageBox::critical(this, "Error", QString("No se pudo realizar ninguna de las %1 asignaciones.").arg(failCount));
+        QMessageBox::critical(this, "Error", QString("Could not perform any of the %1 assignments.").arg(failCount));
     }
 }
 
@@ -919,11 +908,11 @@ void MainWindow::on_removeFromGroupButton_clicked()
 
     // 2. Validar selecciones
     if (selectedGroups.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un GRUPO del que quieres quitar los objetos.");
+        QMessageBox::warning(this, "Error", "Please select at least one GROUP to remove objects from.");
         return;
     }
     if (selectedRowsIndexes.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Por favor, selecciona al menos un OBJETO de la tabla que quieres modificar.");
+        QMessageBox::warning(this, "Error", "Please select at least one OBJECT from the table.");
         return;
     }
 
@@ -940,35 +929,35 @@ void MainWindow::on_removeFromGroupButton_clicked()
         for (QListWidgetItem* groupItem : selectedGroups)
         {
             QString groupName = groupItem->text();
-            logMessage(QString("[Info] Quitando '%1' del grupo '%2'...").arg(objectName).arg(groupName));
+            logMessage(QString("[Info] Removing '%1' from group '%2'...").arg(objectName).arg(groupName));
 
             if (dbManager->removeObjectFromGroup(objectId, groupName.toStdString()))
             {
                 successCount++;
             } else {
                 failCount++;
-                logMessage(QString("[Error] No se pudo quitar '%1' del grupo '%2'.").arg(objectName).arg(groupName));
+                logMessage(QString("[Error] Could not remove '%1' from group '%2'.").arg(objectName).arg(groupName));
             }
         }
     }
 
     // 4. Informar al usuario y refrescar
-    logMessage(QString("--- Resumen de eliminación: %1 éxito(s), %2 fallo(s). ---").arg(successCount).arg(failCount));
+    logMessage(QString("--- Removal summary: %1 success(es), %2 failure(s). ---").arg(successCount).arg(failCount));
 
     if (successCount > 0) {
-        QString msg = QString("Se realizaron %1 eliminaciones de grupo con éxito.").arg(successCount);
+        QString msg = QString("Successfully performed %1 group removals.").arg(successCount);
         if (failCount > 0) {
-            msg += QString("\nHUBO %1 ERRORES. Revisa el log.").arg(failCount);
-            QMessageBox::warning(this, "Resultado Parcial", msg);
+            msg += QString("\nTHERE WERE %1 ERRORS. Check the log.").arg(failCount);
+            QMessageBox::warning(this, "Partial Result", msg);
         } else {
-            QMessageBox::information(this, "Éxito", msg);
+            QMessageBox::information(this, "Success", msg);
         }
 
         // --- 5. REFRESCAR ---
         on_refreshListButton_2_clicked();
 
     } else {
-        QMessageBox::critical(this, "Error", QString("No se pudo realizar ninguna de las %1 eliminaciones.").arg(failCount));
+        QMessageBox::critical(this, "Error", QString("Could not perform any of the %1 removals.").arg(failCount));
     }
 }
 
@@ -978,7 +967,7 @@ void MainWindow::on_removeFromGroupButton_clicked()
 void MainWindow::on_addNewObjectSetButton_clicked()
 {
     if (!dbManager) {
-        logMessage("[Error] No hay conexión a la base de datos.");
+        logMessage("[Error] No connection to database.");
         return;
     }
 
@@ -996,7 +985,7 @@ void MainWindow::on_addNewObjectSetButton_clicked()
     // Si devuelve Accepted es que todo fue bien (se guardó dentro del diálogo)
     if (dialog.exec() == QDialog::Accepted)
     {
-        logMessage("[OK] Nuevo objeto añadido.");
+        logMessage("[OK] New object added.");
 
         // 3. Solo refrescamos las tablas
         on_refreshListButton_2_clicked();
@@ -1005,7 +994,7 @@ void MainWindow::on_addNewObjectSetButton_clicked()
     else
     {
         // Si devuelve Rejected (botón Cancelar o X)
-        logMessage("[Info] Operación cancelada.");
+        logMessage("[Info] Operation cancelled.");
     }
 }
 
@@ -1018,12 +1007,12 @@ void MainWindow::on_editObjectButton_clicked()
 
     // --- PROTECCIÓN CONTRA CRASH ---
     if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "Aviso", "Por favor, selecciona un objeto para editar.");
+        QMessageBox::warning(this, "Warning", "Please select an object to edit.");
         return;
     }
 
     if (selectedRows.count() > 1) {
-        QMessageBox::warning(this, "Aviso", "Solo puedes editar UN objeto a la vez.\nPor favor, selecciona solo uno.");
+        QMessageBox::warning(this, "Warning", "You can only edit ONE object at a time.\nPlease select only one.");
         return;
     }
     // -------------------------------
@@ -1045,7 +1034,7 @@ void MainWindow::on_editObjectButton_clicked()
     dialog.setDbManager(dbManager.get());
 
     if (dialog.exec() == QDialog::Accepted) {
-        logMessage("[OK] Objeto editado correctamente.");
+        logMessage("[OK] Object edited successfully.");
         on_refreshListButton_2_clicked();
         on_refreshListButton_clicked();
     }
@@ -1060,13 +1049,13 @@ void MainWindow::onSetsTableContextMenuRequested(const QPoint &pos)
     QMenu contextMenu(this);
 
     // Acción 1: Copiar JSON
-    QString textoCopiar = (selectedRows.count() > 1) ? "Copiar JSON (Array de objetos)" : "Copiar JSON";
+    QString textoCopiar = (selectedRows.count() > 1) ? "Copy JSON (Object Array)" : "Copy JSON";
     QAction *copyJsonAction = contextMenu.addAction(textoCopiar);
 
     contextMenu.addSeparator(); // Una rayita separadora
 
     // Acción 2: Asignar a Grupo
-    QAction *assignGroupAction = contextMenu.addAction("Asignar a Grupos...");
+    QAction *assignGroupAction = contextMenu.addAction("Assign to Groups...");
 
     // 3. Ejecutar menú y esperar clic
     QAction *selectedAction = contextMenu.exec(ui->setsObjectTable->mapToGlobal(pos));
@@ -1092,7 +1081,7 @@ void MainWindow::onSetsTableContextMenuRequested(const QPoint &pos)
 
         QClipboard *clipboard = QGuiApplication::clipboard();
         clipboard->setText(QString::fromStdString(finalJson.dump(2)));
-        logMessage("[Info] JSON copiado al portapapeles (" + QString::number(selectedRows.count()) + " objetos).");
+        logMessage("[Info] JSON copied to clipboard (" + QString::number(selectedRows.count()) + " objects).");
     }
 
     // --- LÓGICA: ASIGNAR A GRUPOS (VENTANA EMERGENTE) ---
@@ -1100,11 +1089,11 @@ void MainWindow::onSetsTableContextMenuRequested(const QPoint &pos)
     {
         // A. Crear una mini ventana (Dialog) al vuelo
         QDialog groupDialog(this);
-        groupDialog.setWindowTitle("Seleccionar Grupos");
+        groupDialog.setWindowTitle("Select Groups");
         groupDialog.setMinimumWidth(300);
         QVBoxLayout *layout = new QVBoxLayout(&groupDialog);
 
-        layout->addWidget(new QLabel("Selecciona los grupos a añadir:", &groupDialog));
+        layout->addWidget(new QLabel("Select groups to add:", &groupDialog));
 
         // B. Lista de Grupos
         QListWidget *listWidget = new QListWidget(&groupDialog);
@@ -1145,8 +1134,8 @@ void MainWindow::onSetsTableContextMenuRequested(const QPoint &pos)
                 }
             }
 
-            logMessage("[OK] Se han añadido las asignaciones de grupo.");
-            QMessageBox::information(this, "Éxito", "Grupos asignados correctamente.");
+            logMessage("[OK] Group assignments added.");
+            QMessageBox::information(this, "Success", "Groups assigned successfully.");
 
             // Refrescar para ver los cambios en la columna "Groups"
             on_refreshListButton_2_clicked();
@@ -1161,25 +1150,26 @@ void MainWindow::on_deleteObjectSetButton_clicked()
     auto selectedRows = ui->setsObjectTable->selectionModel()->selectedRows();
 
     if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "Aviso", "Por favor, selecciona al menos un objeto para eliminar.");
+        QMessageBox::warning(this, "Warning", "Please select at least one object to delete.");
         return;
     }
 
     int count = selectedRows.count();
 
     // 2. PEDIR CONFIRMACIÓN (Solo una vez para todo el grupo)
+
     QMessageBox::StandardButton reply;
-    QString msg = QString("¿Estás SEGURO de que quieres eliminar %1 objeto(s)?\n\n"
-                          "Esta acción es irreversible y borrará también sus imágenes asociadas.")
+    QString msg = QString("Are you SURE you want to delete %1 object(s)?\n\n"
+                          "This action is irreversible and will also remove their associated images.")
                       .arg(count);
 
-    reply = QMessageBox::question(this, "Confirmar eliminación masiva", msg,
+    reply = QMessageBox::question(this, "Confirm Mass Deletion", msg,
                                   QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::No) return;
 
     // 3. PROCESO DE BORRADO
-    logMessage("[Info] Iniciando borrado masivo de " + QString::number(count) + " objetos...");
+    logMessage("[Info] Starting mass deletion of " + QString::number(count) + " objects...");
 
     int deletedCount = 0;
     int errorCount = 0;
@@ -1207,21 +1197,21 @@ void MainWindow::on_deleteObjectSetButton_clicked()
             // C) Borrar Foto de GridFS (Si tenía)
             if (!picName.empty()) {
                 if(dbManager->getImageManager().deleteImageByName(picName)) {
-                    logMessage("[Info] Imagen '" + QString::fromStdString(picName) + "' eliminada.");
+                    logMessage("[Info] Image '" + QString::fromStdString(picName) + "' deleted.");
                 }
             }
         } else {
             errorCount++;
-            logMessage("[Error] No se pudo borrar el objeto con ID: " + idStr);
+            logMessage("[Error] Could not delete object with ID: " + idStr);
         }
     }
 
     // 4. RESULTADO FINAL
     if (errorCount == 0) {
-        QMessageBox::information(this, "Éxito", "Se han eliminado " + QString::number(deletedCount) + " objetos correctamente.");
+        QMessageBox::information(this, "Success", "Successfully deleted " + QString::number(deletedCount) + " objects.");
     } else {
-        QMessageBox::warning(this, "Resultado parcial",
-                             QString("Se borraron %1 objetos.\nHubo %2 errores.")
+        QMessageBox::warning(this, "Partial Result",
+                             QString("Deleted %1 objects.\nThere were %2 errors.")
                                  .arg(deletedCount).arg(errorCount));
     }
 
@@ -1261,7 +1251,7 @@ void MainWindow::on_listWidget_itemSelectionChanged()
         }
 
         // Llamamos al refresh (que ahora está protegido contra bucles)
-      //  on_refreshListButton_2_clicked();
+        //  on_refreshListButton_2_clicked();
     }
 }
 // En mainwindow.cpp
@@ -1274,7 +1264,7 @@ void MainWindow::on_setsObjectTable_selectionChanged()
     // Si no hay nada seleccionado o hay más de uno, limpiamos y salimos
     if (selectedRows.isEmpty() || selectedRows.count() > 1) {
         ui->setsDetailImageLabel->clear();
-        ui->setsDetailImageLabel->setText("Sin selección");
+        ui->setsDetailImageLabel->setText("No selection");
         ui->setsDetailNorad->clear();
         ui->setsDetailName->clear();
         ui->setsDetailAlias->clear();
@@ -1318,10 +1308,10 @@ void MainWindow::on_setsObjectTable_selectionChanged()
 
     // Has LRR (1/0/Null -> Sí/No/Unknown)
     if (obj.contains("LaserRetroReflector")) {
-        if (obj["LaserRetroReflector"].is_null()) ui->setsDetailLrr->setText("Desconocido");
+        if (obj["LaserRetroReflector"].is_null()) ui->setsDetailLrr->setText("Unknown");
         else {
             int val = obj["LaserRetroReflector"];
-            ui->setsDetailLrr->setText(val == 1 ? "Sí" : "No");
+            ui->setsDetailLrr->setText(val == 1 ? "Yes" : "No");
         }
     } else {
         ui->setsDetailLrr->setText("-");
@@ -1347,13 +1337,13 @@ void MainWindow::on_setsObjectTable_selectionChanged()
                     Qt::KeepAspectRatio,
                     Qt::SmoothTransformation));
             } else {
-                ui->setsDetailImageLabel->setText("Error formato");
+                ui->setsDetailImageLabel->setText("Format error");
             }
         } else {
-            ui->setsDetailImageLabel->setText("Img no encontrada");
+            ui->setsDetailImageLabel->setText("Img not found");
         }
     } else {
-        ui->setsDetailImageLabel->setText("Sin imagen");
+        ui->setsDetailImageLabel->setText("No image");
     }
 }
 void MainWindow::on_searchObjectButton_clicked()
@@ -1362,8 +1352,8 @@ void MainWindow::on_searchObjectButton_clicked()
 
     // 1. ABRIR POPUP PARA PEDIR ID
     bool ok;
-    QString text = QInputDialog::getText(this, "Buscar Objeto",
-                                         "Introduce el ID (Norad) del objeto a buscar:",
+    QString text = QInputDialog::getText(this, "Search Object",
+                                         "Enter the ID (Norad) of the object:",
                                          QLineEdit::Normal, "", &ok);
 
     // Si el usuario da a Cancelar o no escribe nada, salimos
@@ -1374,7 +1364,7 @@ void MainWindow::on_searchObjectButton_clicked()
     try {
         id = text.toLongLong();
     } catch (...) {
-        QMessageBox::warning(this, "Error", "El ID debe ser numérico.");
+        QMessageBox::warning(this, "Error", "ID must be numeric.");
         return;
     }
 
@@ -1382,7 +1372,7 @@ void MainWindow::on_searchObjectButton_clicked()
 
     // 3. SI NO LO ENCUENTRA
     if (obj.empty() || obj.is_null()) {
-        QMessageBox::information(this, "Sin resultados", "No se encontró ningún objeto con ese ID.");
+        QMessageBox::information(this, "No results", "No object found with that ID.");
         return;
     }
 
@@ -1414,5 +1404,5 @@ void MainWindow::on_searchObjectButton_clicked()
         on_setsObjectTable_selectionChanged();
     }
 
-    logMessage("[Info] Búsqueda finalizada. Objeto " + text + " encontrado.");
+    logMessage("[Info] Search finished. Object " + text + " found.");
 }

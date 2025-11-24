@@ -257,7 +257,7 @@
     <item row="5" column="0">
      <widget class="QLabel" name="label_18">
       <property name="text">
-       <string>Imagen</string>
+       <string>Image</string>
       </property>
      </widget>
     </item>
@@ -267,14 +267,14 @@
     <item row="4" column="0">
      <widget class="QLabel" name="label_16">
       <property name="text">
-       <string>Configuraciones</string>
+       <string>Configurations</string>
       </property>
      </widget>
     </item>
     <item row="5" column="1">
      <widget class="QPushButton" name="browseImageBtn">
       <property name="text">
-       <string>Buscar Imagen</string>
+       <string>Search Image</string>
       </property>
      </widget>
     </item>
@@ -314,7 +314,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Guardar</string>
+    <string>Save</string>
    </property>
   </widget>
   <widget class="QPushButton" name="cancelButton">
@@ -327,10 +327,35 @@
     </rect>
    </property>
    <property name="text">
-    <string>Cancelar</string>
+    <string>Cancel</string>
    </property>
   </widget>
  </widget>
+ <tabstops>
+  <tabstop>noradEdit</tabstop>
+  <tabstop>nameEdit</tabstop>
+  <tabstop>aliasEdit</tabstop>
+  <tabstop>cosparEdit</tabstop>
+  <tabstop>ilrsEdit</tabstop>
+  <tabstop>sicEdit</tabstop>
+  <tabstop>lrrCombo</tabstop>
+  <tabstop>debrisCombo</tabstop>
+  <tabstop>altitudeSpin</tabstop>
+  <tabstop>rcsSpin</tabstop>
+  <tabstop>npiSpin</tabstop>
+  <tabstop>bsSpin</tabstop>
+  <tabstop>incSpin</tabstop>
+  <tabstop>comSpin</tabstop>
+  <tabstop>cpfEdit</tabstop>
+  <tabstop>highPowerCheck</tabstop>
+  <tabstop>configEdit</tabstop>
+  <tabstop>browseImageBtn</tabstop>
+  <tabstop>setsListWidget</tabstop>
+  <tabstop>commentsEdit</tabstop>
+  <tabstop>saveButton</tabstop>
+  <tabstop>cancelButton</tabstop>
+  <tabstop>imagePathEdit</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

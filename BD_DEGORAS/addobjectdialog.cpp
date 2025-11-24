@@ -37,28 +37,28 @@ void AddObjectDialog::on_saveButton_clicked()
     QString errors;
 
     // Validar Obligatorios (!)
-    if(ui->noradEdit->text().trimmed().isEmpty()) errors += "- El campo 'Norad' es obligatorio.\n";
-    if(ui->nameEdit->text().trimmed().isEmpty()) errors += "- El campo 'Name' es obligatorio.\n";
-    if(ui->aliasEdit->text().trimmed().isEmpty()) errors += "- El campo 'Alias' es obligatorio.\n";
+    if(ui->noradEdit->text().trimmed().isEmpty()) errors += "- Field 'Norad' is required.\n";
+    if(ui->nameEdit->text().trimmed().isEmpty()) errors += "- Field 'Name' is required.\n";
+    if(ui->aliasEdit->text().trimmed().isEmpty()) errors += "- Field 'Alias' is required.\n";
 
     // ¡CAMBIO AQUÍ! AÑADIMOS COSPAR A LA LISTA NEGRA DE VACÍOS
-    if(ui->cosparEdit->text().trimmed().isEmpty()) errors += "- El campo 'COSPAR' es obligatorio.\n";
+    if(ui->cosparEdit->text().trimmed().isEmpty()) errors += "- Field 'COSPAR' is required.\n";
 
     bool ok;
     ui->noradEdit->text().toLongLong(&ok);
-    if(!ok) errors += "- El 'Norad' debe ser un número entero válido.\n";
+    if(!ok) errors += "- 'Norad' must be a valid integer.\n";
 
-    if(ui->altitudeSpin->value() <= 0) errors += "- Altitude debe ser mayor que 0.\n";
-    if(ui->npiSpin->value() <= 0) errors += "- NPI es obligatorio.\n";
-    if(ui->bsSpin->value() <= 0) errors += "- BinSize (BS) es obligatorio.\n";
+    if(ui->altitudeSpin->value() <= 0) errors += "- Altitude must be greater than 0.\n";
+    if(ui->npiSpin->value() <= 0) errors += "- NPI is required.\n";
+    if(ui->bsSpin->value() <= 0) errors += "- BinSize (BS) is required.\n";
 
     if(!errors.isEmpty()) {
-        QMessageBox::warning(this, "Datos inválidos", "Por favor corrige:\n\n" + errors);
+        QMessageBox::warning(this, "Invalid Data", "Please correct:\n\n" + errors);
         return;
     }
 
     if (!m_dbManager) {
-        QMessageBox::critical(this, "Error", "No hay conexión con la base de datos.");
+        QMessageBox::critical(this, "Error", "No connection to the database.");
         return;
     }
 
@@ -75,10 +75,10 @@ void AddObjectDialog::on_saveButton_clicked()
     }
 
     if (success) {
-        QMessageBox::information(this, "Éxito", m_isEditMode ? "Objeto actualizado." : "Objeto creado.");
+        QMessageBox::information(this, "Success", m_isEditMode ? "Object updated." : "Object created.");
         accept();
     } else {
-        QMessageBox::critical(this, "Error", "Operación fallida.\n\n" + QString::fromStdString(errorDetails));
+        QMessageBox::critical(this, "Error", "Operation failed.\n\n" + QString::fromStdString(errorDetails));
     }
 }
 
@@ -89,13 +89,15 @@ void AddObjectDialog::setAvailableGroups(const std::set<std::string> &groups)
     for(const auto& groupName : groups) {
         ui->setsListWidget->addItem(QString::fromStdString(groupName));
     }
+
 }
+
 
 // Seleccionar imagen
 void AddObjectDialog::on_browseImageBtn_clicked()
 {
     QString filePath = QFileDialog::getOpenFileName(
-        this, "Seleccionar Imagen", QDir::homePath(), "Imágenes (*.jpg *.png *.bmp *.jpeg)");
+        this, "Select Image", QDir::homePath(), "Images (*.jpg *.png *.bmp *.jpeg)");
 
     if(!filePath.isEmpty()) {
         m_selectedImagePath = filePath;
@@ -266,17 +268,13 @@ void AddObjectDialog::setEditMode(bool enable)
 {
     m_isEditMode = enable;
     if(enable) {
-        this->setWindowTitle("Editar Objeto");
+        this->setWindowTitle("Edit Object");
         // ID / NORAD NO SE PUEDE TOCAR AL EDITAR (Es la clave primaria)
         ui->noradEdit->setEnabled(false);
-        ui->saveButton->setText("Actualizar Objeto");
+        ui->saveButton->setText("Update Object");
     } else {
-        this->setWindowTitle("Crear Nuevo Objeto");
+        this->setWindowTitle("Create New Object");
         ui->noradEdit->setEnabled(true);
-        ui->saveButton->setText("Guardar Objeto");
+        ui->saveButton->setText("Save Object");
     }
 }
-
-
-
-
