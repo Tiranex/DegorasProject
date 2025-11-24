@@ -332,7 +332,7 @@
        </rect>
       </property>
       <property name="title">
-       <string>Filtro y Gestión de Grupos</string>
+       <string>Set Filtering and Management</string>
       </property>
       <widget class="QListWidget" name="listWidget">
        <property name="geometry">
@@ -367,7 +367,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>Crear Grupo</string>
+        <string>Create Set</string>
        </property>
       </widget>
       <widget class="QPushButton" name="deleteGroupButton">
@@ -380,7 +380,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>Eliminar Grupo</string>
+        <string>Delete Set</string>
        </property>
       </widget>
       <widget class="QPushButton" name="refreshListButton_2">
@@ -416,7 +416,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>Mostrar todos los objetos</string>
+        <string>Show all Objects</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -432,7 +432,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>Añadir objeto a grupo</string>
+        <string>Add Object to Set</string>
        </property>
       </widget>
       <widget class="QPushButton" name="removeFromGroupButton">
@@ -445,7 +445,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>Quitar objeto de grupo</string>
+        <string>Delete Object from Set</string>
        </property>
       </widget>
       <widget class="QPushButton" name="addNewObjectSetButton">
@@ -458,7 +458,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>Añadir Nuevo objeto</string>
+        <string>Add New Object</string>
        </property>
       </widget>
       <widget class="QPushButton" name="editObjectButton">
@@ -471,20 +471,20 @@
         </rect>
        </property>
        <property name="text">
-        <string>Editar objeto</string>
+        <string>Edit Object</string>
        </property>
       </widget>
       <widget class="QPushButton" name="deleteObjectSetButton">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>60</x>
          <y>390</y>
-         <width>131</width>
+         <width>191</width>
          <height>24</height>
         </rect>
        </property>
        <property name="text">
-        <string>Eliminar Seleccionados</string>
+        <string>Delete Selected Objects</string>
        </property>
       </widget>
       <widget class="QLabel" name="setsDetailImageLabel">
@@ -500,7 +500,7 @@
         <enum>QFrame::Shape::Box</enum>
        </property>
        <property name="text">
-        <string>[Imagen irá aquí]</string>
+        <string>[Image will be here]</string>
        </property>
        <property name="scaledContents">
         <bool>true</bool>
@@ -512,7 +512,7 @@
          <x>1210</x>
          <y>250</y>
          <width>141</width>
-         <height>91</height>
+         <height>100</height>
         </rect>
        </property>
        <layout class="QFormLayout" name="formLayout_4">
@@ -547,7 +547,7 @@
         <item row="1" column="0">
          <widget class="QLabel" name="label_8">
           <property name="text">
-           <string>Nombre</string>
+           <string>Name</string>
           </property>
          </widget>
         </item>
@@ -587,7 +587,7 @@
         <item row="1" column="0">
          <widget class="QLabel" name="label_11">
           <property name="text">
-           <string>Altitud</string>
+           <string>Altitude</string>
           </property>
          </widget>
         </item>
@@ -636,7 +636,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>Bucar objeto</string>
+        <string>Search Object</string>
        </property>
       </widget>
      </widget>
@@ -649,7 +649,7 @@
      <x>0</x>
      <y>0</y>
      <width>1545</width>
-     <height>22</height>
+     <height>25</height>
     </rect>
    </property>
   </widget>
