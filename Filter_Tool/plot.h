@@ -183,6 +183,7 @@ public:
 
     // Botón "Deseleccionar / Resetear"
     void resetSelection();
+    void updateFit();
 
     virtual const QVector<QPointF> getSelectedSamples() const
     {
@@ -238,27 +239,5 @@ protected:
 
     // Helper to capture current state
     void applyState(const PlotState& state);
-};
-
-class PlotSync
-{
-    PlotSync(QVector<Plot*>& v);
-    void setSymbol( QwtSymbol * );
-    void setSamples( const QVector<QPointF> &samples );
-    void selectPoints(const QPolygonF& pol);
-    void setBinSize(int bin_size);
-    bool undo();
-    bool redo();
-
-    void pushCurrentStateToUndo();
-    // Conecta estos slots a tus botones externos
-    void setNavigationMode();
-    void setSelectionMode();
-    void setDeletionMode();
-
-    // Botón "Deseleccionar / Resetear"
-    void resetSelection();
-private:
-    QVector<Plot*> reference_plot;
 };
 

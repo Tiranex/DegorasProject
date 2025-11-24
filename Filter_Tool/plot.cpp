@@ -37,6 +37,7 @@ void Plot::applyState(const PlotState& state)
     selData->setSamples(state.selectedPoints);
 
     // Force redraw
+    this->updateFit();
     this->replot();
 }
 
@@ -356,7 +357,7 @@ void Plot::selectPoints(const QPolygonF& pol)
 
     // 4. Recalcular fits y repintar
     // Si tienes lógica de ajuste de curvas (polynomialFit), llámala aquí con los nuevos datos.
-
+    this->updateFit();
     emit this->selectionChanged(); // Notificar cambios
     this->replot();
 
@@ -454,89 +455,82 @@ void Plot::setSamples(const QVector<QPointF> &samples)
     this->setAxisScale(QwtPlot::Axis::xTop, plot_curve->minXValue()-margen_x, plot_curve->maxXValue()+margen_x);
     this->setAxisScale(QwtPlot::Axis::yLeft, plot_curve->minYValue()-margen_y, plot_curve->maxYValue()+margen_y);
     this->setAxisScale(QwtPlot::Axis::yRight, plot_curve->minYValue()-margen_y, plot_curve->maxYValue()+margen_y);
+    this->updateFit();
 
-    QwtSLRArraySeriesData *fitt_data = static_cast<QwtSLRArraySeriesData *>(this->adjust_curve->data());
-
-    fitt_data->clear();
-
-    auto curve_samples = curve_data->samples();
-    std::sort(curve_samples.begin(), curve_samples.end(), [](const auto& a, const auto& b){return a.x() < b.x();});
-    QVector<QPointF> oY;
-    QVector<double> oY_original;
-
-    std::vector<double> xbin, ybin;
-    double time_orig = curve_samples.front().x();
-
-    for (const auto& p : std::as_const(curve_samples))
-    {
-        if (p.x() - time_orig > this->bin_size * 1e9)
-        {
-            auto coefs = dpbase::stats::polynomialFit(xbin, ybin, 9);
-            for (auto it_x = xbin.begin(), it_y = ybin.begin(); it_x != xbin.end() && it_y != ybin.end(); ++it_x, ++it_y)
-            {
-                oY.append({*it_x, dpbase::stats::applyPolynomial(coefs, *it_x)});
-                oY_original.append(*it_y);
-            }
-            xbin.clear();
-            ybin.clear();
-            time_orig = p.x();
-
-        }
-
-        xbin.push_back(p.x());
-        ybin.push_back(p.y());
-    }
-
-    // TODO: control polynomial fit (matrix is not inversible)
-    if (!xbin.empty() && !ybin.empty())
-    {
-        auto coefs = dpbase::stats::polynomialFit(xbin, ybin, 9);
-        for (auto it_x = xbin.begin(), it_y = ybin.begin(); it_x != xbin.end() && it_y != ybin.end(); ++it_x, ++it_y)
-        {
-            oY.append({*it_x, dpbase::stats::applyPolynomial(coefs, *it_x)});
-            oY_original.append(*it_y);
-        }
-    }
-
-
-
-//    for (const auto& p : std::as_const(curve_samples))
-//    {
-//        double y = coefs[0];
-
-//        for(int i=1; i<coefs.size(); i++)
-//            y=y+coefs[i]*std::pow(p.x(),i);
-
-//        oY.append(QPointF(p.x(),y));
-//        oY_original.append(p.y());
-
-
-//    }
-
-
-    fitt_data->append(oY);
-
-    this->points_fiterrors.clear();
-
-    for(int i = 0; i<curve_data->samples().size(); i++)
-    {
-        double error = curve_data->samples()[i].y() - fitt_data->samples()[i].y();
-        this->points_fiterrors.append(QPointF(curve_data->samples()[i].x(),
-                                              std::isnan(error) ? curve_data->samples()[i].y() : error));
-    }
-
-    emit this->fitCalculated(fitt_data->samples());
     emit this->selectionChanged();
 
 
     this->replot();
 }
 
+void Plot::updateFit()
+{
+    QwtSLRArraySeriesData *curve_data = static_cast<QwtSLRArraySeriesData *>(this->plot_curve->data());
+    QwtSLRArraySeriesData *fitt_data = static_cast<QwtSLRArraySeriesData *>(this->adjust_curve->data());
 
+    fitt_data->clear();
 
-/* PLOT_SYNC*/
+    auto curve_samples = curve_data->samples();
+    // Sort samples by X (Time) to ensure fit works correctly
+    std::sort(curve_samples.begin(), curve_samples.end(), [](const auto& a, const auto& b){return a.x() < b.x();});
 
+    QVector<QPointF> oY;
+    // removed unused oY_original variable for clarity, though you can keep it if used elsewhere
 
+    std::vector<double> xbin, ybin;
 
+    // Safety check
+    if(curve_samples.isEmpty()) {
+        this->replot();
+        return;
+    }
 
+    double time_orig = curve_samples.front().x();
 
+    for (const auto& p : std::as_const(curve_samples))
+    {
+        if (p.x() - time_orig > this->bin_size * 1e9)
+        {
+            if (!xbin.empty() && !ybin.empty()) {
+                auto coefs = dpbase::stats::polynomialFit(xbin, ybin, 9);
+                for (auto it_x = xbin.begin(), it_y = ybin.begin(); it_x != xbin.end() && it_y != ybin.end(); ++it_x, ++it_y)
+                {
+                    oY.append({*it_x, dpbase::stats::applyPolynomial(coefs, *it_x)});
+                }
+            }
+            xbin.clear();
+            ybin.clear();
+            time_orig = p.x();
+        }
+
+        xbin.push_back(p.x());
+        ybin.push_back(p.y());
+    }
+
+    // Process the last bin
+    if (!xbin.empty() && !ybin.empty())
+    {
+        auto coefs = dpbase::stats::polynomialFit(xbin, ybin, 9);
+        for (auto it_x = xbin.begin(), it_y = ybin.begin(); it_x != xbin.end() && it_y != ybin.end(); ++it_x, ++it_y)
+        {
+            oY.append({*it_x, dpbase::stats::applyPolynomial(coefs, *it_x)});
+        }
+    }
+
+    fitt_data->append(oY);
+
+    this->points_fiterrors.clear();
+
+    // Calculate errors
+    // Note: curve_data might be larger or differently ordered if not careful,
+    // but since we rebuilt fitt_data from curve_data, sizes usually match
+    // IF curve_data was already sorted. Ideally, iterate strictly.
+    for(int i = 0; i < oY.size() && i < curve_samples.size(); i++)
+    {
+        double error = curve_samples[i].y() - fitt_data->samples()[i].y();
+        this->points_fiterrors.append(QPointF(curve_samples[i].x(),
+                                              std::isnan(error) ? curve_samples[i].y() : error));
+    }
+
+    emit this->fitCalculated(fitt_data->samples());
+}

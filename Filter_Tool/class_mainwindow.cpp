@@ -1,15 +1,10 @@
 #include "class_mainwindow.h"
+#include <cmath>
 #include "ui_form_mainwindow.h" // Asumo que el nombre del UI header es este
 #include "tracking_data.h"
 #include "plot.h"
 #include "errorplot.h"
-<<<<<<< HEAD
 #include "cpf_predictor.h"
-=======
-#include "histogramplot.h"
-#include "cpf.h"
->>>>>>> bbb9722 (Updated Ui, added Histogram Added Redo/Undo Functionality)
-
 #include <LibDegorasSLR/ILRS/algorithms/statistics.h>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -75,6 +70,10 @@ void MainWindow::setupConnections()
     connect(ui->actionExponentialSmoothing, &QAction::triggered, this, [this]() {
 
         applyFilter(FilterOptions::ExponentialSmoothing);
+    });
+    connect(ui->actionMovingAverage, &QAction::triggered, this, [this]() {
+
+        applyFilter(FilterOptions::MovingAverage);
     });
 }
 
@@ -384,45 +383,59 @@ void MainWindow::on_actionDiscard_triggered()
 
 void MainWindow::on_actionSave_triggered()
 {
-    if (!m_trackingData) return;
+    if (!m_trackingData) {
+        DegorasInformation::showWarning("Filter Tool", "No file has been loaded", "", this);
+        return;
+    }
 
-    QVector<QPointF> v = ui->filterPlot->getSelectedSamples();
-    if (m_trackingData->dp_tracking) {
-        if (v.isEmpty()) {
-            // NAME UPDATE: SalaraInformation -> DegorasInformation
-            DegorasInformation::showWarning("Filter Tool", "No points selected. Have you calculated statistics?", "", this);
-            return;
+    // 1. Use getSaveFileName (not getOpenFileName)
+    // 2. Add the filter string "Description (*.ext)"
+    QString filter = "Tracking Files (*.dptr)";
+    QString filePath = QFileDialog::getSaveFileName(this,
+                                                    "Save Tracking File",
+                                                    QDir::homePath(), // Or use a specific default folder
+                                                    filter);
+
+    // 3. Check if the path is NOT empty (User did not click Cancel)
+    if (!filePath.isEmpty()) {
+
+        // 4. Manually ensure the extension is present
+        // (Some OS file dialogs don't auto-append the extension)
+        if (!filePath.endsWith(".dptr", Qt::CaseInsensitive)) {
+            filePath += ".dptr";
         }
-        qInfo() << QString("Saving as data %1 points").arg(v.size());
 
-        std::set<qulonglong> selected;
-        std::transform(v.begin(), v.end(), std::inserter(selected, selected.begin()),
-                       [](const auto& e){return static_cast<qulonglong>(e.x());});
+        // Update the internal data structure with the current valid samples from the plot
+        QVector<QPointF> validSamples = ui->filterPlot->getSelectedSamples();
+        std::set<unsigned long long> validTimes;
+        for(const auto& p : validSamples) {
+            // Convert back to nanoseconds
+            validTimes.insert(static_cast<unsigned long long>(std::round(p.x())));
+        }
 
         long double prev_start = -1.L;
         long double offset = 0.L;
-        for (auto&& shot : m_trackingData->data.ranges) {
-            if (shot.start_time < prev_start) offset += 86400.L;
+
+        for (auto& shot : this->m_trackingData->data.ranges)
+        {
+            if (shot.start_time < prev_start)
+            {
+                offset += 86400.L;
+            }
             prev_start = shot.start_time;
 
-            if (selected.count(static_cast<qulonglong>((shot.start_time + offset) * 1e9L)))
+            // Reconstruct the time key to match the plot data
+            unsigned long long time = static_cast<unsigned long long>((shot.start_time + offset) * 1e9);
+
+            if (validTimes.count(time)) {
                 shot.flag = Tracking::RangeData::FilterFlag::DATA;
-            else
+            } else {
                 shot.flag = Tracking::RangeData::FilterFlag::NOISE;
+            }
         }
-        m_trackingData->data.filter_mode = Tracking::FilterMode::MANUAL;
-        DegorasInformation errors = TrackingFileManager::writeTracking(m_trackingData->data);
-        if (errors.hasError())
-            errors.showErrors("Filter Tool", DegorasInformation::WARNING, "Error on file saving", this);
-        else {
-            // NAME UPDATE: SalaraInformation -> DegorasInformation
-            DegorasInformation::showInfo("Filter Tool", "Data saved successfully.", "", this);
-            onFilterSaved();
-        }
-    } else {
-        // ... (Logic for non-dp_tracking files remains the same)
-        qInfo() << "Saving for non-DP tracking is not fully implemented in this refactor.";
-        onFilterSaved();
+
+        // 5. Perform the write operation
+        TrackingFileManager::writeTrackingPrivate(this->m_trackingData->data, filePath);
     }
 }
 
@@ -542,10 +555,11 @@ void MainWindow::on_pb_calcStats_clicked()
         // Si RMS=0, no borramos puntos de la gráfica, los dejamos todos verdes
     }
 
-    ui->filterPlot->selected_curve->setSamples(v);
-    ui->filterPlot->error_curve->setSamples(error_points);
+    // NO TOCAR LOS PLOTS
+    //ui->filterPlot->selected_curve->setSamples(v);
+    //ui->filterPlot->error_curve->setSamples(error_points);
     // ... (resto de updates de plots igual) ...
-    ui->filterPlot->replot();
+    //ui->filterPlot->replot();
 
     // --- ACTUALIZAR ETIQUETAS ---
     // RMS
@@ -720,7 +734,7 @@ void MainWindow::on_removeNavMode_clicked()
 void MainWindow::on_undoButton_clicked()
 {
     bool undo_status = ui->filterPlot->undo();
-    ui->filterPlot->undo();
+    ui->histogramPlot->undo();
     if(!undo_status)
         DegorasInformation::showInfo("Filter Tool", "No more actions to undo.", "", this);
 }
@@ -729,7 +743,7 @@ void MainWindow::on_undoButton_clicked()
 void MainWindow::on_redoButton_clicked()
 {
     bool redo_status = ui->filterPlot->redo();
-    ui->filterPlot->redo();
+    ui->histogramPlot->redo();
     if(!redo_status)
         DegorasInformation::showInfo("Filter Tool", "No more actions to undo.", "", this);
 }
