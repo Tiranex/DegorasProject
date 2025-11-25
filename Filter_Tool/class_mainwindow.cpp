@@ -21,13 +21,13 @@
 #include <datafilter.h>
 #include <LibDegorasSLR/ILRS/algorithms/data/statistics_data.h>
 
-MainWindow::MainWindow(QWidget *parent) : // Constructor
+    MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::MainWindow),
-    m_trackingData(nullptr),
-    m_isChanged(false)
+ui(new Ui::MainWindow),
+m_trackingData(nullptr),
+m_isChanged(false)
 {
-    ui->setupUi(this); // ui looks at 'this', creates all the widgets, places them inside 'this' and saves all pointers to them in itself (ui)
+    ui->setupUi(this);
 
     // Initial state
     updateUIState(false);
@@ -320,42 +320,28 @@ void MainWindow::applyFilter(FilterOptions f)
     onFilterChanged();
 }
 
-/**
- * @brief MainWindow::threshFilter synchronization and cleanup function. Removes points from filterPlot
- * that are no longer considered valid according to histogramPlot
- * @return returns the count of deleted points from 'filterPlot'
- */
 int MainWindow::threshFilter()
 {
-    // access to UI elements
-    auto thresh_samples = ui->histogramPlot->getThreshSamples(); // points with statistical threshold in yellow
-    auto samples = ui->filterPlot->getSelectedSamples(); // current points
+    auto thresh_samples = ui->histogramPlot->getThreshSamples();
+    auto samples = ui->filterPlot->getSelectedSamples();
 
     if (thresh_samples.size() != samples.size())
     {
-        decltype(samples) selected_samples; // same type as samples (filterPlot)
-        // move to selected_samples if lambda function returns true
+        decltype(samples) selected_samples;
         std::copy_if(std::make_move_iterator(samples.begin()), std::make_move_iterator(samples.end()),
-                     // move_iterator as intput: values are moved from, rather than copied from.
-                     // BUT QPointF is a simple (two doubles) type so "moving it" is essentially "copying it".
-                     // Furthermore, moving elements does NOT reduce the size of the container
-
-                     std::back_inserter(selected_samples), // constructs a back_insert_iterator: adds elements to the back of 'selected_samples'
-                     [&thresh_samples](const auto& p) // p belongs to selected_samples
+                     std::back_inserter(selected_samples), [&thresh_samples](const auto& p)
                      {
                          auto it = std::find_if(thresh_samples.begin(), thresh_samples.end(),
-                                                [&p](const auto& t){return p.x() == t.x();}); // checks if p from current points have same x (time) component as any survivor
-                         return it != thresh_samples.end(); // true if found
+                                                [&p](const auto& t){return p.x() == t.x();});
+                         return it != thresh_samples.end();
                      });
-        ui->filterPlot->setSamples(selected_samples); //updates filterPlot with new survivors, which will be the same as in histogramPlot.
-        // setSamples() located in plot.h. It emmits selectionChanged(), which triggers slot: onPlotSelectionChanged(), which does ui->histogramPlot->setSamples(fit_errors), which recalculates RMS (yellow line)
+        ui->filterPlot->setSamples(selected_samples);
     }
-    return samples.size() - thresh_samples.size(); // Return size comparison
+    return samples.size() - thresh_samples.size();
 }
 
 void MainWindow::on_pb_rmsFilter_clicked()
 {
-    // Difference with on_pb_autoFilter_clicked(): when updating, it also recalculates statistics?? (CHECK)
     threshFilter();
     onFilterChanged();
 }
