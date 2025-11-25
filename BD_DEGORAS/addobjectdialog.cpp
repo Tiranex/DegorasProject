@@ -14,11 +14,11 @@ AddObjectDialog::AddObjectDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    // Inicializar combos con valores por defecto
+    // Initialize combos with default values
     if(ui->lrrCombo->count() == 0) ui->lrrCombo->addItems({"Unknown", "True", "False"});
     if(ui->debrisCombo->count() == 0) ui->debrisCombo->addItems({"Unknown", "True", "False"});
 
-    // Habilitar selección múltiple para Grupos
+    // Enable multi-selection for Groups
     ui->setsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
 
     spdlog::debug("AddObjectDialog initialized.");
@@ -29,7 +29,6 @@ AddObjectDialog::~AddObjectDialog()
     delete ui;
 }
 
-// Añade esto al principio o donde tengas las funciones
 void AddObjectDialog::setDbManager(SpaceObjectDBManager* dbManager)
 {
     m_dbManager = dbManager;
@@ -39,21 +38,20 @@ void AddObjectDialog::on_saveButton_clicked()
 {
     QString errors;
 
-    // Validar Obligatorios (!)
+    // Validate Required Fields
     if(ui->noradEdit->text().trimmed().isEmpty()) errors += "- Field 'Norad' is required.\n";
     if(ui->nameEdit->text().trimmed().isEmpty()) errors += "- Field 'Name' is required.\n";
     if(ui->aliasEdit->text().trimmed().isEmpty()) errors += "- Field 'Alias' is required.\n";
-
-    // COSPAR OBLIGATORIO
     if(ui->cosparEdit->text().trimmed().isEmpty()) errors += "- Field 'COSPAR' is required.\n";
 
     bool ok;
     ui->noradEdit->text().toLongLong(&ok);
     if(!ok) errors += "- 'Norad' must be a valid integer.\n";
 
-    if(ui->altitudeSpin->value() <= 0) errors += "- Altitude must be greater than 0.\n";
-    if(ui->npiSpin->value() <= 0) errors += "- NPI is required.\n";
-    if(ui->bsSpin->value() <= 0) errors += "- BinSize (BS) is required.\n";
+    // --- FIX: Convert text to numbers for validation ---
+    if(ui->altitudeEdit->text().toDouble() <= 0) errors += "- Altitude greater than 0 is required.\n";
+    if(ui->npiEdit->text().toInt() <= 0) errors += "- NPI greater than 0 is required.\n";
+    if(ui->bsEdit->text().toDouble() <= 0) errors += "- BinSize (BS) greater than 0 is required.\n";
 
     if(!errors.isEmpty()) {
         spdlog::warn("AddObjectDialog validation failed:\n{}", errors.toStdString());
@@ -71,13 +69,11 @@ void AddObjectDialog::on_saveButton_clicked()
     std::string errorDetails;
     bool success = false;
 
-    // DECISIÓN CRÍTICA: ¿Creamos o Actualizamos?
+    // Create or Update?
     if (m_isEditMode) {
-        // MODO EDICIÓN
         spdlog::info("Attempting to update object with ID: {}", newData["_id"].dump());
         success = m_dbManager->updateSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
     } else {
-        // MODO CREACIÓN
         spdlog::info("Attempting to create new object with ID: {}", newData["_id"].dump());
         success = m_dbManager->createSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
     }
@@ -92,18 +88,14 @@ void AddObjectDialog::on_saveButton_clicked()
     }
 }
 
-// Cargar grupos desde la BBDD
 void AddObjectDialog::setAvailableGroups(const std::set<std::string> &groups)
 {
     ui->setsListWidget->clear();
     for(const auto& groupName : groups) {
         ui->setsListWidget->addItem(QString::fromStdString(groupName));
     }
-    // spdlog::debug("Loaded {} groups into AddObjectDialog.", groups.size());
 }
 
-
-// Seleccionar imagen
 void AddObjectDialog::on_browseImageBtn_clicked()
 {
     QString filePath = QFileDialog::getOpenFileName(
@@ -121,12 +113,11 @@ QString AddObjectDialog::getSelectedImagePath() const {
     return m_selectedImagePath;
 }
 
-// 1. AJUSTE EN LA GENERACIÓN DEL JSON
 nlohmann::json AddObjectDialog::getNewObjectData() const
 {
     nlohmann::json j;
 
-    // Ayudas (Lambdas)
+    // Helpers
     auto setStringOrNull = [&](const std::string& key, const QString& value) {
         if (value.trimmed().isEmpty()) j[key] = nullptr;
         else j[key] = value.trimmed().toStdString();
@@ -138,46 +129,44 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
         else j[key] = nullptr;
     };
 
-    // --- ASIGNACIÓN ---
+    // --- ASSIGNMENT ---
 
-    // OBLIGATORIOS (Nunca Null)
+    // Required (Never Null)
     try {
         if (ui->noradEdit->text().isEmpty()) j["_id"] = nullptr;
         else j["_id"] = ui->noradEdit->text().toLongLong();
     } catch (...) { j["_id"] = nullptr; }
 
-    // Strings OBLIGATORIOS (Asignación directa, sin setStringOrNull)
     j["NORAD"] = ui->noradEdit->text().trimmed().toStdString();
     j["Name"] = ui->nameEdit->text().trimmed().toStdString();
     j["Abbreviation"] = ui->aliasEdit->text().trimmed().toStdString();
-
-    // COSPAR AHORA ES OBLIGATORIO
     j["COSPAR"] = ui->cosparEdit->text().trimmed().toStdString();
 
-    // OPCIONALES (Pueden ser Null)
+    // Optional Strings
     setStringOrNull("ILRSID", ui->ilrsEdit->text());
     setStringOrNull("SIC", ui->sicEdit->text());
 
-    // Booleanos
+    // Booleans
     setTristate("LaserRetroReflector", ui->lrrCombo->currentText());
     setTristate("IsDebris", ui->debrisCombo->currentText());
     j["TrackPolicy"] = ui->highPowerCheck->isChecked() ? 1 : 0;
 
-    // Físicos
-    j["Altitude"] = ui->altitudeSpin->value();
-    j["RadarCrossSection"] = ui->rcsSpin->value();
-    j["NormalPointIndicator"] = ui->npiSpin->value();
-    j["BinSize"] = ui->bsSpin->value();
-    j["Inclination"] = ui->incSpin->value();
-    j["CoM"] = ui->comSpin->value();
+    // --- FIX: Convert QLineEdit text to numbers ---
+    // toDouble() returns 0.0 if conversion fails, which is handled by validation
+    j["Altitude"] = ui->altitudeEdit->text().toDouble();
+    j["RadarCrossSection"] = ui->rcsEdit->text().toDouble();
+    j["NormalPointIndicator"] = ui->npiEdit->text().toInt();
+    j["BinSize"] = ui->bsEdit->text().toDouble();
+    j["Inclination"] = ui->incEdit->text().toDouble();
+    j["CoM"] = ui->comEdit->text().toDouble();
 
-    // Textos Opcionales
+    // Optional Texts
     setStringOrNull("Comments", ui->commentsEdit->toPlainText());
     setStringOrNull("ProviderCPF", ui->cpfEdit->text());
     setStringOrNull("Config", ui->configEdit->text());
     setStringOrNull("Picture", ui->imagePathEdit->text());
 
-    // Grupos
+    // Groups
     std::vector<std::string> selectedGroups;
     for(auto item : ui->setsListWidget->selectedItems()) {
         selectedGroups.push_back(item->text().toStdString());
@@ -193,26 +182,24 @@ void AddObjectDialog::on_cancelButton_clicked()
     reject();
 }
 
-// --- NUEVA FUNCIÓN: CARGAR DATOS ---
+// --- LOAD DATA ---
 void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
 {
     spdlog::debug("Loading object data into form.");
 
-    // Helper para no crashear con nulos
     auto getString = [&](const std::string& key) -> QString {
         if(obj.contains(key) && !obj[key].is_null())
             return QString::fromStdString(obj[key].get<std::string>());
         return "";
     };
 
-    // Helper para números
     auto getDouble = [&](const std::string& key) -> double {
         if(obj.contains(key) && !obj[key].is_null()) return obj[key];
         return 0.0;
     };
 
-    // 1. Rellenar Textos
-    ui->noradEdit->setText(QString::number(obj.value("_id", 0LL))); // _id es int64
+    // 1. Fill Texts
+    ui->noradEdit->setText(QString::number(obj.value("_id", 0LL)));
     ui->nameEdit->setText(getString("Name"));
     ui->aliasEdit->setText(getString("Abbreviation"));
     ui->cosparEdit->setText(getString("COSPAR"));
@@ -222,18 +209,17 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     ui->commentsEdit->setPlainText(getString("Comments"));
     ui->cpfEdit->setText(getString("ProviderCPF"));
     ui->configEdit->setText(getString("Config"));
-    ui->imagePathEdit->setText(getString("Picture")); // Mostramos nombre de foto
+    ui->imagePathEdit->setText(getString("Picture"));
 
-    // 2. Rellenar Números
-    ui->altitudeSpin->setValue(getDouble("Altitude"));
-    ui->rcsSpin->setValue(getDouble("RadarCrossSection"));
-    ui->npiSpin->setValue(obj.value("NormalPointIndicator", 0));
-    ui->bsSpin->setValue(obj.value("BinSize", 0));
-    ui->incSpin->setValue(getDouble("Inclination"));
-    ui->comSpin->setValue(getDouble("CoM"));
+    // --- FIX: Convert Numbers to String for QLineEdit ---
+    ui->altitudeEdit->setText(QString::number(getDouble("Altitude")));
+    ui->rcsEdit->setText(QString::number(getDouble("RadarCrossSection")));
+    ui->npiEdit->setText(QString::number(obj.value("NormalPointIndicator", 0)));
+    ui->bsEdit->setText(QString::number(obj.value("BinSize", 0)));
+    ui->incEdit->setText(QString::number(getDouble("Inclination")));
+    ui->comEdit->setText(QString::number(getDouble("CoM")));
 
-    // 3. Rellenar Combos/Checks
-    // LRR
+    // 3. Fill Combos/Checks
     if(obj.contains("LaserRetroReflector")) {
         if(obj["LaserRetroReflector"].is_null()) ui->lrrCombo->setCurrentText("Unknown");
         else {
@@ -242,7 +228,6 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         }
     }
 
-    // Debris
     if(obj.contains("IsDebris")) {
         if(obj["IsDebris"].is_null()) ui->debrisCombo->setCurrentText("Unknown");
         else {
@@ -251,15 +236,12 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         }
     }
 
-    // TrackPolicy
     if(obj.contains("TrackPolicy") && !obj["TrackPolicy"].is_null()) {
         ui->highPowerCheck->setChecked(obj["TrackPolicy"] == 1);
     }
 
-    // 4. SELECCIONAR GRUPOS
-    // Primero limpiamos selección
+    // 4. Select Groups
     ui->setsListWidget->clearSelection();
-
     if(obj.contains("Groups") && obj["Groups"].is_array()) {
         std::vector<std::string> groups = obj["Groups"];
         for(int i=0; i < ui->setsListWidget->count(); ++i) {
@@ -274,7 +256,6 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     }
 }
 
-// --- NUEVA FUNCIÓN: MODO EDICIÓN ---
 void AddObjectDialog::setEditMode(bool enable)
 {
     m_isEditMode = enable;
