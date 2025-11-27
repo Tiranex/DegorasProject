@@ -141,6 +141,7 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
     j["Name"] = ui->nameEdit->text().trimmed().toStdString();
     j["Abbreviation"] = ui->aliasEdit->text().trimmed().toStdString();
     j["COSPAR"] = ui->cosparEdit->text().trimmed().toStdString();
+    j["EnablementPolicy"] = 1;
 
     // Optional Strings
     setStringOrNull("ILRSID", ui->ilrsEdit->text());

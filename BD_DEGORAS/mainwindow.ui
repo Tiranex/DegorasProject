@@ -386,7 +386,7 @@
       <widget class="QPushButton" name="refreshListButton_2">
        <property name="geometry">
         <rect>
-         <x>690</x>
+         <x>550</x>
          <y>340</y>
          <width>75</width>
          <height>24</height>
@@ -409,9 +409,9 @@
       <widget class="QCheckBox" name="showAllObjectsCheckBox">
        <property name="geometry">
         <rect>
-         <x>520</x>
+         <x>410</x>
          <y>340</y>
-         <width>161</width>
+         <width>111</width>
          <height>20</height>
         </rect>
        </property>
@@ -639,6 +639,61 @@
         <string>Search Object</string>
        </property>
       </widget>
+      <widget class="QWidget" name="horizontalLayoutWidget">
+       <property name="geometry">
+        <rect>
+         <x>690</x>
+         <y>340</y>
+         <width>171</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QRadioButton" name="filterAllRadio">
+          <property name="text">
+           <string>All</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="filterEnabledRadio">
+          <property name="text">
+           <string>Enable</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="filterDisabledRadio">
+          <property name="text">
+           <string>Disable</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <zorder>listWidget</zorder>
+      <zorder>newGroupLineEdit</zorder>
+      <zorder>createGroupButton</zorder>
+      <zorder>deleteGroupButton</zorder>
+      <zorder>setsObjectTable</zorder>
+      <zorder>showAllObjectsCheckBox</zorder>
+      <zorder>assignToGroupButton</zorder>
+      <zorder>removeFromGroupButton</zorder>
+      <zorder>addNewObjectSetButton</zorder>
+      <zorder>editObjectButton</zorder>
+      <zorder>deleteObjectSetButton</zorder>
+      <zorder>setsDetailImageLabel</zorder>
+      <zorder>formLayoutWidget</zorder>
+      <zorder>formLayoutWidget_2</zorder>
+      <zorder>label_12</zorder>
+      <zorder>setsDetailComments</zorder>
+      <zorder>searchObjectButton</zorder>
+      <zorder>horizontalLayoutWidget</zorder>
+      <zorder>refreshListButton_2</zorder>
      </widget>
     </widget>
    </widget>

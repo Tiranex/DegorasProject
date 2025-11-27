@@ -328,14 +328,20 @@
   <tabstop>sicEdit</tabstop>
   <tabstop>lrrCombo</tabstop>
   <tabstop>debrisCombo</tabstop>
+  <tabstop>altitudeEdit</tabstop>
+  <tabstop>rcsEdit</tabstop>
+  <tabstop>npiEdit</tabstop>
+  <tabstop>bsEdit</tabstop>
+  <tabstop>incEdit</tabstop>
+  <tabstop>comEdit</tabstop>
   <tabstop>cpfEdit</tabstop>
   <tabstop>highPowerCheck</tabstop>
   <tabstop>configEdit</tabstop>
   <tabstop>browseImageBtn</tabstop>
-  <tabstop>setsListWidget</tabstop>
-  <tabstop>commentsEdit</tabstop>
   <tabstop>saveButton</tabstop>
   <tabstop>cancelButton</tabstop>
+  <tabstop>setsListWidget</tabstop>
+  <tabstop>commentsEdit</tabstop>
   <tabstop>imagePathEdit</tabstop>
  </tabstops>
  <resources/>

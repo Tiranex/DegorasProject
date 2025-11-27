@@ -56,6 +56,13 @@ private slots:
     void on_setsObjectTable_selectionChanged();
     void on_searchObjectButton_clicked();
 
+    //Export to CSV
+    void exportToCSV();
+    void importFromJSON();
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+
 private:
     // Helper function to log messages to the GUI and file
     void logMessage(const QString& msg);

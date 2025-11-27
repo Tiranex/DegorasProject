@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QDebug>
 #include <QPixmap>
+#include <QPainter>
 #include <QByteArray>
 #include <QDialogButtonBox>
 #include <QVBoxLayout>
@@ -21,6 +22,9 @@
 #include <QClipboard>
 #include <QMenu>
 #include <QDateTime>
+#include <QKeyEvent>
+
+
 
 // LOGGING
 #include <spdlog/spdlog.h>
@@ -33,10 +37,10 @@
 
 // Table headers based on DB keys. DO NOT TRANSLATE literal strings.
 const QStringList g_tableHeaders = {
-    "_id", "Name", "Altitude", "Amplification", "BinSize",
+    "EnablementPolicy", "_id", "Name", "NORAD", "Altitude", "Amplification", "BinSize",
     "COSPAR", "Classification", "CounterID", "DetectorID",
-    "EnablementPolicy", "ILRSID", "ILRSName", "Inclination",
-    "IsDebris", "LaserID", "LaserRetroReflector", "NORAD","Abbreviation" ,
+    "ILRSID", "ILRSName", "Inclination",
+    "IsDebris", "LaserID", "LaserRetroReflector", "Abbreviation" ,
     "NormalPointIndicator", "Picture", "Priority", "ProviderCPF",
     "RadarCrossSection", "SIC", "TrackPolicy"
 };
@@ -95,6 +99,27 @@ MainWindow::MainWindow(QWidget *parent)
     // 4. Initial UI Setup
     ui->searchByIdRadioButton->setChecked(true);
     ui->imageDisplayLabel->clear();
+
+
+
+    // 1. Accedemos a la barra de menú de la ventana
+    QMenuBar *barraMenu = this->menuBar();
+
+    // 2. Creamos un menú nuevo llamado "Data"
+    QMenu *menuData = barraMenu->addMenu("Data");
+
+    // 3. Creamos la acción QAction
+    QAction *accionExportar = new QAction("Export to CSV", this);
+    QAction *importAction = new QAction("Import from JSON", this);
+    // Atajo de teclado
+    accionExportar->setShortcut(QKeySequence("Ctrl+E"));
+    importAction->setShortcut(QKeySequence("Ctrl+I"));
+    // 4. Añadimos la acción al menú
+    menuData->addAction(accionExportar);
+    menuData->addAction(importAction);
+    // 5. Conectamos el clic de la acción con nuestra función
+    connect(accionExportar, &QAction::triggered, this, &MainWindow::exportToCSV);
+    connect(importAction, &QAction::triggered, this, &MainWindow::importFromJSON);
 
     // Load initial list
     on_refreshListButton_clicked();
@@ -505,36 +530,112 @@ void MainWindow::refreshGroupList()
 
 void MainWindow::populateSetsObjectTable(const std::vector<nlohmann::json>& objects)
 {
+    // 1. CONGELAR TABLA (Vital para velocidad)
     ui->setsObjectTable->setSortingEnabled(false);
     ui->setsObjectTable->setUpdatesEnabled(false);
     ui->setsObjectTable->setRowCount(0);
 
+    // 2. CREAR ICONOS UNA SOLA VEZ (OPTIMIZACIÓN CRÍTICA)
+    // -----------------------------------------------------------------------
+    // Al hacerlo aquí fuera, el procesador solo "dibuja" 3 veces en total.
+    // Si metes esto dentro del bucle, dibuja 500 veces -> LENTITUD EXTREMA.
+
+    auto createIcon = [](const QColor& color) -> QIcon {
+        QPixmap pix(14, 14);
+        pix.fill(Qt::transparent);
+        QPainter painter(&pix);
+        painter.setBrush(QBrush(color));
+        painter.setPen(Qt::NoPen);
+        painter.drawRect(0, 0, 14, 14);
+        QPen pen(Qt::white);
+        pen.setWidth(2);
+        painter.setPen(pen);
+        painter.drawRect(1, 1, 12, 12);
+        return QIcon(pix);
+    };
+
+    QIcon iconGreen = createIcon(QColor(0, 180, 0));
+    QIcon iconRed   = createIcon(QColor(200, 0, 0));
+    QIcon iconGray  = createIcon(Qt::gray);
+    // -----------------------------------------------------------------------
+
+    // 3. PRECALCULAR ÍNDICES DE COLUMNAS (Para no buscar strings mil veces)
+    int colEnablement = g_tableHeaders.indexOf("EnablementPolicy");
+    int colGroups = g_tableHeaders.indexOf("Groups"); // O usa g_tableHeaders.size() si lo añades al final
+
+    // 4. BUCLE DE DATOS
+    // Usamos 'reserve' si vamos a insertar mucho, pero en QTableWidget insertRow es el cuello de botella
     for (const auto& obj : objects) {
         if (!obj.contains("_id")) continue;
 
         int row = ui->setsObjectTable->rowCount();
         ui->setsObjectTable->insertRow(row);
 
+        // Recorremos columnas
         for (int col = 0; col < g_tableHeaders.size(); ++col) {
-            std::string key = g_tableHeaders[col].toStdString();
-            QString valStr = "";
-            if(obj.contains(key)) valStr = jsonValueToQString(obj[key]);
-            QTableWidgetItem *item = new QTableWidgetItem(valStr);
+
+            QTableWidgetItem *item = new QTableWidgetItem();
+
+            // CASO: Enablement Policy
+            if (col == colEnablement)
+            {
+                // Lógica rápida sin búsquedas de string
+                int val = -1;
+                if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null()) {
+                    val = obj["EnablementPolicy"].get<int>();
+                }
+
+                if (val == 1) {
+                    item->setIcon(iconGreen);
+                    item->setText("Enabled");
+                    item->setToolTip("Status: Enabled"); // Texto simple para evitar problemas
+                } else if (val == 0) {
+                    item->setIcon(iconRed);
+                    item->setText("Disabled");
+                    item->setToolTip("Status: Disabled");
+                } else {
+                    item->setIcon(iconGray);
+                    item->setText("Unknown");
+                    item->setToolTip("Status: Unknown");
+                }
+            }
+            // CASO: Grupos (Solo si estamos en la columna de grupos)
+            else if (col == g_tableHeaders.size()) // Asumiendo que Groups es la última extra
+            {
+                // (Tu lógica de grupos aquí si la manejas dentro del bucle de cabeceras)
+                // Si "Groups" está en g_tableHeaders, se procesa en el 'else' de abajo.
+                // Si la añadimos manualmente al final, va fuera de este for.
+            }
+            // CASO: Resto de columnas
+            else
+            {
+                std::string key = g_tableHeaders[col].toStdString();
+                QString valStr = "";
+                if(obj.contains(key)) valStr = jsonValueToQString(obj[key]);
+                item->setText(valStr);
+                item->setToolTip(valStr); // Tooltip igual que el texto por si se corta
+            }
+
+            item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             ui->setsObjectTable->setItem(row, col, item);
         }
 
-        int groupCol = g_tableHeaders.size();
-        QString groupsStr = "";
-        if (obj.contains("Groups") && obj["Groups"].is_array()) {
-            QStringList groupsList;
-            for (const auto& g : obj["Groups"]) {
-                if(g.is_string()) groupsList << QString::fromStdString(g.get<std::string>());
+        // Columna Extra de Grupos (si no está en g_tableHeaders)
+        if (colGroups == -1) { // Si no la encontró arriba, la añadimos al final manual
+            int lastCol = ui->setsObjectTable->columnCount() - 1;
+            QString groupsStr = "";
+            if (obj.contains("Groups") && obj["Groups"].is_array()) {
+                QStringList groupsList;
+                for (const auto& g : obj["Groups"]) {
+                    if(g.is_string()) groupsList << QString::fromStdString(g.get<std::string>());
+                }
+                groupsStr = groupsList.join(", ");
             }
-            groupsStr = groupsList.join(", ");
+            ui->setsObjectTable->setItem(row, lastCol, new QTableWidgetItem(groupsStr));
         }
-        ui->setsObjectTable->setItem(row, groupCol, new QTableWidgetItem(groupsStr));
     }
 
+    // 5. DESCONGELAR TABLA
     ui->setsObjectTable->setUpdatesEnabled(true);
     ui->setsObjectTable->setSortingEnabled(true);
 }
@@ -586,61 +687,106 @@ void MainWindow::on_refreshListButton_2_clicked()
 {
     if (!dbManager) return;
 
+    // 1. Guardar selecciones actuales (para restaurarlas luego)
     QList<QListWidgetItem*> selectedGroupsItems = ui->listWidget->selectedItems();
     QSet<QString> selectedGroupNames;
-    for (QListWidgetItem* item : selectedGroupsItems) {
-        selectedGroupNames.insert(item->text());
-    }
+    for (QListWidgetItem* item : selectedGroupsItems) selectedGroupNames.insert(item->text());
 
     auto selectedRowsIndexes = ui->setsObjectTable->selectionModel()->selectedRows();
     QSet<int64_t> selectedObjectIDs;
-    for (const QModelIndex& rowIndex : selectedRowsIndexes) {
-        if (ui->setsObjectTable->item(rowIndex.row(), 0)) {
-            selectedObjectIDs.insert(ui->setsObjectTable->item(rowIndex.row(), 0)->text().toLongLong());
+    // Buscamos dinámicamente la columna ID para no fallar
+    int idCol = g_tableHeaders.indexOf("_id");
+    if (idCol >= 0) {
+        for (const QModelIndex& rowIndex : selectedRowsIndexes) {
+            if (ui->setsObjectTable->item(rowIndex.row(), idCol)) {
+                selectedObjectIDs.insert(ui->setsObjectTable->item(rowIndex.row(), idCol)->text().toLongLong());
+            }
         }
     }
 
-    std::vector<nlohmann::json> objects;
+    // 2. OBTENER DATOS BASE (Todos o por Grupo)
+    std::vector<nlohmann::json> baseObjects;
+
     if (ui->showAllObjectsCheckBox->isChecked()) {
-        objects = dbManager->getAllSpaceObjects();
-    } else {
-        std::set<std::string> selectedGroupsForFilter;
-        for (const QString& name : selectedGroupNames) {
-            selectedGroupsForFilter.insert(name.toStdString());
-        }
-        if (!selectedGroupsForFilter.empty()) {
-            objects = dbManager->getSpaceObjectsByGroups(selectedGroupsForFilter);
+        baseObjects = dbManager->getAllSpaceObjects();
+    }
+    else {
+        // Filtro por Grupos
+        std::set<std::string> groupsFilter;
+        for (const QString& name : selectedGroupNames) groupsFilter.insert(name.toStdString());
+
+        if (!groupsFilter.empty()) {
+            baseObjects = dbManager->getSpaceObjectsByGroups(groupsFilter);
         } else {
-            objects.clear();
+            baseObjects.clear(); // Nada seleccionado
         }
     }
 
-    populateSetsObjectTable(objects);
+    // --- 3. APLICAR FILTRO DE ESTADO (RADIO BUTTONS) ---
+    std::vector<nlohmann::json> finalObjects;
 
-    QString infoMsg = "[Info] Table updated. " + QString::number(objects.size()) + " objects visible.";
+    // Leemos qué botón está marcado
+    bool showAll = ui->filterAllRadio->isChecked();
+    bool showEnabled = ui->filterEnabledRadio->isChecked();
+    bool showDisabled = ui->filterDisabledRadio->isChecked();
+
+    for (const auto& obj : baseObjects) {
+        // Si "All" está marcado, pasa todo
+        if (showAll) {
+            finalObjects.push_back(obj);
+            continue;
+        }
+
+        // Leemos el estado del objeto (1, 0 o Null)
+        int status = -1; // -1 representará Null/Unknown
+        if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null()) {
+            status = obj["EnablementPolicy"].get<int>();
+        }
+
+        // Filtramos
+        if (showEnabled && status == 1) {
+            finalObjects.push_back(obj);
+        }
+        else if (showDisabled && status == 0) {
+            finalObjects.push_back(obj);
+        }
+        // Nota: Los "Unknown" (-1) solo se ven en modo "All" o si añadieras un botón "Unknown".
+    }
+
+    // 4. PINTAR LA TABLA (Con los objetos ya filtrados)
+    populateSetsObjectTable(finalObjects);
+
+    // 5. ACTUALIZAR INTERFAZ (Mensajes y Restaurar selección)
+    QString infoMsg = "[Info] Table updated. " + QString::number(finalObjects.size()) + " objects visible.";
     if(!ui->showAllObjectsCheckBox->isChecked() && !selectedGroupNames.isEmpty()) {
         infoMsg += " (Filtered by group)";
     }
+    // Añadimos info del filtro de estado
+    if (showEnabled) infoMsg += " [Only Enabled]";
+    if (showDisabled) infoMsg += " [Only Disabled]";
+
     logMessage(infoMsg);
 
+    // Restaurar lista de grupos (con blockSignals para evitar bucles)
     ui->listWidget->blockSignals(true);
     refreshGroupList();
     ui->listWidget->clearSelection();
     for (int i = 0; i < ui->listWidget->count(); ++i) {
         QListWidgetItem* item = ui->listWidget->item(i);
-        if (selectedGroupNames.contains(item->text())) {
-            item->setSelected(true);
-        }
+        if (selectedGroupNames.contains(item->text())) item->setSelected(true);
     }
     ui->listWidget->blockSignals(false);
 
+    // Restaurar selección de tabla
     ui->setsObjectTable->blockSignals(true);
     ui->setsObjectTable->clearSelection();
-    for (int row = 0; row < ui->setsObjectTable->rowCount(); ++row) {
-        if (ui->setsObjectTable->item(row, 0)) {
-            int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
-            if (selectedObjectIDs.contains(objectId)) {
-                ui->setsObjectTable->selectRow(row);
+    if (idCol >= 0) {
+        for (int row = 0; row < ui->setsObjectTable->rowCount(); ++row) {
+            if (ui->setsObjectTable->item(row, idCol)) {
+                int64_t objId = ui->setsObjectTable->item(row, idCol)->text().toLongLong();
+                if (selectedObjectIDs.contains(objId)) {
+                    ui->setsObjectTable->selectRow(row);
+                }
             }
         }
     }
@@ -785,11 +931,12 @@ void MainWindow::on_addNewObjectSetButton_clicked()
  * * Validates selection and opens an independent window (nullptr parent)
  * to allow free stacking order between Main and Edit windows.
  */
-void MainWindow::on_editObjectButton_clicked()
+                                                                                                                                                                                                 void MainWindow::on_editObjectButton_clicked()
 {
     if (!dbManager) return;
 
     // 1. CONCURRENCY CHECK
+    // Evita abrir múltiples ventanas de edición a la vez
     if (m_editDialog) {
         logMessage("[Info] La ventana 'Editar Objeto' ya está abierta. Por favor, ciérrela primero.");
         m_editDialog->showNormal();
@@ -809,16 +956,27 @@ void MainWindow::on_editObjectButton_clicked()
         return;
     }
 
-    // 3. RETRIEVE DATA
+    // --- 3. RETRIEVE DATA (CORREGIDO) ---
     int row = selectedRows.first().row();
-    QTableWidgetItem* idItem = ui->setsObjectTable->item(row, 0);
+
+    // A) Buscamos en qué columna está el "_id" (ya no es la 0)
+    int idCol = g_tableHeaders.indexOf("_id");
+    if (idCol == -1) {
+        logMessage("[Error] Critical: Column '_id' not found in headers definitions.");
+        return;
+    }
+
+    // B) Leemos de esa columna específica
+    QTableWidgetItem* idItem = ui->setsObjectTable->item(row, idCol);
     if (!idItem) return;
 
     int64_t id = idItem->text().toLongLong();
+
+    // C) Recuperamos de BBDD
     nlohmann::json objData = dbManager->getSpaceObjectById(id);
 
     if (objData.empty()) {
-        logMessage("[Error] No se pudo recuperar la información del objeto de la BBDD.");
+        logMessage("[Error] No se pudo recuperar la información del objeto " + QString::number(id) + " de la BBDD.");
         return;
     }
 
@@ -832,6 +990,7 @@ void MainWindow::on_editObjectButton_clicked()
     m_editDialog->setDbManager(dbManager.get());
 
     // 5. CONNECT SIGNAL
+    // Usamos lambda para manejar el resultado cuando se cierre
     connect(m_editDialog.get(), &QDialog::finished, this, [this](int result){
         if (result == QDialog::Accepted) {
             logMessage("[OK] Objeto editado correctamente.");
@@ -840,11 +999,12 @@ void MainWindow::on_editObjectButton_clicked()
         } else {
             logMessage("[Info] Operación de edición cancelada.");
         }
-        // CRITICAL: Reset pointer
+
+        // CRITICAL: Reset pointer to null so we can open it again later
         m_editDialog.reset();
     });
 
-    // 6. SHOW
+    // 6. SHOW (Non-modal)
     m_editDialog->show();
 }
 
@@ -874,17 +1034,14 @@ void MainWindow::on_deleteObjectSetButton_clicked()
 
     logMessage("[Info] Starting mass deletion...");
     int deletedCount = 0;
+    //Locate collum
+    int idCol = g_tableHeaders.indexOf("_id");
+    if (idCol == -1) return;
 
     for (const auto& idx : selectedRows) {
         int row = idx.row();
-        QTableWidgetItem* idItem = ui->setsObjectTable->item(row, 0);
-
-        // Safety check
-        if (!idItem) continue;
-
-        bool ok;
-        int64_t id = idItem->text().toLongLong(&ok);
-        if (!ok) continue;
+        QString idStr = ui->setsObjectTable->item(row, idCol)->text();
+        int64_t id = idStr.toLongLong();
 
         // 1. Retrieve object (C++ Logic)
         nlohmann::json obj = dbManager->getSpaceObjectById(id);
@@ -1032,13 +1189,13 @@ void MainWindow::on_setsObjectTable_selectionChanged()
         ui->setsDetailComments->clear();
         return;
     }
-
-    // Get ID safely
     int row = selectedRows.first().row();
-    QTableWidgetItem* idItem = ui->setsObjectTable->item(row, 0);
-    if (!idItem) return;
 
-    int64_t id = idItem->text().toLongLong();
+    int idCol = g_tableHeaders.indexOf("_id");
+    if (idCol == -1) return;
+
+    QString idStr = ui->setsObjectTable->item(row, idCol)->text();
+    int64_t id = idStr.toLongLong();
 
     if (!dbManager) return;
 
@@ -1192,4 +1349,200 @@ void MainWindow::on_searchObjectButton_clicked()
 
     // 4. SHOW
     m_searchDialog->show();
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event)
+{
+    // Solo actuamos si estamos en la tabla de Sets y tiene el foco
+    if (ui->setsObjectTable->hasFocus())
+    {
+        // Tecla SUPR (Delete) -> Borrar
+        if (event->key() == Qt::Key_Delete)
+        {
+            on_deleteObjectSetButton_clicked();
+            return;
+        }
+
+        // Tecla ENTER (Return) -> Editar
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+        {
+            int count = ui->setsObjectTable->selectionModel()->selectedRows().count();
+
+            if (count == 1) {
+                // Caso Perfecto: Editar
+                on_editObjectButton_clicked();
+                return;
+            }
+            else if (count > 1) {
+                // --- CAMBIO AQUÍ: AVISO DE ERROR ---
+                QMessageBox::warning(this, "Warning", "You can only edit ONE object at a time.\nPlease select only one.");
+                return;
+            }
+            // Si count es 0, no hacemos nada
+        }
+    }
+
+    // Si no es ninguna de nuestras teclas, dejamos que Qt haga lo normal
+    QMainWindow::keyPressEvent(event);
+}
+// Al final de mainwindow.cpp
+
+void MainWindow::exportToCSV()
+{
+    // 1. Preguntar al usuario dónde guardar el archivo
+    QString filename = QFileDialog::getSaveFileName(this, "Export Data",
+                                                    QDir::homePath() + "/space_objects_export.csv",
+                                                    "CSV Files (*.csv)");
+
+    // Si le da a cancelar, no hacemos nada
+    if (filename.isEmpty()) return;
+
+    // 2. Intentar crear el archivo
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", "Could not create file for writing.");
+        return;
+    }
+
+    QTextStream out(&file);
+
+    // Usaremos punto y coma (;) como separador, es el estándar para Excel en muchos países.
+    const QString separator = ";";
+
+    // 3. Escribir las Cabeceras (Títulos de columna)
+    QStringList headers;
+    for(int i=0; i < ui->setsObjectTable->columnCount(); ++i) {
+        headers << ui->setsObjectTable->horizontalHeaderItem(i)->text();
+    }
+    out << headers.join(separator) << "\n";
+
+    // 4. Escribir los Datos (Fila a fila)
+    int rows = ui->setsObjectTable->rowCount();
+    int cols = ui->setsObjectTable->columnCount();
+
+    for (int i = 0; i < rows; ++i) {
+        QStringList rowData;
+        for (int j = 0; j < cols; ++j) {
+            QTableWidgetItem* item = ui->setsObjectTable->item(i, j);
+            QString text = "";
+
+            if (item) {
+                text = item->text();
+                // Limpieza: Quitamos saltos de línea para no romper el CSV
+                text.replace("\n", " ");
+                text.replace("\r", "");
+            }
+
+            // Si el texto contiene el separador (;), lo envolvemos en comillas
+            if (text.contains(separator)) {
+                text = "\"" + text + "\"";
+            }
+
+            rowData << text;
+        }
+        // Escribimos la fila completa en el archivo
+        out << rowData.join(separator) << "\n";
+    }
+
+    file.close();
+
+    // 5. Confirmación
+    logMessage("[OK] Data exported to " + filename);
+    QMessageBox::information(this, "Success", "Data exported successfully to CSV.");
+}
+void MainWindow::importFromJSON()
+{
+    // 1. Seleccionar archivo
+    QString filename = QFileDialog::getOpenFileName(this, "Import Data",
+                                                    QDir::homePath(),
+                                                    "JSON Files (*.json)");
+    if (filename.isEmpty()) return;
+
+    // 2. Leer archivo
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::critical(this, "Error", "Could not open file.");
+        return;
+    }
+    QByteArray data = file.readAll();
+    file.close();
+
+    // 3. Parsear JSON
+    nlohmann::json jsonDoc;
+    try {
+        jsonDoc = nlohmann::json::parse(data.begin(), data.end());
+    } catch (const std::exception& e) {
+        QMessageBox::critical(this, "JSON Error", "Invalid JSON format:\n" + QString(e.what()));
+        return;
+    }
+
+    // 4. Preparar lista de objetos a importar
+    std::vector<nlohmann::json> objectsToImport;
+
+    if (jsonDoc.is_array()) {
+        // Es una lista de objetos
+        for (const auto& obj : jsonDoc) objectsToImport.push_back(obj);
+    }
+    else if (jsonDoc.is_object()) {
+        // Es un solo objeto
+        objectsToImport.push_back(jsonDoc);
+    }
+    else {
+        QMessageBox::warning(this, "Error", "The JSON file must contain an Object or an Array of Objects.");
+        return;
+    }
+
+    // 5. PROCESO DE IMPORTACIÓN
+    logMessage("[Info] Starting import of " + QString::number(objectsToImport.size()) + " objects from " + filename);
+
+    int success = 0;
+    int errors = 0;
+    int skipped = 0; // Por si ya existen
+
+    // Directorio base para buscar las imágenes (asumimos que están junto al json)
+    QFileInfo jsonInfo(filename);
+    QDir jsonDir = jsonInfo.absoluteDir();
+
+    for (const auto& obj : objectsToImport) {
+
+        // Preparar path de imagen si existe en el JSON
+        std::string localImgPath = "";
+        if (obj.contains("Picture") && !obj["Picture"].is_null()) {
+            std::string picName = obj["Picture"];
+            if (!picName.empty()) {
+                // Intentamos buscar la imagen en la misma carpeta que el JSON
+                QString possiblePath = jsonDir.filePath(QString::fromStdString(picName));
+                if (QFile::exists(possiblePath)) {
+                    localImgPath = possiblePath.toStdString();
+                }
+            }
+        }
+
+        std::string errorMsg;
+        // Usamos createSpaceObject.
+        // Nota: Esto fallará si el ID ya existe (retorna false y errorMsg).
+        if (dbManager->createSpaceObject(obj, localImgPath, errorMsg)) {
+            success++;
+        } else {
+            // Si falló, miramos por qué.
+            // Si es porque ya existe, podríamos intentar un 'update',
+            // pero para una importación segura, mejor lo contamos como error/skip.
+            errors++;
+            logMessage("[Import Error] ID " + jsonValueToQString(obj["_id"]) + ": " + QString::fromStdString(errorMsg));
+        }
+    }
+
+    // 6. RESULTADO
+    QString resultMsg = QString("Import Finished.\n\nSuccess: %1\nFailed/Duplicate: %2")
+                            .arg(success).arg(errors);
+
+    if (errors > 0) resultMsg += "\n(Check logs for details on failures)";
+
+    QMessageBox::information(this, "Import Result", resultMsg);
+
+    // 7. Refrescar
+    if (success > 0) {
+        on_refreshListButton_2_clicked();
+        on_refreshListButton_clicked();
+    }
 }
