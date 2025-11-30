@@ -5,7 +5,7 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "json_helpers.h" // Asegúrate de que detecta tu librería JSON
+#include "json_helpers.h"
 #include "SpaceObjectDBManager.h"
 
 namespace Ui {
@@ -20,34 +20,37 @@ public:
     explicit AddObjectDialog(QWidget *parent = nullptr);
     ~AddObjectDialog();
 
-    // Función para pasarle los grupos existentes (usamos std::set para coincidir con tu DBManager)
+    // Carga la lista de GRUPOS (Categorías internas)
     void setAvailableGroups(const std::set<std::string>& groups);
 
-    // ¡NUEVO! Función para pasarle el puntero del gestor de base de datos
+    // Carga la lista de SETS (Listas de observación)
+    void setAvailableSets(const std::set<std::string>& sets);
+
+    // Pasa el puntero del gestor de base de datos
     void setDbManager(SpaceObjectDBManager* dbManager);
 
-    // Función que devuelve el JSON listo para guardar
+    // Genera el JSON con todos los datos de la interfaz
     nlohmann::json getNewObjectData() const;
 
-    // Función que devuelve la ruta de la imagen seleccionada (para subirla luego)
+    // Devuelve la ruta de la imagen seleccionada
     QString getSelectedImagePath() const;
 
-    // Carga los datos de un JSON en las cajas de texto
+    // Rellena la interfaz con los datos de un objeto existente
     void loadObjectData(const nlohmann::json& objData);
 
-    // Activa el modo edición (bloquea el ID para que no se toque)
+    // Activa el modo edición (bloquea el ID/NORAD)
     void setEditMode(bool enable);
 
 private slots:
-    void on_browseImageBtn_clicked(); // Botón examinar imagen
-    void on_saveButton_clicked();     // Botón guardar
-    void on_cancelButton_clicked();   // Botón cancelar
+    void on_browseImageBtn_clicked();
+    void on_saveButton_clicked();
+    void on_cancelButton_clicked();
 
 private:
     Ui::AddObjectDialog *ui;
-    QString m_selectedImagePath; // Variable interna para guardar la ruta del archivo
+    QString m_selectedImagePath;
     SpaceObjectDBManager* m_dbManager = nullptr;
-    bool m_isEditMode = false; // Bandera para saber qué hacer al guardar
+    bool m_isEditMode = false;
 };
 
 #endif // ADDOBJECTDIALOG_H

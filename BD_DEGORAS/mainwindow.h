@@ -1,22 +1,25 @@
-#pragma once
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <memory> // For std::unique_ptr
-#include <vector>
-#include <nlohmann/json.hpp>
+#include <QTableWidgetItem>
+#include <QKeyEvent>
+#include <memory> // Necesario para std::unique_ptr
 
-#include <QClipboard>
-#include <QMenu>
+// --- INCLUDES FALTANTES AÑADIDOS ---
 #include <QInputDialog>
+#include <QTableWidget>
+#include <QListWidget>
+#include <QCheckBox>
+#include <QRadioButton>
 
-#include "gridfsimagemanager.h"
+// Tus clases propias
+#include "SpaceObjectDBManager.h"
+#include "addobjectdialog.h"
 
-// Forward declarations
-namespace Ui {
-class MainWindow;
-}
-class SpaceObjectDBManager;
-class AddObjectDialog; // Forward declaration for the dialog
+QT_BEGIN_NAMESPACE
+namespace Ui { class MainWindow; }
+QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow
 {
@@ -26,66 +29,73 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-private slots:
-    // --- Tabs 1 & 2 Slots ---
-    void on_mostrarButton_clicked();
-    void on_anadirButton_clicked();
-    void on_eliminarButton_clicked();
-    void on_browseButton_clicked();
-    void on_refreshListButton_clicked();
-    void onObjectListTableContextMenuRequested(const QPoint &pos);
-
-    // --- Tab 3 "Sets" Slots ---
-    void onSetsTableContextMenuRequested(const QPoint &pos);
-
-    // Non-Modal Window Slots (Add/Edit)
-    void on_addNewObjectSetButton_clicked();
-    void on_editObjectButton_clicked();
-    void on_deleteObjectSetButton_clicked(); // Mass deletion
-
-    // Sets UI Interaction Slots
-    void on_createGroupButton_clicked();
-    void on_deleteGroupButton_clicked();
-    void on_refreshListButton_2_clicked();
-    void on_assignToGroupButton_clicked();
-    void on_removeFromGroupButton_clicked();
-
-    // Filters & Selection Slots
-    void on_showAllObjectsCheckBox_toggled(bool checked);
-    void on_listWidget_itemSelectionChanged();
-    void on_setsObjectTable_selectionChanged();
-    void on_searchObjectButton_clicked();
-
-    //Export to CSV
-    void exportToCSV();
-    void importFromJSON();
-
 protected:
     void keyPressEvent(QKeyEvent *event) override;
 
+private slots:
+    // --- TAB 1: SPACE OBJECTS (Main Management) ---
+    void on_addNewObjectSetButton_clicked();
+    void on_editObjectButton_clicked();
+    void on_deleteObjectSetButton_clicked();
+    void on_searchObjectButton_clicked();
+
+    // Filtros y Visualización Tab 1
+    void refreshMainTable();
+    void on_mainObjectTable_selectionChanged();
+
+
+    // --- TAB 2: OBSERVATION SETS ---
+    void on_createSetButton_clicked();
+    void on_deleteSetButton_clicked();
+    void on_setsListWidget_itemSelectionChanged();
+    void on_assignToSetButton_clicked();
+    void on_removeFromSetButton_clicked();
+
+    // --- TAB 3: GROUPS ---
+    void on_createGroupButton_clicked();
+    void on_deleteGroupButton_clicked();
+    void on_groupsListWidget_itemSelectionChanged();
+    void on_assignToGroupButton_clicked();
+    void on_removeFromGroupButton_clicked();
+
+    // --- MENU DATA ---
+    void exportToCSV();
+    void importFromJSON();
+
 private:
-    // Helper function to log messages to the GUI and file
-    void logMessage(const QString& msg);
-
-    // Setup table headers and properties
-    void setupObjectListTable();
-
-    // Sets Tab Helpers
-    void setupSetsObjectTable();
-    void refreshGroupList();
-    void populateSetsObjectTable(const std::vector<nlohmann::json>& objects);
-
-    // Members
     Ui::MainWindow *ui;
     std::unique_ptr<SpaceObjectDBManager> dbManager;
-    QString m_localPicturePath;
 
-    // --- SMART POINTERS FOR NON-MODAL DIALOGS ---
-    // These manage the lifecycle of the secondary windows.
-    // If the pointer is valid (not null), the window is currently open.
+    // Ventanas independientes
     std::unique_ptr<AddObjectDialog> m_addDialog;
     std::unique_ptr<AddObjectDialog> m_editDialog;
 
-    // NEW: Pointer for the search dialog
+    // AQUÍ ESTABA EL ERROR: Faltaba #include <QInputDialog> arriba
     std::unique_ptr<QInputDialog> m_searchDialog;
+
+    // En private:
+    // Función auxiliar para manejar el click derecho en CUALQUIER tabla
+    void handleUniversalContextMenu(const QPoint &pos, QTableWidget* table);
+
+    // Helpers UI
+    void setupTables();
+    void logMessage(const QString& msg);
+
+    // Helpers Lógica
+    void refreshSetListWidget();
+    void refreshGroupListWidget();
+
+    void populateMainTable(const std::vector<nlohmann::json>& objects);
+    void on_tabWidget_currentChanged(int index);
+
+    // Helper genérico para Tab 2 y 3
+    void populateReadOnlyTable(QTableWidget* table, const std::vector<nlohmann::json>& objects);
+    QIcon m_iconGreen;
+    QIcon m_iconRed;
+    QIcon m_iconGray;
+
+    // Helper para inicializarlos
+    void initIcons();
 };
+
+#endif // MAINWINDOW_H

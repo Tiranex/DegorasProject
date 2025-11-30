@@ -3,32 +3,36 @@
 #include <mongocxx/exception/exception.hpp>
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
+#include <bsoncxx/builder/basic/array.hpp>
 #include <fstream>
 #include <sstream>
-#include <bsoncxx/builder/basic/array.hpp>
 #include <set>
 
-// LOGGING INCLUDE
+// LOGGING
 #include <spdlog/spdlog.h>
+
+using bsoncxx::builder::basic::kvp;
+using bsoncxx::builder::basic::make_document;
+using bsoncxx::builder::basic::make_array;
 
 // --- CONSTRUCTOR ---
 SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std::string& db_name, const std::string& col_name)
     : _client(mongocxx::uri{uri_str}),
     _db(_client[db_name]),
     _collection(_db[col_name]),
-    _groupsCollection(_db["groups"]),
+    _setsCollection(_db["sets"]),
+    _groupsCollection(_db["groups"]),    // <--- AHORA APUNTA A "sets"
     _imageManager(_db)
 {
     try {
-        _db.run_command(bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("ping", 1)));
-        spdlog::info("SpaceObjectDBManager successfully connected to database.");
+        _db.run_command(make_document(kvp("ping", 1)));
+        spdlog::info("SpaceObjectDBManager connected. Sets collection initialized.");
     } catch (const mongocxx::exception& ex) {
-        spdlog::error("Failed to initialize SpaceObjectDBManager: {}", ex.what());
+        spdlog::critical("Failed to initialize DB: {}", ex.what());
         throw;
     }
 }
 
-// --- DESTRUCTOR ---
 SpaceObjectDBManager::~SpaceObjectDBManager() {
     spdlog::info("SpaceObjectDBManager disconnected.");
 }
@@ -115,10 +119,9 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
 
         // 2. UNIQUENESS VALIDATIONS (Alias, COSPAR, ILRS, SIC)
 
-        // Alias (Abbreviation)
-        if (objectData.contains("Abbreviation") && !objectData["Abbreviation"].is_null()) {
-            std::string val = objectData["Abbreviation"];
-            auto filter = make_document(kvp("Abbreviation", val));
+        if (objectData.contains("Alias") && !objectData["Alias"].is_null()) {
+            std::string val = objectData["Alias"];
+            auto filter = make_document(kvp("Alias", val));
             if (_collection.count_documents(filter.view()) > 0) {
                 errorMsg = "An object with Alias already exists: " + val;
                 return false;
@@ -201,18 +204,40 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // 4. GROUPS (Upsert)
-        if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array()) {
-            mongocxx::options::update upsert_options;
-            upsert_options.upsert(true);
-            for (const auto& groupNameJson : objectData["Groups"]) {
-                if (groupNameJson.is_string()) {
-                    std::string gName = groupNameJson.get<std::string>();
+        // 4. SETS (Upsert)
+        if (objectData.contains("Sets") && !objectData["Sets"].is_null() && objectData["Sets"].is_array())
+        {
+            mongocxx::options::update upsert_opt;
+            upsert_opt.upsert(true);
+
+            for (const auto& setNameJson : objectData["Sets"]) {
+                if (setNameJson.is_string()) {
+                    std::string sName = setNameJson.get<std::string>();
+                    if(!sName.empty()){
+                        try {
+                            // Upsert en la colección 'sets'
+                            auto filter = make_document(kvp("name", sName));
+                            auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", sName))));
+                            _setsCollection.update_one(filter.view(), update.view(), upsert_opt);
+                        } catch(...) {}
+                    }
+                }
+            }
+        }
+        // --- 4B. GROUPS (Upsert en colección 'groups') ---
+        if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array())
+        {
+            mongocxx::options::update upsert_opt;
+            upsert_opt.upsert(true);
+
+            for (const auto& grpNameJson : objectData["Groups"]) {
+                if (grpNameJson.is_string()) {
+                    std::string gName = grpNameJson.get<std::string>();
                     if(!gName.empty()){
                         try {
                             auto filter = make_document(kvp("name", gName));
                             auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", gName))));
-                            _groupsCollection.update_one(filter.view(), update.view(), upsert_options);
+                            _groupsCollection.update_one(filter.view(), update.view(), upsert_opt);
                         } catch(...) {}
                     }
                 }
@@ -327,18 +352,37 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // 4. GROUPS (Upsert)
-        if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array()) {
-            mongocxx::options::update upsert_options;
-            upsert_options.upsert(true);
-            for (const auto& groupNameJson : objectData["Groups"]) {
-                if (groupNameJson.is_string()) {
-                    std::string gName = groupNameJson.get<std::string>();
+        // 4. SETS (Upsert)
+        if (objectData.contains("Sets") && !objectData["Sets"].is_null() && objectData["Sets"].is_array())
+        {
+            mongocxx::options::update upsert_opt;
+            upsert_opt.upsert(true);
+
+            for (const auto& setNameJson : objectData["Sets"]) {
+                if (setNameJson.is_string()) {
+                    std::string sName = setNameJson.get<std::string>();
+                    if(!sName.empty()){
+                        auto filter = make_document(kvp("name", sName));
+                        auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", sName))));
+                        _setsCollection.update_one(filter.view(), update.view(), upsert_opt);
+                    }
+                }
+            }
+        }
+        // --- 4B. GROUPS (Upsert en colección 'groups') ---
+        if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array())
+        {
+            mongocxx::options::update upsert_opt;
+            upsert_opt.upsert(true);
+
+            for (const auto& grpNameJson : objectData["Groups"]) {
+                if (grpNameJson.is_string()) {
+                    std::string gName = grpNameJson.get<std::string>();
                     if(!gName.empty()){
                         try {
                             auto filter = make_document(kvp("name", gName));
                             auto update = make_document(kvp("$setOnInsert", make_document(kvp("name", gName))));
-                            _groupsCollection.update_one(filter.view(), update.view(), upsert_options);
+                            _groupsCollection.update_one(filter.view(), update.view(), upsert_opt);
                         } catch(...) {}
                     }
                 }
@@ -392,25 +436,172 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects()
     return allObjects;
 }
 
-// --- GROUPS METHODS ---
+// --- SETS METHODS ---
+
+std::set<std::string> SpaceObjectDBManager::getAllUniqueSetNames()
+{
+    std::set<std::string> sets;
+    try {
+        auto cursor = _setsCollection.find({});
+        for (auto&& doc : cursor) {
+            if (doc["name"] && doc["name"].type() == bsoncxx::type::k_string) {
+                sets.insert(std::string(doc["name"].get_string().value));
+            }
+        }
+    } catch (const std::exception& ex) {
+        spdlog::error("Failed in getAllUniqueSetNames: {}", ex.what());
+    }
+    return sets;
+}
+
+std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsBySets(const std::set<std::string>& setNames)
+{
+    std::vector<nlohmann::json> objects;
+    if (setNames.empty()) return objects;
+
+    bsoncxx::builder::basic::array set_array;
+    for(const auto& name : setNames) set_array.append(name);
+
+    try {
+        // Buscamos en el campo "Sets"
+        auto filter = make_document(kvp("Sets", make_document(kvp("$in", set_array))));
+        auto cursor = _collection.find(filter.view());
+        for (auto&& doc : cursor) objects.push_back(bsoncxxToNjson(doc));
+    } catch (...) {}
+    return objects;
+}
+
+
+// Antes addObjectToGroup
+bool SpaceObjectDBManager::addObjectToSet(int64_t objectId, const std::string& setName)
+{
+    if (setName.empty()) return false;
+    try {
+        mongocxx::options::update upsert_opt;
+        upsert_opt.upsert(true);
+        // 1. Asegurar que el Set existe en la colección 'sets'
+        _setsCollection.update_one(make_document(kvp("name", setName)),
+                                   make_document(kvp("$setOnInsert", make_document(kvp("name", setName)))),
+                                   upsert_opt);
+
+        // 2. Añadir al array "Sets" del objeto
+        auto result = _collection.update_one(
+            make_document(kvp("_id", bsoncxx::types::b_int64{objectId})),
+            make_document(kvp("$addToSet", make_document(kvp("Sets", setName))))
+            );
+        return (result && result->matched_count() > 0);
+    } catch (...) { return false; }
+}
+
+// Antes removeObjectFromGroup
+bool SpaceObjectDBManager::removeObjectFromSet(int64_t objectId, const std::string& setName)
+{
+    try {
+        // Quitar del array "Sets"
+        auto result = _collection.update_one(
+            make_document(kvp("_id", bsoncxx::types::b_int64{objectId})),
+            make_document(kvp("$pull", make_document(kvp("Sets", setName))))
+            );
+        return (result && result->matched_count() > 0);
+    } catch (...) { return false; }
+}
+
+// Antes crearGrupo
+bool SpaceObjectDBManager::createSet(const std::string& setName)
+{
+    if (setName.empty()) return false;
+    try {
+        if (_setsCollection.count_documents(make_document(kvp("name", setName))) > 0) return false;
+        _setsCollection.insert_one(make_document(kvp("name", setName)));
+        return true;
+    } catch (...) { return false; }
+}
+
+// Antes eliminarGrupo
+bool SpaceObjectDBManager::deleteSet(const std::string& setName)
+{
+    try {
+        // 1. Borrar de la colección de sets
+        _setsCollection.delete_one(make_document(kvp("name", setName)));
+
+        // 2. Borrar la referencia en todos los objetos (campo "Sets")
+        _collection.update_many(
+            make_document(kvp("Sets", setName)),
+            make_document(kvp("$pull", make_document(kvp("Sets", setName))))
+            );
+        return true;
+    } catch (...) { return false; }
+}
+// =================================================================
+// --- MÉTODOS DE GROUPS (NUEVO) ---
+// =================================================================
 
 std::set<std::string> SpaceObjectDBManager::getAllUniqueGroupNames()
 {
     std::set<std::string> groups;
     try {
-        mongocxx::cursor cursor = _groupsCollection.find({});
-        for (bsoncxx::document::view doc : cursor) {
-            if (doc["name"] && doc["name"].type() == bsoncxx::type::k_string)
-            {
-                std::string_view name_view = doc["name"].get_string().value;
-                groups.insert(std::string(name_view));
+        auto cursor = _groupsCollection.find({});
+        for (auto&& doc : cursor) {
+            if (doc["name"] && doc["name"].type() == bsoncxx::type::k_string) {
+                groups.insert(std::string(doc["name"].get_string().value));
             }
         }
-    } catch (const mongocxx::exception& ex) {
+    } catch (const std::exception& ex) {
         spdlog::error("Failed in getAllUniqueGroupNames: {}", ex.what());
     }
     return groups;
 }
+
+bool SpaceObjectDBManager::createGroup(const std::string& groupName)
+{
+    if (groupName.empty()) return false;
+    try {
+        using bsoncxx::builder::basic::kvp;
+        using bsoncxx::builder::basic::make_document;
+
+        // Verificar si ya existe
+        if (_groupsCollection.count_documents(make_document(kvp("name", groupName))) > 0) {
+            spdlog::info("Group '{}' already exists.", groupName);
+            return false;
+        }
+
+        _groupsCollection.insert_one(make_document(kvp("name", groupName)));
+        return true;
+    } catch (const std::exception& ex) {
+        spdlog::error("Failed in createGroup: {}", ex.what());
+        return false;
+    }
+}
+
+bool SpaceObjectDBManager::deleteGroup(const std::string& groupName)
+{
+    try {
+        using bsoncxx::builder::basic::kvp;
+        using bsoncxx::builder::basic::make_document;
+
+        // 1. Borrar de la colección de grupos
+        auto result = _groupsCollection.delete_one(make_document(kvp("name", groupName)));
+
+        if (!result || result->deleted_count() == 0) {
+            spdlog::warn("Group '{}' not found for deletion.", groupName);
+        }
+
+        // 2. Borrar la referencia en todos los objetos (campo "Groups")
+        _collection.update_many(
+            make_document(kvp("Groups", groupName)),
+            make_document(kvp("$pull", make_document(kvp("Groups", groupName))))
+            );
+
+        spdlog::info("Group '{}' deleted and references cleaned.", groupName);
+        return true;
+    } catch (const std::exception& ex) {
+        spdlog::error("Failed in deleteGroup: {}", ex.what());
+        return false;
+    }
+}
+// =================================================================
+// MÉTODOS DE ENLACE DE GRUPOS (FALTABAN)
+// =================================================================
 
 std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsByGroups(const std::set<std::string>& groupNames)
 {
@@ -427,8 +618,10 @@ std::vector<nlohmann::json> SpaceObjectDBManager::getSpaceObjectsByGroups(const 
     }
 
     try {
+        // Buscamos en el campo "Groups" (Array de strings)
         auto filter = make_document(kvp("Groups", make_document(kvp("$in", group_array))));
         mongocxx::cursor cursor = _collection.find(filter.view());
+
         for (bsoncxx::document::view doc : cursor) {
             objects.push_back(bsoncxxToNjson(doc));
         }
@@ -449,12 +642,14 @@ bool SpaceObjectDBManager::addObjectToGroup(int64_t objectId, const std::string&
     using bsoncxx::builder::basic::make_document;
 
     try {
+        // 1. Asegurar que el Grupo existe en la colección 'groups' (Upsert)
         mongocxx::options::update upsert_options;
         upsert_options.upsert(true);
         auto group_filter = make_document(kvp("name", groupName));
         auto group_update = make_document(kvp("$setOnInsert", make_document(kvp("name", groupName))));
         _groupsCollection.update_one(group_filter.view(), group_update.view(), upsert_options);
 
+        // 2. Añadir al array "Groups" del objeto
         auto obj_filter = make_document(kvp("_id", bsoncxx::types::b_int64{objectId}));
         auto obj_update = make_document(kvp("$addToSet", make_document(kvp("Groups", groupName))));
 
@@ -479,6 +674,7 @@ bool SpaceObjectDBManager::removeObjectFromGroup(int64_t objectId, const std::st
 
     try {
         auto obj_filter = make_document(kvp("_id", bsoncxx::types::b_int64{objectId}));
+        // Quitar del array "Groups"
         auto obj_update = make_document(kvp("$pull", make_document(kvp("Groups", groupName))));
 
         auto result = _collection.update_one(obj_filter.view(), obj_update.view());
@@ -491,60 +687,6 @@ bool SpaceObjectDBManager::removeObjectFromGroup(int64_t objectId, const std::st
 
     } catch (const mongocxx::exception& ex) {
         spdlog::error("Failed in removeObjectFromGroup: {}", ex.what());
-        return false;
-    }
-}
-
-bool SpaceObjectDBManager::crearGrupo(const std::string& groupName)
-{
-    using bsoncxx::builder::basic::kvp;
-    using bsoncxx::builder::basic::make_document;
-
-    if (groupName.empty()) {
-        spdlog::error("Group name cannot be empty.");
-        return false;
-    }
-
-    try {
-        auto filter = make_document(kvp("name", groupName));
-        if (_groupsCollection.find_one(filter.view())) {
-            spdlog::info("Group '{}' already exists.", groupName);
-            return false;
-        }
-
-        auto doc = make_document(kvp("name", groupName));
-        auto result = _groupsCollection.insert_one(doc.view());
-        return result.has_value();
-
-    } catch (const mongocxx::exception& ex) {
-        spdlog::error("Failed in crearGrupo: {}", ex.what());
-        return false;
-    }
-}
-
-bool SpaceObjectDBManager::eliminarGrupo(const std::string& groupName)
-{
-    using bsoncxx::builder::basic::kvp;
-    using bsoncxx::builder::basic::make_document;
-
-    try {
-        auto filter_group = make_document(kvp("name", groupName));
-        auto result_group = _groupsCollection.delete_one(filter_group.view());
-
-        if (!result_group || result_group->deleted_count() == 0) {
-            spdlog::warn("Group '{}' not found for deletion.", groupName);
-        }
-
-        auto filter_objects = make_document(kvp("Groups", groupName));
-        auto update_objects = make_document(kvp("$pull", make_document(kvp("Groups", groupName))));
-
-        _collection.update_many(filter_objects.view(), update_objects.view());
-
-        spdlog::info("Group '{}' deleted and references cleaned.", groupName);
-        return true;
-
-    } catch (const mongocxx::exception& ex) {
-        spdlog::error("Failed in eliminarGrupo: {}", ex.what());
         return false;
     }
 }

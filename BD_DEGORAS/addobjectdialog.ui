@@ -48,7 +48,11 @@
      </widget>
     </item>
     <item row="6" column="1">
-     <widget class="QListWidget" name="setsListWidget"/>
+     <widget class="QListWidget" name="setsListWidget">
+      <property name="selectionMode">
+       <enum>QAbstractItemView::SelectionMode::MultiSelection</enum>
+      </property>
+     </widget>
     </item>
     <item row="4" column="0">
      <widget class="QLabel" name="label_5">
@@ -185,16 +189,6 @@
       </property>
      </widget>
     </item>
-    <item row="6" column="0">
-     <widget class="QLabel" name="label_14">
-      <property name="text">
-       <string>Comments</string>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="1">
-     <widget class="QPlainTextEdit" name="commentsEdit"/>
-    </item>
     <item row="2" column="1">
      <widget class="QLineEdit" name="altitudeEdit"/>
     </item>
@@ -206,6 +200,20 @@
     </item>
     <item row="5" column="1">
      <widget class="QLineEdit" name="bsEdit"/>
+    </item>
+    <item row="6" column="1">
+     <widget class="QListWidget" name="groupsListWidget">
+      <property name="selectionMode">
+       <enum>QAbstractItemView::SelectionMode::MultiSelection</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="0">
+     <widget class="QLabel" name="label_21">
+      <property name="text">
+       <string>Groups</string>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -222,12 +230,32 @@
     <item row="4" column="1">
      <widget class="QLineEdit" name="configEdit"/>
     </item>
-    <item row="3" column="0">
-     <widget class="QLabel" name="label_19">
+    <item row="4" column="0">
+     <widget class="QLabel" name="label_16">
       <property name="text">
-       <string>Track HP</string>
+       <string>Configurations</string>
       </property>
      </widget>
+    </item>
+    <item row="8" column="0">
+     <widget class="QLabel" name="label_14">
+      <property name="text">
+       <string>Comments</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="label_15">
+      <property name="text">
+       <string>CPF Provider</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QLineEdit" name="comEdit"/>
+    </item>
+    <item row="8" column="1">
+     <widget class="QPlainTextEdit" name="commentsEdit"/>
     </item>
     <item row="1" column="0">
      <widget class="QLabel" name="label_17">
@@ -236,34 +264,10 @@
       </property>
      </widget>
     </item>
-    <item row="5" column="0">
-     <widget class="QLabel" name="label_18">
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_19">
       <property name="text">
-       <string>Image</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QLineEdit" name="cpfEdit"/>
-    </item>
-    <item row="4" column="0">
-     <widget class="QLabel" name="label_16">
-      <property name="text">
-       <string>Configurations</string>
-      </property>
-     </widget>
-    </item>
-    <item row="5" column="1">
-     <widget class="QPushButton" name="browseImageBtn">
-      <property name="text">
-       <string>Search Image</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="QLabel" name="label_15">
-      <property name="text">
-       <string>CPF Provider</string>
+       <string>Track HP</string>
       </property>
      </widget>
     </item>
@@ -281,22 +285,46 @@
       </property>
      </widget>
     </item>
-    <item row="6" column="1">
-     <widget class="QLineEdit" name="imagePathEdit"/>
+    <item row="6" column="0">
+     <widget class="QLabel" name="label_18">
+      <property name="text">
+       <string>Image</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="1">
+     <widget class="QLineEdit" name="cpfEdit"/>
     </item>
     <item row="0" column="1">
      <widget class="QLineEdit" name="incEdit"/>
     </item>
-    <item row="1" column="1">
-     <widget class="QLineEdit" name="comEdit"/>
+    <item row="6" column="1">
+     <widget class="QPushButton" name="browseImageBtn">
+      <property name="text">
+       <string>Search Image</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="1">
+     <widget class="QLineEdit" name="imagePathEdit"/>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_22">
+      <property name="text">
+       <string>Classification</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QLineEdit" name="classEdit"/>
     </item>
    </layout>
   </widget>
   <widget class="QPushButton" name="saveButton">
    <property name="geometry">
     <rect>
-     <x>940</x>
-     <y>210</y>
+     <x>970</x>
+     <y>80</y>
      <width>151</width>
      <height>24</height>
     </rect>
@@ -308,8 +336,8 @@
   <widget class="QPushButton" name="cancelButton">
    <property name="geometry">
     <rect>
-     <x>970</x>
-     <y>250</y>
+     <x>1010</x>
+     <y>120</y>
      <width>75</width>
      <height>24</height>
     </rect>
@@ -341,7 +369,6 @@
   <tabstop>saveButton</tabstop>
   <tabstop>cancelButton</tabstop>
   <tabstop>setsListWidget</tabstop>
-  <tabstop>commentsEdit</tabstop>
   <tabstop>imagePathEdit</tabstop>
  </tabstops>
  <resources/>

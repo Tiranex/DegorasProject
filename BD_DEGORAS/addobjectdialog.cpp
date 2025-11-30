@@ -14,12 +14,13 @@ AddObjectDialog::AddObjectDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    // Initialize combos with default values
+    // Initialize combos
     if(ui->lrrCombo->count() == 0) ui->lrrCombo->addItems({"Unknown", "True", "False"});
     if(ui->debrisCombo->count() == 0) ui->debrisCombo->addItems({"Unknown", "True", "False"});
 
-    // Enable multi-selection for Groups
+    // Enable multi-selection for BOTH lists
     ui->setsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
+    ui->groupsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
 
     spdlog::debug("AddObjectDialog initialized.");
 }
@@ -34,66 +35,24 @@ void AddObjectDialog::setDbManager(SpaceObjectDBManager* dbManager)
     m_dbManager = dbManager;
 }
 
-void AddObjectDialog::on_saveButton_clicked()
-{
-    QString errors;
-
-    // Validate Required Fields
-    if(ui->noradEdit->text().trimmed().isEmpty()) errors += "- Field 'Norad' is required.\n";
-    if(ui->nameEdit->text().trimmed().isEmpty()) errors += "- Field 'Name' is required.\n";
-    if(ui->aliasEdit->text().trimmed().isEmpty()) errors += "- Field 'Alias' is required.\n";
-    if(ui->cosparEdit->text().trimmed().isEmpty()) errors += "- Field 'COSPAR' is required.\n";
-
-    bool ok;
-    ui->noradEdit->text().toLongLong(&ok);
-    if(!ok) errors += "- 'Norad' must be a valid integer.\n";
-
-    // --- FIX: Convert text to numbers for validation ---
-    if(ui->altitudeEdit->text().toDouble() <= 0) errors += "- Altitude greater than 0 is required.\n";
-    if(ui->npiEdit->text().toInt() <= 0) errors += "- NPI greater than 0 is required.\n";
-    if(ui->bsEdit->text().toDouble() <= 0) errors += "- BinSize (BS) greater than 0 is required.\n";
-
-    if(!errors.isEmpty()) {
-        spdlog::warn("AddObjectDialog validation failed:\n{}", errors.toStdString());
-        QMessageBox::warning(this, "Invalid Data", "Please correct:\n\n" + errors);
-        return;
-    }
-
-    if (!m_dbManager) {
-        spdlog::error("AddObjectDialog: No database connection available.");
-        QMessageBox::critical(this, "Error", "No connection to the database.");
-        return;
-    }
-
-    nlohmann::json newData = getNewObjectData();
-    std::string errorDetails;
-    bool success = false;
-
-    // Create or Update?
-    if (m_isEditMode) {
-        spdlog::info("Attempting to update object with ID: {}", newData["_id"].dump());
-        success = m_dbManager->updateSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
-    } else {
-        spdlog::info("Attempting to create new object with ID: {}", newData["_id"].dump());
-        success = m_dbManager->createSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
-    }
-
-    if (success) {
-        spdlog::info("Operation successful. Object saved.");
-        QMessageBox::information(this, "Success", m_isEditMode ? "Object updated." : "Object created.");
-        accept();
-    } else {
-        spdlog::error("Operation failed. Reason: {}", errorDetails);
-        QMessageBox::critical(this, "Error", "Operation failed.\n\n" + QString::fromStdString(errorDetails));
-    }
-}
-
-void AddObjectDialog::setAvailableGroups(const std::set<std::string> &groups)
+// --- LOAD SETS (Observation Lists) ---
+void AddObjectDialog::setAvailableSets(const std::set<std::string> &sets)
 {
     ui->setsListWidget->clear();
-    for(const auto& groupName : groups) {
-        ui->setsListWidget->addItem(QString::fromStdString(groupName));
+    for(const auto& s : sets) {
+        ui->setsListWidget->addItem(QString::fromStdString(s));
     }
+    ui->setsListWidget->clearSelection();
+}
+
+// --- LOAD GROUPS (Internal Categories) ---
+void AddObjectDialog::setAvailableGroups(const std::set<std::string> &groups)
+{
+    ui->groupsListWidget->clear();
+    for(const auto& g : groups) {
+        ui->groupsListWidget->addItem(QString::fromStdString(g));
+    }
+    ui->groupsListWidget->clearSelection();
 }
 
 void AddObjectDialog::on_browseImageBtn_clicked()
@@ -113,6 +72,13 @@ QString AddObjectDialog::getSelectedImagePath() const {
     return m_selectedImagePath;
 }
 
+void AddObjectDialog::on_cancelButton_clicked()
+{
+    spdlog::debug("AddObjectDialog cancelled by user.");
+    reject();
+}
+
+// 1. GENERAR JSON (GUARDAR)
 nlohmann::json AddObjectDialog::getNewObjectData() const
 {
     nlohmann::json j;
@@ -129,47 +95,69 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
         else j[key] = nullptr;
     };
 
-    // --- ASSIGNMENT ---
-
-    // Required (Never Null)
+    // --- IDENTIFIERS (Required ! *) ---
     try {
         if (ui->noradEdit->text().isEmpty()) j["_id"] = nullptr;
         else j["_id"] = ui->noradEdit->text().toLongLong();
     } catch (...) { j["_id"] = nullptr; }
 
-    j["NORAD"] = ui->noradEdit->text().trimmed().toStdString();
-    j["Name"] = ui->nameEdit->text().trimmed().toStdString();
-    j["Abbreviation"] = ui->aliasEdit->text().trimmed().toStdString();
+    j["NORAD"]  = ui->noradEdit->text().trimmed().toStdString();
+    j["Name"]   = ui->nameEdit->text().trimmed().toStdString();
     j["COSPAR"] = ui->cosparEdit->text().trimmed().toStdString();
-    j["EnablementPolicy"] = 1;
 
-    // Optional Strings
+    // Alias (Antes Abbreviation)
+    j["Alias"]  = ui->aliasEdit->text().trimmed().toStdString();
+
+    // Classification (EL CAMPO QUE FALTABA)
+    setStringOrNull("Classification", ui->classEdit->text());
+
+    // --- OPTIONAL IDENTIFIERS (*) ---
     setStringOrNull("ILRSID", ui->ilrsEdit->text());
     setStringOrNull("SIC", ui->sicEdit->text());
 
-    // Booleans
+    // --- BOOLEANS (!) ---
+    // Has LRR / Is Debris
     setTristate("LaserRetroReflector", ui->lrrCombo->currentText());
     setTristate("IsDebris", ui->debrisCombo->currentText());
-    j["TrackPolicy"] = ui->highPowerCheck->isChecked() ? 1 : 0;
 
-    // --- FIX: Convert QLineEdit text to numbers ---
-    // toDouble() returns 0.0 if conversion fails, which is handled by validation
+    // Track High Power (Checkbox -> 1/0)
+    j["TrackHighPower"] = ui->highPowerCheck->isChecked() ? 1 : 0;
+
+    // (Nota: Si tu BBDD antigua usa "TrackPolicy" con valores 0/1/2, avísame.
+    // Aquí estamos guardando "TrackHighPower" como 0/1 según tu lista).
+
+    // --- NUMERIC FIELDS (!) ---
+    // Altitude, NPI, BS son obligatorios (validados en on_saveButton_clicked)
     j["Altitude"] = ui->altitudeEdit->text().toDouble();
-    j["RadarCrossSection"] = ui->rcsEdit->text().toDouble();
     j["NormalPointIndicator"] = ui->npiEdit->text().toInt();
     j["BinSize"] = ui->bsEdit->text().toDouble();
-    j["Inclination"] = ui->incEdit->text().toDouble();
-    j["CoM"] = ui->comEdit->text().toDouble();
 
-    // Optional Texts
+    // Opcionales
+    j["RadarCrossSection"] = ui->rcsEdit->text().toDouble();
+    j["Inclination"] = ui->incEdit->text().toDouble();
+    j["CoM"] = ui->comEdit->text().toDouble(); // Center of Mass
+
+    // --- TEXTOS VARIOS ---
     setStringOrNull("Comments", ui->commentsEdit->toPlainText());
     setStringOrNull("ProviderCPF", ui->cpfEdit->text());
-    setStringOrNull("Config", ui->configEdit->text());
+    setStringOrNull("Config", ui->configEdit->text()); // Configuraciones (9 chars)
     setStringOrNull("Picture", ui->imagePathEdit->text());
 
-    // Groups
-    std::vector<std::string> selectedGroups;
+    // Default enablement (Si es nuevo, activado por defecto)
+    if (!m_isEditMode) j["EnablementPolicy"] = 1;
+
+    // --- ARRAYS ---
+
+    // 1. SETS (Observation Sets)
+    std::vector<std::string> selectedSets;
     for(auto item : ui->setsListWidget->selectedItems()) {
+        selectedSets.push_back(item->text().toStdString());
+    }
+    j["Sets"] = selectedSets;
+
+    // 2. GROUPS (Internal Categories)
+    std::vector<std::string> selectedGroups;
+    for(auto item : ui->groupsListWidget->selectedItems()) {
         selectedGroups.push_back(item->text().toStdString());
     }
     j["Groups"] = selectedGroups;
@@ -177,13 +165,7 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
     return j;
 }
 
-void AddObjectDialog::on_cancelButton_clicked()
-{
-    spdlog::debug("AddObjectDialog cancelled by user.");
-    reject();
-}
-
-// --- LOAD DATA ---
+// 2. CARGAR DATOS (EDITAR)
 void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
 {
     spdlog::debug("Loading object data into form.");
@@ -199,20 +181,23 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         return 0.0;
     };
 
-    // 1. Fill Texts
+    // Textos
     ui->noradEdit->setText(QString::number(obj.value("_id", 0LL)));
     ui->nameEdit->setText(getString("Name"));
-    ui->aliasEdit->setText(getString("Abbreviation"));
+    ui->aliasEdit->setText(getString("Alias"));     // Cargamos "Alias"
     ui->cosparEdit->setText(getString("COSPAR"));
     ui->ilrsEdit->setText(getString("ILRSID"));
     ui->sicEdit->setText(getString("SIC"));
+
+    // Classification (AÑADIDO)
+    ui->classEdit->setText(getString("Classification"));
 
     ui->commentsEdit->setPlainText(getString("Comments"));
     ui->cpfEdit->setText(getString("ProviderCPF"));
     ui->configEdit->setText(getString("Config"));
     ui->imagePathEdit->setText(getString("Picture"));
 
-    // --- FIX: Convert Numbers to String for QLineEdit ---
+    // Números
     ui->altitudeEdit->setText(QString::number(getDouble("Altitude")));
     ui->rcsEdit->setText(QString::number(getDouble("RadarCrossSection")));
     ui->npiEdit->setText(QString::number(obj.value("NormalPointIndicator", 0)));
@@ -220,7 +205,7 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     ui->incEdit->setText(QString::number(getDouble("Inclination")));
     ui->comEdit->setText(QString::number(getDouble("CoM")));
 
-    // 3. Fill Combos/Checks
+    // Combos/Checks
     if(obj.contains("LaserRetroReflector")) {
         if(obj["LaserRetroReflector"].is_null()) ui->lrrCombo->setCurrentText("Unknown");
         else {
@@ -237,21 +222,29 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         }
     }
 
-    if(obj.contains("TrackPolicy") && !obj["TrackPolicy"].is_null()) {
-        ui->highPowerCheck->setChecked(obj["TrackPolicy"] == 1);
+    if(obj.contains("TrackHighPower") && !obj["TrackHighPower"].is_null()) {
+        ui->highPowerCheck->setChecked(obj["TrackHighPower"] == 1);
     }
 
-    // 4. Select Groups
+    // Listas (Sets y Groups)
     ui->setsListWidget->clearSelection();
-    if(obj.contains("Groups") && obj["Groups"].is_array()) {
-        std::vector<std::string> groups = obj["Groups"];
+    if(obj.contains("Sets") && obj["Sets"].is_array()) {
+        std::vector<std::string> sets = obj["Sets"];
         for(int i=0; i < ui->setsListWidget->count(); ++i) {
             QListWidgetItem* item = ui->setsListWidget->item(i);
+            for(const auto& s : sets) {
+                if(item->text().toStdString() == s) { item->setSelected(true); break; }
+            }
+        }
+    }
+
+    ui->groupsListWidget->clearSelection();
+    if(obj.contains("Groups") && obj["Groups"].is_array()) {
+        std::vector<std::string> groups = obj["Groups"];
+        for(int i=0; i < ui->groupsListWidget->count(); ++i) {
+            QListWidgetItem* item = ui->groupsListWidget->item(i);
             for(const auto& g : groups) {
-                if(item->text().toStdString() == g) {
-                    item->setSelected(true);
-                    break;
-                }
+                if(item->text().toStdString() == g) { item->setSelected(true); break; }
             }
         }
     }
@@ -262,7 +255,7 @@ void AddObjectDialog::setEditMode(bool enable)
     m_isEditMode = enable;
     if(enable) {
         this->setWindowTitle("Edit Object");
-        ui->noradEdit->setEnabled(false);
+        ui->noradEdit->setEnabled(false); // ID is immutable
         ui->saveButton->setText("Update Object");
         spdlog::debug("AddObjectDialog set to EDIT mode.");
     } else {
@@ -270,5 +263,53 @@ void AddObjectDialog::setEditMode(bool enable)
         ui->noradEdit->setEnabled(true);
         ui->saveButton->setText("Save Object");
         spdlog::debug("AddObjectDialog set to CREATE mode.");
+    }
+}
+
+void AddObjectDialog::on_saveButton_clicked()
+{
+    QString errors;
+
+    // --- VALIDATIONS ---
+    if(ui->noradEdit->text().trimmed().isEmpty()) errors += "- Field 'Norad' is required.\n";
+    if(ui->nameEdit->text().trimmed().isEmpty()) errors += "- Field 'Name' is required.\n";
+    if(ui->aliasEdit->text().trimmed().isEmpty()) errors += "- Field 'Alias' is required.\n";
+    if(ui->cosparEdit->text().trimmed().isEmpty()) errors += "- Field 'COSPAR' is required.\n";
+
+    bool ok;
+    ui->noradEdit->text().toLongLong(&ok);
+    if(!ok) errors += "- 'Norad' must be a valid integer.\n";
+
+    // Numeric checks (Optional: check if > 0)
+    // if(ui->altitudeEdit->text().toDouble() <= 0) errors += "- Altitude > 0 required.\n";
+
+    if(!errors.isEmpty()) {
+        spdlog::warn("Validation failed: {}", errors.toStdString());
+        QMessageBox::warning(this, "Invalid Data", "Please correct:\n\n" + errors);
+        return;
+    }
+
+    if (!m_dbManager) {
+        QMessageBox::critical(this, "Error", "No connection to database.");
+        return;
+    }
+
+    // --- SAVE ---
+    nlohmann::json newData = getNewObjectData();
+    std::string errorDetails;
+    bool success = false;
+
+    if (m_isEditMode) {
+        success = m_dbManager->updateSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
+    } else {
+        success = m_dbManager->createSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
+    }
+
+    if (success) {
+        QMessageBox::information(this, "Success", m_isEditMode ? "Object updated." : "Object created.");
+        accept();
+    } else {
+        spdlog::error("Save failed: {}", errorDetails);
+        QMessageBox::critical(this, "Error", "Operation failed.\n\n" + QString::fromStdString(errorDetails));
     }
 }

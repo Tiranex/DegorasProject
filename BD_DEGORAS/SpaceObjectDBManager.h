@@ -1,110 +1,76 @@
-#pragma once
+#ifndef SPACEOBJECTDBMANAGER_H
+#define SPACEOBJECTDBMANAGER_H
 
 #include <string>
-#include <cstdint> // Para int64_t
-#include <mongocxx/client.hpp>
-#include <mongocxx/database.hpp>
-#include <mongocxx/collection.hpp>
-#include <nlohmann/json.hpp>
-#include <mongocxx/gridfs/bucket.hpp>
 #include <vector>
 #include <set>
+#include <memory>
 
+// MongoDB Driver
+#include <mongocxx/client.hpp>
+#include <mongocxx/instance.hpp>
+#include <mongocxx/uri.hpp>
+#include <mongocxx/pool.hpp>
 
-// Modulos
-#include "gridfsimagemanager.h"
+// JSON Library
+#include <nlohmann/json.hpp>
 
+// GridFS
+#include "GridFSImageManager.h"
 
-class SpaceObjectDBManager {
+class SpaceObjectDBManager
+{
 public:
     SpaceObjectDBManager(const std::string& uri_str, const std::string& db_name, const std::string& col_name);
     ~SpaceObjectDBManager();
 
-    // --- Métodos de SpaceObject ---
+    // --- CRUD OBJECTS ---
     nlohmann::json getSpaceObjectById(int64_t id);
     nlohmann::json getSpaceObjectByName(const std::string& name);
-
-    /**
-     * @brief (NUEVO) Obtiene un SpaceObject por su campo Picture (case-sensitive).
-     * @param picName El nombre (string) de la imagen.
-     * @return Un nlohmann::json con los datos.
-     */
     nlohmann::json getSpaceObjectByPicture(const std::string& picName);
 
-    bool createSpaceObject(const nlohmann::json& objectData,
-                           const std::string& localPicturePath,
-                           std::string& errorMsg);
+    // Statistics
+    int64_t getSpaceObjectsCount();
 
-    bool updateSpaceObject(const nlohmann::json& objectData,
-                           const std::string& localPicturePath,
-                           std::string& errorMsg);
-    bool deleteSpaceObjectById(int64_t id);
-
-
-    /**
-     * @brief (¡NUEVO!) Obtiene *todos* los SpaceObjects de la colección.
-     * @return Un vector de objetos nlohmann::json.
-     */
     std::vector<nlohmann::json> getAllSpaceObjects();
 
-    // --- MÉTODOS DE GRIDFS (basados en 'name') ---
+    // Create / Update with error messaging
+    bool createSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg);
+    bool updateSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg);
 
-    GridFSImageManager& getImageManager() { return _imageManager; }
+    bool deleteSpaceObjectById(int64_t id);
 
+    // --- SETS MANAGEMENT (Renamed from Groups) ---
+    // Estas funciones ahora gestionan la colección "sets" y el campo "Sets"
+    std::set<std::string> getAllUniqueSetNames();
+    std::vector<nlohmann::json> getSpaceObjectsBySets(const std::set<std::string>& setNames);
 
-    // =================================================================
-    // --- ¡NUEVO! MÉTODOS DE GRUPOS ---
-    // =================================================================
+    bool addObjectToSet(int64_t objectId, const std::string& setName);
+    bool removeObjectFromSet(int64_t objectId, const std::string& setName);
 
-    /**
-     * @brief Obtiene todos los objetos que pertenecen a CUALQUIERA de los grupos
-     * de la lista.
-     * @param groupNames Un set de nombres de grupos.
-     * @return Un vector de objetos JSON.
-     */
+    bool createSet(const std::string& setName);
+    bool deleteSet(const std::string& setName);
+
+    // --- GROUPS MANAGEMENT (New) ---
+    std::set<std::string> getAllUniqueGroupNames(); // Para llenar la lista de grupos
+    bool createGroup(const std::string& groupName); // Crear categoría nueva
+    bool deleteGroup(const std::string& groupName);
     std::vector<nlohmann::json> getSpaceObjectsByGroups(const std::set<std::string>& groupNames);
-
-    /**
-     * @brief Obtiene la lista maestra de todos los nombres de grupos únicos
-     * desde la colección 'groups'.
-     * @return Un set de strings.
-     */
-    std::set<std::string> getAllUniqueGroupNames();
-
-    /**
-     * @brief Añade un tag de grupo a un space_object Y
-     * asegura que el grupo exista en la colección 'groups'.
-     */
     bool addObjectToGroup(int64_t objectId, const std::string& groupName);
-
-    /**
-     * @brief Quita un tag de grupo de un space_object.
-     */
     bool removeObjectFromGroup(int64_t objectId, const std::string& groupName);
 
-    /**
-     * @brief Crea un nuevo grupo en la colección 'groups'.
-     * @param groupName El nombre del nuevo grupo.
-     * @return true si se creó, false si ya existía o hubo un error.
-     */
-    bool crearGrupo(const std::string& groupName);
 
-    /**
-     * @brief Elimina un grupo de la colección 'groups' Y de todos los objetos.
-     * @param groupName El nombre del grupo a eliminar.
-     * @return true si se eliminó, false si hubo un error.
-     */
-    bool eliminarGrupo(const std::string& groupName);
+    // --- IMAGE MANAGER ACCESS ---
+    GridFSImageManager& getImageManager() { return _imageManager; }
 
 private:
     mongocxx::client _client;
     mongocxx::database _db;
-    mongocxx::collection _collection; // Para 'space_objects'
+    mongocxx::collection _collection;      // space_objects
+    mongocxx::collection _setsCollection;  // sets (antes groups)
+    mongocxx::collection _groupsCollection;
 
-    // --- Miembros para GridFS (basados en 'name') ---
-    mongocxx::gridfs::bucket _gridfsBucket;
-    mongocxx::collection _gridfsFilesCollection; // Para buscar en 'fs.files'
-
-    mongocxx::collection _groupsCollection; // Colección "groups"
     GridFSImageManager _imageManager;
 };
+
+#endif // SPACEOBJECTDBMANAGER_H

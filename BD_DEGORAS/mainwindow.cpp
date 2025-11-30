@@ -2,7 +2,7 @@
 #include "ui_mainwindow.h"
 #include "SpaceObjectDBManager.h"
 #include "json_helpers.h"
-#include "addobjectdialog.h" // Required for full class definition
+#include "addobjectdialog.h"
 
 // QT INCLUDES
 #include <QMessageBox>
@@ -24,8 +24,6 @@
 #include <QDateTime>
 #include <QKeyEvent>
 
-
-
 // LOGGING
 #include <spdlog/spdlog.h>
 
@@ -35,14 +33,13 @@
 #include <vector>
 #include <set>
 
-// Table headers based on DB keys. DO NOT TRANSLATE literal strings.
+// Table headers based on DB keys.
 const QStringList g_tableHeaders = {
-    "EnablementPolicy", "_id", "Name", "NORAD", "Altitude", "Amplification", "BinSize",
-    "COSPAR", "Classification", "CounterID", "DetectorID",
-    "ILRSID", "ILRSName", "Inclination",
-    "IsDebris", "LaserID", "LaserRetroReflector", "Abbreviation" ,
-    "NormalPointIndicator", "Picture", "Priority", "ProviderCPF",
-    "RadarCrossSection", "SIC", "TrackPolicy"
+    "EnablementPolicy", "NORAD", "Alias", "Name",
+    "COSPAR", "Classification", "ILRSID", "Inclination",
+    "IsDebris", "LaserRetroReflector", "NormalPointIndicator",
+    "Picture", "ProviderCPF", "RadarCrossSection", "SIC", "TrackHighPower",
+    "Sets", "Groups"
 };
 
 // --- CONSTRUCTOR ---
@@ -53,20 +50,36 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     // 1. Configure tables
-    setupObjectListTable();
-    setupSetsObjectTable();
+    setupTables();
+    initIcons(); // Inicializar iconos cacheados
 
-    // 2. Connections (Signals & Slots)
-    connect(ui->setsObjectTable, &QTableWidget::cellDoubleClicked, this, &MainWindow::on_editObjectButton_clicked);
-    connect(ui->setsObjectTable, &QTableWidget::customContextMenuRequested, this, &MainWindow::onSetsTableContextMenuRequested);
+    // 2. Conexiones Manuales (TAB 1)
+    connect(ui->mainObjectTable, &QTableWidget::cellDoubleClicked, this, &MainWindow::on_editObjectButton_clicked);
+    connect(ui->mainObjectTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
+        handleUniversalContextMenu(pos, ui->mainObjectTable);
+    });
+    connect(ui->mainObjectTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::on_mainObjectTable_selectionChanged);
 
-    // Connections for non-modal windows
+    // Filtros
+    connect(ui->filterAllRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
+    connect(ui->filterEnabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
+    connect(ui->filterDisabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
+    connect(ui->showAllObjectsCheckBox, &QCheckBox::toggled, this, &MainWindow::refreshMainTable);
 
-    // Other UI connections
-    connect(ui->setsObjectTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::on_setsObjectTable_selectionChanged);
-    connect(ui->showAllObjectsCheckBox, &QCheckBox::toggled, this, &MainWindow::on_showAllObjectsCheckBox_toggled);
-    connect(ui->listWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_listWidget_itemSelectionChanged);
-    connect(ui->objectListTable, &QTableWidget::customContextMenuRequested, this, &MainWindow::onObjectListTableContextMenuRequested);
+    // TAB 2: Sets
+    connect(ui->setsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_setsListWidget_itemSelectionChanged);
+    connect(ui->setsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
+        handleUniversalContextMenu(pos, ui->setsViewTable);
+    });
+
+    // TAB 3: Groups
+    connect(ui->groupsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_groupsListWidget_itemSelectionChanged);
+    connect(ui->groupsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
+        handleUniversalContextMenu(pos, ui->groupsViewTable);
+    });
+
+    // GENERAL: Cambio de Pestaña
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::on_tabWidget_currentChanged);
 
     // --- 3. Connect to DB ---
     const std::string URI = "mongodb://localhost:27017";
@@ -75,471 +88,53 @@ MainWindow::MainWindow(QWidget *parent)
 
     try {
         dbManager = std::make_unique<SpaceObjectDBManager>(URI, DB_NAME, COLLECTION_NAME);
-        logMessage("[Info] Successfully connected to " + QString::fromStdString(DB_NAME) + "/" + QString::fromStdString(COLLECTION_NAME));
+        logMessage("[Info] Successfully connected to DB.");
     }
     catch (const std::exception& e)
     {
         QString errorMsg = "[Fatal Error] Could not connect to MongoDB: " + QString(e.what());
         logMessage(errorMsg);
-
-        // Disable UI if DB fails
-        ui->mostrarButton->setEnabled(false);
-        ui->eliminarButton->setEnabled(false);
-        ui->anadirButton->setEnabled(false);
-        ui->browseButton->setEnabled(false);
-        ui->idLineEdit->setEnabled(false);
-        ui->tabWidget->setTabEnabled(ui->tabWidget->indexOf(ui->tab_3), false);
-        ui->addNewObjectSetButton->setEnabled(false);
+        ui->centralwidget->setEnabled(false);
     }
 
+    // 4. Carga Inicial
     if (dbManager) {
-        refreshGroupList();
+        refreshMainTable();
+        refreshSetListWidget();
+        refreshGroupListWidget();
+
+        // Forzar carga de vistas secundarias
+        on_setsListWidget_itemSelectionChanged();
+        on_groupsListWidget_itemSelectionChanged();
     }
 
-    // 4. Initial UI Setup
-    ui->searchByIdRadioButton->setChecked(true);
-    ui->imageDisplayLabel->clear();
+    // 5. Menú Data
+    QMenu *menuData = menuBar()->addMenu("Data");
 
+    QAction *actExport = menuData->addAction("Export to CSV");
+    actExport->setShortcut(QKeySequence("Ctrl+E"));
+    connect(actExport, &QAction::triggered, this, &MainWindow::exportToCSV);
 
-
-    // 1. Accedemos a la barra de menú de la ventana
-    QMenuBar *barraMenu = this->menuBar();
-
-    // 2. Creamos un menú nuevo llamado "Data"
-    QMenu *menuData = barraMenu->addMenu("Data");
-
-    // 3. Creamos la acción QAction
-    QAction *accionExportar = new QAction("Export to CSV", this);
-    QAction *importAction = new QAction("Import from JSON", this);
-    // Atajo de teclado
-    accionExportar->setShortcut(QKeySequence("Ctrl+E"));
-    importAction->setShortcut(QKeySequence("Ctrl+I"));
-    // 4. Añadimos la acción al menú
-    menuData->addAction(accionExportar);
-    menuData->addAction(importAction);
-    // 5. Conectamos el clic de la acción con nuestra función
-    connect(accionExportar, &QAction::triggered, this, &MainWindow::exportToCSV);
-    connect(importAction, &QAction::triggered, this, &MainWindow::importFromJSON);
-
-    // Load initial list
-    on_refreshListButton_clicked();
+    QAction *actImport = menuData->addAction("Import from JSON");
+    actImport->setShortcut(QKeySequence("Ctrl+I"));
+    connect(actImport, &QAction::triggered, this, &MainWindow::importFromJSON);
 }
 
-MainWindow::~MainWindow()
-{
-    delete ui;
-    // Unique pointers clean up memory automatically
-}
+MainWindow::~MainWindow() { delete ui; }
 
-// --- LOGGING HELPER ---
-void MainWindow::logMessage(const QString& msg)
-{
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-ddTHH:mm:ss.zzz");
-    QString formattedMsg = QString("[%1] %2").arg(timestamp, msg);
-
-    ui->resultsTextEdit->append(formattedMsg);
+void MainWindow::logMessage(const QString& msg) {
+    QString ts = QDateTime::currentDateTime().toString("HH:mm:ss");
+    ui->resultsTextEdit->append("[" + ts + "] " + msg);
     ui->resultsTextEdit->moveCursor(QTextCursor::End);
 
-    if (msg.contains("[Error]") || msg.contains("[Fatal]")) {
-        spdlog::error(msg.toStdString());
-    }
-    else if (msg.contains("[Warn]") || msg.contains("[Warning]")) {
-        spdlog::warn(msg.toStdString());
-    }
-    else {
-        spdlog::info(msg.toStdString());
-    }
+    // Spdlog usage preserving English context
+    if(msg.contains("[Error]") || msg.contains("[Fatal]")) spdlog::error(msg.toStdString());
+    else if(msg.contains("[Warn]")) spdlog::warn(msg.toStdString());
+    else spdlog::info(msg.toStdString());
 }
 
-void MainWindow::setupObjectListTable()
+void MainWindow::initIcons()
 {
-    ui->objectListTable->setColumnCount(g_tableHeaders.size());
-    ui->objectListTable->setHorizontalHeaderLabels(g_tableHeaders);
-    ui->objectListTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    ui->objectListTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->objectListTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-}
-
-// =================================================================
-// --- SLOTS (Tabs 1 & 2) ---
-// =================================================================
-
-void MainWindow::on_mostrarButton_clicked()
-{
-    if (!dbManager) return;
-
-    ui->resultsTextEdit->clear();
-    ui->imageDisplayLabel->clear();
-    ui->mostrar_texto_1->clear();
-    ui->mostrar_texto_2->clear();
-    ui->mostrar_texto_3->clear();
-    ui->mostrar_texto_4->clear();
-    ui->mostrar_texto_5->clear();
-    ui->mostrar_texto_6->clear();
-
-    logMessage("[Info] Searching...");
-
-    std::string searchText = ui->idLineEdit->text().toStdString();
-    nlohmann::json obj;
-    bool searchedById = ui->searchByIdRadioButton->isChecked();
-
-    try
-    {
-        if (searchedById)
-        {
-            if (searchText.empty()) {
-                logMessage("[Error] The _id cannot be empty.");
-                return;
-            }
-            int64_t id = std::stoll(searchText);
-            obj = dbManager->getSpaceObjectById(id);
-        }
-        else
-        {
-            if (searchText.empty()) {
-                logMessage("[Error] The Name cannot be empty.");
-                return;
-            }
-            obj = dbManager->getSpaceObjectByName(searchText);
-        }
-    }
-    catch (const std::exception& e) {
-        logMessage("[Error] Exception during search: " + QString(e.what()));
-        return;
-    }
-
-    if (obj.empty() || obj.is_null()) {
-        logMessage("[Info] Object not found.");
-        ui->mostrar_texto_1->setText("Status: Not found");
-        return;
-    }
-
-    logMessage("[OK] Object found.");
-
-    // --- Update UI ---
-    if (searchedById)
-    {
-        if (obj.contains("Name")) ui->mostrar_texto_1->setText("Name: " + jsonValueToQString(obj["Name"]));
-        else ui->mostrar_texto_1->setText("Name: Unknown");
-    }
-    else
-    {
-        if (obj.contains("_id")) ui->mostrar_texto_1->setText("ID: " + jsonValueToQString(obj["_id"]));
-        else ui->mostrar_texto_1->setText("ID: Error");
-    }
-
-    if (obj.contains("Altitude")) ui->mostrar_texto_2->setText("Altitude: " + jsonValueToQString(obj["Altitude"]) + " km");
-    else ui->mostrar_texto_2->setText("Altitude: -");
-
-    if (obj.contains("Inclination")) ui->mostrar_texto_3->setText("Inclination: " + jsonValueToQString(obj["Inclination"]) + "°");
-    else ui->mostrar_texto_3->setText("Inclination: -");
-
-    if (obj.contains("LaserID")) ui->mostrar_texto_4->setText("Laser ID: " + jsonValueToQString(obj["LaserID"]));
-    else ui->mostrar_texto_4->setText("Laser ID: N/A");
-
-    if (obj.contains("LaserRetroReflector")) ui->mostrar_texto_5->setText("RetroReflector: " + jsonValueToQString(obj["LaserRetroReflector"]));
-    else ui->mostrar_texto_5->setText("RetroReflector: -");
-
-    if (obj.contains("RadarCrossSection")) ui->mostrar_texto_6->setText("RCS: " + jsonValueToQString(obj["RadarCrossSection"]) + " m²");
-    else ui->mostrar_texto_6->setText("RCS: -");
-
-    // --- Image Handling ---
-    std::string picName = "";
-    if (obj.contains("Picture")) {
-        picName = obj["Picture"].get<std::string>();
-    }
-
-    if (picName.empty() || picName == "\"\"") {
-        logMessage("[Info] This object has no assigned image (No photo).");
-        ui->imageDisplayLabel->setText("NO PHOTO");
-        return;
-    }
-
-    std::string imageDataStd = dbManager->getImageManager().downloadImageByName(picName);
-
-    if (imageDataStd.empty()) {
-        logMessage("[Warning] The object requests photo '" + QString::fromStdString(picName) + "', but it was not found in GridFS.");
-        ui->imageDisplayLabel->setText("File not found");
-    }
-    else {
-        QByteArray imageDataQt(imageDataStd.data(), imageDataStd.length());
-        QPixmap pixmap;
-
-        if (pixmap.loadFromData(imageDataQt)) {
-            ui->imageDisplayLabel->setPixmap(pixmap.scaled(
-                ui->imageDisplayLabel->size(),
-                Qt::KeepAspectRatio,
-                Qt::SmoothTransformation
-                ));
-            logMessage("[Info] Image loaded: " + QString::fromStdString(picName));
-        } else {
-            logMessage("[Error] Data downloaded, but it is not a valid image.");
-        }
-    }
-}
-
-void MainWindow::on_anadirButton_clicked()
-{
-    if (!dbManager) return;
-
-    std::string id_str = ui->idLineEdit_add->text().toStdString();
-    std::string norad_str = ui->noradLineEdit_add->text().toStdString();
-    std::string name_str = ui->nameLineEdit_add->text().toStdString();
-    std::string class_str = ui->classLineEdit_add->text().toStdString();
-    std::string pic_str = ui->pictureLineEdit_add->text().toStdString();
-
-    int64_t id;
-    if (id_str.empty()) {
-        logMessage("[Error] The _id is required to create an object.");
-        return;
-    }
-    try {
-        id = std::stoll(id_str);
-    } catch (...) {
-        logMessage("[Error] The entered _id is not a valid number.");
-        return;
-    }
-    if (name_str.empty()) {
-        logMessage("[Error] The name is required.");
-        return;
-    }
-    if (norad_str.empty()) {
-        norad_str = id_str;
-        logMessage("[Info] NORAD field empty. Using _id as NORAD.");
-    }
-
-    nlohmann::json newObj = {
-        {"_id", id},
-        {"NORAD", norad_str},
-        {"Name", name_str},
-        {"Classification", class_str},
-        {"Picture", pic_str},
-        {"Groups", nlohmann::json::array()}
-    };
-
-    logMessage("[Info] Attempting to create object with _id: " + QString::fromStdString(id_str) + "...");
-
-    std::string errorMsg;
-    if (dbManager->createSpaceObject(newObj, m_localPicturePath.toStdString(), errorMsg))
-    {
-        logMessage("[OK] Object successfully created!");
-        ui->idLineEdit_add->clear();
-        ui->noradLineEdit_add->clear();
-        ui->nameLineEdit_add->clear();
-        ui->classLineEdit_add->clear();
-        ui->pictureLineEdit_add->clear();
-        m_localPicturePath.clear();
-        refreshGroupList();
-    } else {
-        logMessage("[Error] Could not create object. Check log.");
-    }
-}
-
-void MainWindow::on_eliminarButton_clicked()
-{
-    if (!dbManager) return;
-
-    if (ui->searchByNameRadioButton->isChecked()) {
-        logMessage("[Error] Cannot delete by 'Name'.");
-        logMessage("[Info] Please search by '_id' to delete.");
-        return;
-    }
-
-    std::string id_str = ui->idLineEdit->text().toStdString();
-    if (id_str.empty()) {
-        logMessage("[Error] Enter an _id in the search field.");
-        return;
-    }
-
-    try
-    {
-        int64_t id = std::stoll(id_str);
-        nlohmann::json obj = dbManager->getSpaceObjectById(id);
-
-        if (obj.empty() || obj.is_null()) {
-            logMessage("[Error] No object found with _id: " + QString::fromStdString(id_str));
-            return;
-        }
-
-        std::string picName = "";
-        if (obj.contains("Picture") && !obj["Picture"].get<std::string>().empty()) {
-            picName = obj["Picture"].get<std::string>();
-        }
-
-        QMessageBox::StandardButton reply;
-        reply = QMessageBox::question(this, "Confirm Deletion",
-                                      "Are you sure you want to delete the object with _id: " + QString::fromStdString(id_str) + "?",
-                                      QMessageBox::Yes | QMessageBox::No);
-
-        if (reply == QMessageBox::No) {
-            logMessage("[Info] Deletion cancelled by user.");
-            return;
-        }
-
-        logMessage("[Info] Deleting object _id: " + QString::fromStdString(id_str) + "...");
-
-        if (dbManager->deleteSpaceObjectById(id)) {
-            logMessage("[OK] Object deleted.");
-            ui->idLineEdit->clear();
-            ui->imageDisplayLabel->clear();
-
-            if (!picName.empty()) {
-                logMessage("[Info] Deleting associated image '" + QString::fromStdString(picName) + "' from GridFS...");
-                if (dbManager->getImageManager().deleteImageByName(picName)) {
-                    logMessage("[OK] GridFS image deleted.");
-                } else {
-                    logMessage("[Warning] Could not delete GridFS image.");
-                }
-            }
-        } else {
-            logMessage("[Error] Could not delete object from DB.");
-        }
-    }
-    catch (...) {
-        logMessage("[Error] The entered _id is not a valid number.");
-    }
-}
-
-void MainWindow::on_browseButton_clicked()
-{
-    QString filePath = QFileDialog::getOpenFileName(
-        this, "Select Image", QDir::homePath(), "Images (*.png *.jpg *.jpeg *.bmp)");
-
-    if (filePath.isEmpty()) {
-        m_localPicturePath.clear();
-        return;
-    }
-
-    QFileInfo fileInfo(filePath);
-    m_localPicturePath = filePath;
-    ui->pictureLineEdit_add->setText(fileInfo.fileName());
-}
-
-void MainWindow::on_refreshListButton_clicked()
-{
-    if (!dbManager) {
-        logMessage("[Error] Cannot refresh, no DB connection.");
-        return;
-    }
-
-    logMessage("[Info] Refreshing list from DB...");
-    ui->objectListTable->setRowCount(0);
-    std::vector<nlohmann::json> allObjects = dbManager->getAllSpaceObjects();
-
-    ui->objectListTable->setSortingEnabled(false);
-    ui->objectListTable->setUpdatesEnabled(false);
-
-    for (const auto& obj : allObjects) {
-        int rowCount = ui->objectListTable->rowCount();
-        ui->objectListTable->insertRow(rowCount);
-
-        for (int col = 0; col < g_tableHeaders.size(); ++col) {
-            std::string key = g_tableHeaders[col].toStdString();
-            nlohmann::json value;
-            if (obj.contains(key)) value = obj[key];
-
-            QString stringValue = jsonValueToQString(value);
-            QTableWidgetItem *item = new QTableWidgetItem(stringValue);
-            ui->objectListTable->setItem(rowCount, col, item);
-        }
-    }
-
-    ui->objectListTable->setUpdatesEnabled(true);
-    ui->objectListTable->setSortingEnabled(true);
-    refreshGroupList();
-    logMessage("[Info] List updated. " + QString::number(allObjects.size()) + " objects loaded.");
-}
-
-void MainWindow::onObjectListTableContextMenuRequested(const QPoint &pos)
-{
-    QTableWidgetItem *item = ui->objectListTable->itemAt(pos);
-    if (!item) return;
-
-    int row = item->row();
-    QMenu contextMenu(this);
-    QAction *copyJsonAction = contextMenu.addAction("Copy JSON");
-    QAction *selectedAction = contextMenu.exec(ui->objectListTable->mapToGlobal(pos));
-
-    if (selectedAction == copyJsonAction)
-    {
-        QTableWidgetItem* idItem = ui->objectListTable->item(row, 0);
-        if (!idItem) {
-            logMessage("[Error] Could not find _id for selected row.");
-            return;
-        }
-        QString idString = idItem->text();
-
-        try {
-            int64_t id = idString.toLongLong();
-            nlohmann::json obj = dbManager->getSpaceObjectById(id);
-            if (obj.empty() || obj.is_null()) {
-                logMessage("[Error] Object with _id " + idString + " not found in DB.");
-                return;
-            }
-            QClipboard *clipboard = QGuiApplication::clipboard();
-            clipboard->setText(QString::fromStdString(obj.dump(2)));
-            logMessage("[Info] JSON for object " + idString + " copied to clipboard.");
-        } catch (...) {
-            logMessage("[Error] _id '" + idString + "' is not numeric.");
-        }
-    }
-}
-
-// =================================================================
-// --- TAB "SETS" (Tab 3) ---
-// =================================================================
-
-void MainWindow::setupSetsObjectTable()
-{
-    QStringList headers = g_tableHeaders;
-    headers << "Groups";
-    ui->setsObjectTable->setColumnCount(headers.size());
-    ui->setsObjectTable->setHorizontalHeaderLabels(headers);
-    ui->setsObjectTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    ui->setsObjectTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->setsObjectTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    ui->setsObjectTable->setContextMenuPolicy(Qt::CustomContextMenu);
-}
-
-void MainWindow::refreshGroupList()
-{
-    if (!dbManager) return;
-
-    QString currentGroup;
-    if (ui->listWidget->currentItem()) {
-        currentGroup = ui->listWidget->currentItem()->text();
-    }
-
-    ui->listWidget->clear();
-    std::set<std::string> groups = dbManager->getAllUniqueGroupNames();
-
-    QListWidgetItem* itemToSelect = nullptr;
-    for (const auto& groupName : groups) {
-        QListWidgetItem* item = new QListWidgetItem(QString::fromStdString(groupName));
-        ui->listWidget->addItem(item);
-        if (QString::fromStdString(groupName) == currentGroup) {
-            itemToSelect = item;
-        }
-    }
-
-    if (itemToSelect) {
-        ui->listWidget->setCurrentItem(itemToSelect);
-    }
-    logMessage("[Info] Group list updated.");
-}
-
-void MainWindow::populateSetsObjectTable(const std::vector<nlohmann::json>& objects)
-{
-    // 1. CONGELAR TABLA (Vital para velocidad)
-    ui->setsObjectTable->setSortingEnabled(false);
-    ui->setsObjectTable->setUpdatesEnabled(false);
-    ui->setsObjectTable->setRowCount(0);
-
-    // 2. CREAR ICONOS UNA SOLA VEZ (OPTIMIZACIÓN CRÍTICA)
-    // -----------------------------------------------------------------------
-    // Al hacerlo aquí fuera, el procesador solo "dibuja" 3 veces en total.
-    // Si metes esto dentro del bucle, dibuja 500 veces -> LENTITUD EXTREMA.
-
     auto createIcon = [](const QColor& color) -> QIcon {
         QPixmap pix(14, 14);
         pix.fill(Qt::transparent);
@@ -547,640 +142,252 @@ void MainWindow::populateSetsObjectTable(const std::vector<nlohmann::json>& obje
         painter.setBrush(QBrush(color));
         painter.setPen(Qt::NoPen);
         painter.drawRect(0, 0, 14, 14);
-        QPen pen(Qt::white);
-        pen.setWidth(2);
-        painter.setPen(pen);
+        QPen pen(Qt::white); pen.setWidth(2); painter.setPen(pen);
         painter.drawRect(1, 1, 12, 12);
         return QIcon(pix);
     };
-
-    QIcon iconGreen = createIcon(QColor(0, 180, 0));
-    QIcon iconRed   = createIcon(QColor(200, 0, 0));
-    QIcon iconGray  = createIcon(Qt::gray);
-    // -----------------------------------------------------------------------
-
-    // 3. PRECALCULAR ÍNDICES DE COLUMNAS (Para no buscar strings mil veces)
-    int colEnablement = g_tableHeaders.indexOf("EnablementPolicy");
-    int colGroups = g_tableHeaders.indexOf("Groups"); // O usa g_tableHeaders.size() si lo añades al final
-
-    // 4. BUCLE DE DATOS
-    // Usamos 'reserve' si vamos a insertar mucho, pero en QTableWidget insertRow es el cuello de botella
-    for (const auto& obj : objects) {
-        if (!obj.contains("_id")) continue;
-
-        int row = ui->setsObjectTable->rowCount();
-        ui->setsObjectTable->insertRow(row);
-
-        // Recorremos columnas
-        for (int col = 0; col < g_tableHeaders.size(); ++col) {
-
-            QTableWidgetItem *item = new QTableWidgetItem();
-
-            // CASO: Enablement Policy
-            if (col == colEnablement)
-            {
-                // Lógica rápida sin búsquedas de string
-                int val = -1;
-                if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null()) {
-                    val = obj["EnablementPolicy"].get<int>();
-                }
-
-                if (val == 1) {
-                    item->setIcon(iconGreen);
-                    item->setText("Enabled");
-                    item->setToolTip("Status: Enabled"); // Texto simple para evitar problemas
-                } else if (val == 0) {
-                    item->setIcon(iconRed);
-                    item->setText("Disabled");
-                    item->setToolTip("Status: Disabled");
-                } else {
-                    item->setIcon(iconGray);
-                    item->setText("Unknown");
-                    item->setToolTip("Status: Unknown");
-                }
-            }
-            // CASO: Grupos (Solo si estamos en la columna de grupos)
-            else if (col == g_tableHeaders.size()) // Asumiendo que Groups es la última extra
-            {
-                // (Tu lógica de grupos aquí si la manejas dentro del bucle de cabeceras)
-                // Si "Groups" está en g_tableHeaders, se procesa en el 'else' de abajo.
-                // Si la añadimos manualmente al final, va fuera de este for.
-            }
-            // CASO: Resto de columnas
-            else
-            {
-                std::string key = g_tableHeaders[col].toStdString();
-                QString valStr = "";
-                if(obj.contains(key)) valStr = jsonValueToQString(obj[key]);
-                item->setText(valStr);
-                item->setToolTip(valStr); // Tooltip igual que el texto por si se corta
-            }
-
-            item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-            ui->setsObjectTable->setItem(row, col, item);
-        }
-
-        // Columna Extra de Grupos (si no está en g_tableHeaders)
-        if (colGroups == -1) { // Si no la encontró arriba, la añadimos al final manual
-            int lastCol = ui->setsObjectTable->columnCount() - 1;
-            QString groupsStr = "";
-            if (obj.contains("Groups") && obj["Groups"].is_array()) {
-                QStringList groupsList;
-                for (const auto& g : obj["Groups"]) {
-                    if(g.is_string()) groupsList << QString::fromStdString(g.get<std::string>());
-                }
-                groupsStr = groupsList.join(", ");
-            }
-            ui->setsObjectTable->setItem(row, lastCol, new QTableWidgetItem(groupsStr));
-        }
-    }
-
-    // 5. DESCONGELAR TABLA
-    ui->setsObjectTable->setUpdatesEnabled(true);
-    ui->setsObjectTable->setSortingEnabled(true);
+    m_iconGreen = createIcon(QColor(0, 180, 0));
+    m_iconRed   = createIcon(QColor(200, 0, 0));
+    m_iconGray  = createIcon(Qt::gray);
 }
 
-void MainWindow::on_createGroupButton_clicked()
+void MainWindow::setupTables()
+{
+    auto configTable = [this](QTableWidget* table) {
+        table->setColumnCount(g_tableHeaders.size());
+        table->setHorizontalHeaderLabels(g_tableHeaders);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        table->setContextMenuPolicy(Qt::CustomContextMenu);
+    };
+
+    configTable(ui->mainObjectTable);
+    configTable(ui->setsViewTable);
+    configTable(ui->groupsViewTable);
+}
+
+// --- TAB CHANGE LOGIC ---
+void MainWindow::on_tabWidget_currentChanged(int index)
 {
     if (!dbManager) return;
-    QString groupName = ui->newGroupLineEdit->text().trimmed();
-    if (groupName.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Group name cannot be empty.");
-        return;
+    // Index 0 = Space Objects, 1 = Sets, 2 = Groups
+    if (index == 0) {
+        refreshMainTable();
     }
-    if (dbManager->crearGrupo(groupName.toStdString())) {
-        logMessage("[OK] Group '" + groupName + "' created.");
-        ui->newGroupLineEdit->clear();
-        refreshGroupList();
-    } else {
-        QMessageBox::warning(this, "Error", "Could not create group.\nIt may already exist.");
+    else if (index == 1) {
+        refreshSetListWidget();
+        on_setsListWidget_itemSelectionChanged();
+    }
+    else if (index == 2) {
+        refreshGroupListWidget();
+        on_groupsListWidget_itemSelectionChanged();
     }
 }
 
-void MainWindow::on_deleteGroupButton_clicked()
-{
-    if (!dbManager) return;
-    QListWidgetItem* selectedItem = ui->listWidget->currentItem();
-    if (!selectedItem) {
-        QMessageBox::warning(this, "Error", "Please select a group from the list to delete.");
-        return;
-    }
-    QString groupName = selectedItem->text();
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirm deletion",
-                                  "Are you sure you want to delete group '" + groupName + "'?\n\nThis will remove it from ALL objects.",
-                                  QMessageBox::Yes | QMessageBox::No);
-    if (reply == QMessageBox::No) {
-        logMessage("[Info] Group deletion cancelled.");
-        return;
-    }
-    if (dbManager->eliminarGrupo(groupName.toStdString())) {
-        logMessage("[OK] Group '" + groupName + "' deleted.");
-        refreshGroupList();
-        on_refreshListButton_2_clicked();
-    } else {
-        QMessageBox::warning(this, "Error", "An error occurred while deleting the group.");
-    }
-}
+// =================================================================
+// TAB 1: SPACE OBJECTS (Main Logic)
+// =================================================================
 
-void MainWindow::on_refreshListButton_2_clicked()
+void MainWindow::refreshMainTable()
 {
     if (!dbManager) return;
 
-    // 1. Guardar selecciones actuales (para restaurarlas luego)
-    QList<QListWidgetItem*> selectedGroupsItems = ui->listWidget->selectedItems();
-    QSet<QString> selectedGroupNames;
-    for (QListWidgetItem* item : selectedGroupsItems) selectedGroupNames.insert(item->text());
+    std::vector<nlohmann::json> objects = dbManager->getAllSpaceObjects();
+    std::vector<nlohmann::json> filtered;
 
-    auto selectedRowsIndexes = ui->setsObjectTable->selectionModel()->selectedRows();
-    QSet<int64_t> selectedObjectIDs;
-    // Buscamos dinámicamente la columna ID para no fallar
-    int idCol = g_tableHeaders.indexOf("_id");
-    if (idCol >= 0) {
-        for (const QModelIndex& rowIndex : selectedRowsIndexes) {
-            if (ui->setsObjectTable->item(rowIndex.row(), idCol)) {
-                selectedObjectIDs.insert(ui->setsObjectTable->item(rowIndex.row(), idCol)->text().toLongLong());
-            }
-        }
-    }
-
-    // 2. OBTENER DATOS BASE (Todos o por Grupo)
-    std::vector<nlohmann::json> baseObjects;
-
-    if (ui->showAllObjectsCheckBox->isChecked()) {
-        baseObjects = dbManager->getAllSpaceObjects();
-    }
-    else {
-        // Filtro por Grupos
-        std::set<std::string> groupsFilter;
-        for (const QString& name : selectedGroupNames) groupsFilter.insert(name.toStdString());
-
-        if (!groupsFilter.empty()) {
-            baseObjects = dbManager->getSpaceObjectsByGroups(groupsFilter);
-        } else {
-            baseObjects.clear(); // Nada seleccionado
-        }
-    }
-
-    // --- 3. APLICAR FILTRO DE ESTADO (RADIO BUTTONS) ---
-    std::vector<nlohmann::json> finalObjects;
-
-    // Leemos qué botón está marcado
     bool showAll = ui->filterAllRadio->isChecked();
     bool showEnabled = ui->filterEnabledRadio->isChecked();
     bool showDisabled = ui->filterDisabledRadio->isChecked();
 
-    for (const auto& obj : baseObjects) {
-        // Si "All" está marcado, pasa todo
-        if (showAll) {
-            finalObjects.push_back(obj);
-            continue;
-        }
+    for (const auto& obj : objects) {
+        if (showAll) { filtered.push_back(obj); continue; }
 
-        // Leemos el estado del objeto (1, 0 o Null)
-        int status = -1; // -1 representará Null/Unknown
-        if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null()) {
+        int status = -1;
+        if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null())
             status = obj["EnablementPolicy"].get<int>();
-        }
 
-        // Filtramos
-        if (showEnabled && status == 1) {
-            finalObjects.push_back(obj);
-        }
-        else if (showDisabled && status == 0) {
-            finalObjects.push_back(obj);
-        }
-        // Nota: Los "Unknown" (-1) solo se ven en modo "All" o si añadieras un botón "Unknown".
+        if (showEnabled && status == 1) filtered.push_back(obj);
+        else if (showDisabled && status == 2) filtered.push_back(obj);
     }
 
-    // 4. PINTAR LA TABLA (Con los objetos ya filtrados)
-    populateSetsObjectTable(finalObjects);
+    populateMainTable(filtered);
+    logMessage("[Tab 1] Table refreshed. " + QString::number(filtered.size()) + " objects.");
+}
 
-    // 5. ACTUALIZAR INTERFAZ (Mensajes y Restaurar selección)
-    QString infoMsg = "[Info] Table updated. " + QString::number(finalObjects.size()) + " objects visible.";
-    if(!ui->showAllObjectsCheckBox->isChecked() && !selectedGroupNames.isEmpty()) {
-        infoMsg += " (Filtered by group)";
-    }
-    // Añadimos info del filtro de estado
-    if (showEnabled) infoMsg += " [Only Enabled]";
-    if (showDisabled) infoMsg += " [Only Disabled]";
+void MainWindow::populateMainTable(const std::vector<nlohmann::json>& objects)
+{
+    ui->mainObjectTable->setSortingEnabled(false);
+    ui->mainObjectTable->setUpdatesEnabled(false);
+    ui->mainObjectTable->setRowCount(0);
 
-    logMessage(infoMsg);
+    int colEn = g_tableHeaders.indexOf("EnablementPolicy");
 
-    // Restaurar lista de grupos (con blockSignals para evitar bucles)
-    ui->listWidget->blockSignals(true);
-    refreshGroupList();
-    ui->listWidget->clearSelection();
-    for (int i = 0; i < ui->listWidget->count(); ++i) {
-        QListWidgetItem* item = ui->listWidget->item(i);
-        if (selectedGroupNames.contains(item->text())) item->setSelected(true);
-    }
-    ui->listWidget->blockSignals(false);
+    for (const auto& obj : objects) {
+        if (!obj.contains("_id")) continue;
+        int row = ui->mainObjectTable->rowCount();
+        ui->mainObjectTable->insertRow(row);
 
-    // Restaurar selección de tabla
-    ui->setsObjectTable->blockSignals(true);
-    ui->setsObjectTable->clearSelection();
-    if (idCol >= 0) {
-        for (int row = 0; row < ui->setsObjectTable->rowCount(); ++row) {
-            if (ui->setsObjectTable->item(row, idCol)) {
-                int64_t objId = ui->setsObjectTable->item(row, idCol)->text().toLongLong();
-                if (selectedObjectIDs.contains(objId)) {
-                    ui->setsObjectTable->selectRow(row);
+        for (int col = 0; col < g_tableHeaders.size(); ++col) {
+            std::string key = g_tableHeaders[col].toStdString();
+            QTableWidgetItem *item = new QTableWidgetItem();
+
+            if (col == colEn) {
+                int val = -1;
+                // VERSIÓN SEGURA ANTI-CRASH
+                if(obj.contains(key) && !obj[key].is_null() && obj[key].is_number()) {
+                    val = obj[key].get<int>();
                 }
+                if (val==1) { item->setIcon(m_iconGreen); item->setText("Enabled"); }
+                else if (val==2) { item->setIcon(m_iconRed); item->setText("Disabled"); }
+                else { item->setIcon(m_iconGray); item->setText("Unknown"); }
             }
-        }
-    }
-    ui->setsObjectTable->blockSignals(false);
-}
-
-void MainWindow::on_assignToGroupButton_clicked()
-{
-    if (!dbManager) return;
-
-    QList<QListWidgetItem*> selectedGroups = ui->listWidget->selectedItems();
-    auto selectedRowsIndexes = ui->setsObjectTable->selectionModel()->selectedRows();
-
-    if (selectedGroups.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Select at least one GROUP to assign.");
-        return;
-    }
-    if (selectedRowsIndexes.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Select at least one OBJECT from the table.");
-        return;
-    }
-
-    int successCount = 0;
-    int failCount = 0;
-
-    for (const QModelIndex& rowIndex : selectedRowsIndexes) {
-        int row = rowIndex.row();
-        int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
-        QString objectName = ui->setsObjectTable->item(row, 1)->text();
-
-        for (QListWidgetItem* groupItem : selectedGroups) {
-            QString groupName = groupItem->text();
-            if (dbManager->addObjectToGroup(objectId, groupName.toStdString())) {
-                successCount++;
+            else if (key == "Sets" || key == "Groups") {
+                if (obj.contains(key) && obj[key].is_array()) {
+                    QStringList l;
+                    for(const auto& el : obj[key]) if(el.is_string()) l << QString::fromStdString(el.get<std::string>());
+                    item->setText(l.join(", "));
+                }
             } else {
-                failCount++;
-                logMessage(QString("[Error] Could not add '%1' to group '%2'.").arg(objectName).arg(groupName));
+                if(obj.contains(key)) item->setText(jsonValueToQString(obj[key]));
             }
+            item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            ui->mainObjectTable->setItem(row, col, item);
         }
     }
-
-    QString msg = QString("Successfully performed %1 assignments.").arg(successCount);
-    if (failCount > 0) msg += QString("\nTHERE WERE %1 ERRORS. Check the log.").arg(failCount);
-
-    logMessage(msg);
-    if(successCount > 0) on_refreshListButton_2_clicked();
+    ui->mainObjectTable->setUpdatesEnabled(true);
+    ui->mainObjectTable->setSortingEnabled(true);
 }
 
-void MainWindow::on_removeFromGroupButton_clicked()
-{
-    if (!dbManager) return;
+// --- CRUD SLOTS (ADD / EDIT / DELETE / SEARCH) ---
 
-    QList<QListWidgetItem*> selectedGroups = ui->listWidget->selectedItems();
-    auto selectedRowsIndexes = ui->setsObjectTable->selectionModel()->selectedRows();
-
-    if (selectedGroups.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Select at least one GROUP to unassign.");
-        return;
-    }
-    if (selectedRowsIndexes.isEmpty()) {
-        QMessageBox::warning(this, "Error", "Select at least one OBJECT from the table.");
-        return;
-    }
-
-    int successCount = 0;
-    int failCount = 0;
-
-    for (const QModelIndex& rowIndex : selectedRowsIndexes) {
-        int row = rowIndex.row();
-        int64_t objectId = ui->setsObjectTable->item(row, 0)->text().toLongLong();
-        QString objectName = ui->setsObjectTable->item(row, 1)->text();
-
-        for (QListWidgetItem* groupItem : selectedGroups) {
-            QString groupName = groupItem->text();
-            if (dbManager->removeObjectFromGroup(objectId, groupName.toStdString())) {
-                successCount++;
-            } else {
-                failCount++;
-                logMessage(QString("[Error] Could not remove '%1' from group '%2'.").arg(objectName).arg(groupName));
-            }
-        }
-    }
-
-    QString msg = QString("Successfully performed %1 group removals.").arg(successCount);
-    if (failCount > 0) msg += QString("\nTHERE WERE %1 ERRORS. Check the log.").arg(failCount);
-
-    logMessage(msg);
-    if(successCount > 0) on_refreshListButton_2_clicked();
-}
-
-/**
- * @brief Opens the "Add Object" dialog in non-modal mode.
- * * Uses std::unique_ptr (m_addDialog) to manage the window instance.
- * * Created with 'nullptr' parent so it behaves as an independent window
- * (Main window can cover it, and vice-versa).
- */
 void MainWindow::on_addNewObjectSetButton_clicked()
 {
-    if (!dbManager) {
-        logMessage("[Error] Sin conexión a BBDD.");
-        return;
-    }
+    if (!dbManager) return;
+    if (m_addDialog) { m_addDialog->activateWindow(); return; }
 
-    // 1. CONCURRENCY CHECK
-    if (m_addDialog) {
-        logMessage("[Info] La ventana 'Añadir Objeto' ya está abierta.");
-        m_addDialog->showNormal();
-        m_addDialog->raise();
-        m_addDialog->activateWindow();
-        return;
-    }
-
-    // 2. CREATE INSTANCE (INDEPENDENT WINDOW)
-    // We pass 'nullptr' instead of 'this'. This breaks the parent-child Z-order,
-    // allowing the Main Window to cover this dialog if clicked.
     m_addDialog = std::make_unique<AddObjectDialog>(nullptr);
-
-    // 3. PREPARE DATA
-    std::set<std::string> groups = dbManager->getAllUniqueGroupNames();
-    m_addDialog->setAvailableGroups(groups);
+    m_addDialog->setAvailableSets(dbManager->getAllUniqueSetNames());
+    m_addDialog->setAvailableGroups(dbManager->getAllUniqueGroupNames());
     m_addDialog->setDbManager(dbManager.get());
 
-    // 4. CONNECT SIGNAL
-    connect(m_addDialog.get(), &QDialog::finished, this, [this](int result) {
-        if (result == QDialog::Accepted) {
-            logMessage("[OK] Nuevo objeto añadido exitosamente.");
-            on_refreshListButton_2_clicked();
-            on_refreshListButton_clicked();
-        } else {
-            logMessage("[Info] Operación de añadir cancelada.");
+    connect(m_addDialog.get(), &QDialog::finished, this, [this](int r){
+        if (r == QDialog::Accepted) {
+            logMessage("[OK] Object created.");
+            refreshMainTable();
         }
-        // CRITICAL: Reset pointer
         m_addDialog.reset();
     });
-
-    // 5. SHOW
     m_addDialog->show();
 }
 
-/**
- * @brief Opens the "Edit Object" dialog in non-modal mode.
- * * Validates selection and opens an independent window (nullptr parent)
- * to allow free stacking order between Main and Edit windows.
- */
-                                                                                                                                                                                                 void MainWindow::on_editObjectButton_clicked()
+void MainWindow::on_editObjectButton_clicked()
 {
     if (!dbManager) return;
-
-    // 1. CONCURRENCY CHECK
-    // Evita abrir múltiples ventanas de edición a la vez
-    if (m_editDialog) {
-        logMessage("[Info] La ventana 'Editar Objeto' ya está abierta. Por favor, ciérrela primero.");
-        m_editDialog->showNormal();
-        m_editDialog->raise();
-        m_editDialog->activateWindow();
+    auto sel = ui->mainObjectTable->selectionModel()->selectedRows();
+    if (sel.size() != 1) {
+        QMessageBox::warning(this, "Warning", "Select exactly one object to edit.");
         return;
     }
 
-    // 2. VALIDATE SELECTION
-    auto selectedRows = ui->setsObjectTable->selectionModel()->selectedRows();
-    if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "Aviso", "Por favor, selecciona un objeto para editar.");
-        return;
-    }
-    if (selectedRows.count() > 1) {
-        QMessageBox::warning(this, "Aviso", "Solo puedes editar UN objeto a la vez.");
-        return;
-    }
+    int idCol = g_tableHeaders.indexOf("NORAD");
+    int64_t id = ui->mainObjectTable->item(sel.first().row(), idCol)->text().toLongLong();
+    nlohmann::json obj = dbManager->getSpaceObjectById(id);
 
-    // --- 3. RETRIEVE DATA (CORREGIDO) ---
-    int row = selectedRows.first().row();
-
-    // A) Buscamos en qué columna está el "_id" (ya no es la 0)
-    int idCol = g_tableHeaders.indexOf("_id");
-    if (idCol == -1) {
-        logMessage("[Error] Critical: Column '_id' not found in headers definitions.");
-        return;
-    }
-
-    // B) Leemos de esa columna específica
-    QTableWidgetItem* idItem = ui->setsObjectTable->item(row, idCol);
-    if (!idItem) return;
-
-    int64_t id = idItem->text().toLongLong();
-
-    // C) Recuperamos de BBDD
-    nlohmann::json objData = dbManager->getSpaceObjectById(id);
-
-    if (objData.empty()) {
-        logMessage("[Error] No se pudo recuperar la información del objeto " + QString::number(id) + " de la BBDD.");
-        return;
-    }
-
-    // 4. CREATE DIALOG (INDEPENDENT WINDOW)
-    // Pass 'nullptr' so it doesn't stay on top of the Main Window forcedly.
+    if (m_editDialog) { m_editDialog->activateWindow(); return; }
     m_editDialog = std::make_unique<AddObjectDialog>(nullptr);
 
+    m_editDialog->setAvailableSets(dbManager->getAllUniqueSetNames());
     m_editDialog->setAvailableGroups(dbManager->getAllUniqueGroupNames());
-    m_editDialog->loadObjectData(objData);
+    m_editDialog->loadObjectData(obj);
     m_editDialog->setEditMode(true);
     m_editDialog->setDbManager(dbManager.get());
 
-    // 5. CONNECT SIGNAL
-    // Usamos lambda para manejar el resultado cuando se cierre
-    connect(m_editDialog.get(), &QDialog::finished, this, [this](int result){
-        if (result == QDialog::Accepted) {
-            logMessage("[OK] Objeto editado correctamente.");
-            on_refreshListButton_2_clicked();
-            on_refreshListButton_clicked();
-        } else {
-            logMessage("[Info] Operación de edición cancelada.");
+    connect(m_editDialog.get(), &QDialog::finished, this, [this](int r){
+        if (r == QDialog::Accepted) {
+            logMessage("[OK] Object updated.");
+            refreshMainTable();
+            // Refresh secondary tabs in case data changed
+            on_setsListWidget_itemSelectionChanged();
+            on_groupsListWidget_itemSelectionChanged();
         }
-
-        // CRITICAL: Reset pointer to null so we can open it again later
         m_editDialog.reset();
     });
-
-    // 6. SHOW (Non-modal)
     m_editDialog->show();
 }
 
-/**
- * @brief Handles mass deletion of objects from the Sets table.
- * * Iterates over selected rows, retrieves object data to identify associated images,
- * and deletes both the database record and the GridFS image.
- * Uses C++ standard types (std::string) for logic processing.
- */
 void MainWindow::on_deleteObjectSetButton_clicked()
 {
     if (!dbManager) return;
+    auto sel = ui->mainObjectTable->selectionModel()->selectedRows();
+    if (sel.empty()) return;
 
-    auto selectedRows = ui->setsObjectTable->selectionModel()->selectedRows();
-    if (selectedRows.isEmpty()) {
-        QMessageBox::warning(this, "Warning", "Please select at least one object to delete.");
-        return;
-    }
+    if (QMessageBox::Yes != QMessageBox::question(this, "Delete", "Delete selected objects?")) return;
 
-    int count = selectedRows.count();
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirm Deletion",
-                                  QString("Are you SURE you want to delete %1 object(s)?\n\nThis action is irreversible.").arg(count),
-                                  QMessageBox::Yes | QMessageBox::No);
+    int idCol = g_tableHeaders.indexOf("NORAD");
+    for (const auto& idx : sel) {
+        int64_t id = ui->mainObjectTable->item(idx.row(), idCol)->text().toLongLong();
 
-    if (reply == QMessageBox::No) return;
-
-    logMessage("[Info] Starting mass deletion...");
-    int deletedCount = 0;
-    //Locate collum
-    int idCol = g_tableHeaders.indexOf("_id");
-    if (idCol == -1) return;
-
-    for (const auto& idx : selectedRows) {
-        int row = idx.row();
-        QString idStr = ui->setsObjectTable->item(row, idCol)->text();
-        int64_t id = idStr.toLongLong();
-
-        // 1. Retrieve object (C++ Logic)
         nlohmann::json obj = dbManager->getSpaceObjectById(id);
+        if (obj.contains("Picture") && !obj["Picture"].is_null())
+            dbManager->getImageManager().deleteImageByName(obj["Picture"].get<std::string>());
 
-        // 2. Extract image name using std::string
-        std::string picName = "";
-        if (!obj.empty() && obj.contains("Picture") && obj["Picture"].is_string()) {
-            picName = obj["Picture"].get<std::string>();
-        }
-
-        // 3. Delete from DB
-        if (dbManager->deleteSpaceObjectById(id)) {
-            deletedCount++;
-            // 4. Delete image if exists
-            if (!picName.empty()) {
-                dbManager->getImageManager().deleteImageByName(picName);
-            }
-        }
+        dbManager->deleteSpaceObjectById(id);
     }
-
-    QMessageBox::information(this, "Success", "Successfully deleted " + QString::number(deletedCount) + " objects.");
-
-    // Refresh interfaces
-    on_refreshListButton_2_clicked();
-    on_refreshListButton_clicked();
+    logMessage("[OK] Objects deleted.");
+    refreshMainTable();
 }
 
-void MainWindow::onSetsTableContextMenuRequested(const QPoint &pos)
+void MainWindow::on_searchObjectButton_clicked()
 {
-    auto selectedRows = ui->setsObjectTable->selectionModel()->selectedRows();
-    if (selectedRows.isEmpty()) return;
+    if (!dbManager) return;
+    if (m_searchDialog) { m_searchDialog->activateWindow(); return; }
 
-    QMenu contextMenu(this);
-    QString textoCopiar = (selectedRows.count() > 1) ? "Copy JSON (Array)" : "Copy JSON";
-    QAction *copyJsonAction = contextMenu.addAction(textoCopiar);
-    contextMenu.addSeparator();
-    QAction *assignGroupAction = contextMenu.addAction("Assign to Groups...");
+    m_searchDialog = std::make_unique<QInputDialog>(nullptr);
+    m_searchDialog->setWindowTitle("Search");
+    m_searchDialog->setLabelText("Enter NORAD:");
+    m_searchDialog->setModal(false);
 
-    QAction *selectedAction = contextMenu.exec(ui->setsObjectTable->mapToGlobal(pos));
+    QInputDialog* ptr = m_searchDialog.get();
+    connect(ptr, &QInputDialog::finished, this, [this, ptr](int r){
+        if (r == QDialog::Accepted && !ptr->textValue().isEmpty()) {
+            int64_t id = 0;
+            bool ok = false;
+            try { id = ptr->textValue().toLongLong(&ok); } catch (...) {}
 
-    if (selectedAction == copyJsonAction)
-    {
-        nlohmann::json finalJson;
-        if (selectedRows.count() == 1) {
-            int64_t id = ui->setsObjectTable->item(selectedRows.first().row(), 0)->text().toLongLong();
-            finalJson = dbManager->getSpaceObjectById(id);
-        } else {
-            finalJson = nlohmann::json::array();
-            for (const auto& idx : selectedRows) {
-                int64_t id = ui->setsObjectTable->item(idx.row(), 0)->text().toLongLong();
+            if(!ok) QMessageBox::warning(this, "Error", "ID must be numeric.");
+            else {
                 nlohmann::json obj = dbManager->getSpaceObjectById(id);
-                if (!obj.empty()) finalJson.push_back(obj);
-            }
-        }
-        QClipboard *clipboard = QGuiApplication::clipboard();
-        clipboard->setText(QString::fromStdString(finalJson.dump(2)));
-        logMessage("[Info] JSON copied to clipboard (" + QString::number(selectedRows.count()) + " objects).");
-    }
-    else if (selectedAction == assignGroupAction)
-    {
-        QDialog groupDialog(this);
-        groupDialog.setWindowTitle("Select Groups");
-        groupDialog.setMinimumWidth(300);
-        QVBoxLayout *layout = new QVBoxLayout(&groupDialog);
-        layout->addWidget(new QLabel("Select groups to add:", &groupDialog));
+                if (!obj.empty()) {
+                    // Reset filters
+                    ui->showAllObjectsCheckBox->blockSignals(true);
+                    ui->showAllObjectsCheckBox->setChecked(false);
+                    ui->showAllObjectsCheckBox->blockSignals(false);
 
-        QListWidget *listWidget = new QListWidget(&groupDialog);
-        listWidget->setSelectionMode(QAbstractItemView::MultiSelection);
-        std::set<std::string> allGroups = dbManager->getAllUniqueGroupNames();
-        for (const auto& g : allGroups) listWidget->addItem(QString::fromStdString(g));
-        layout->addWidget(listWidget);
+                    std::vector<nlohmann::json> l; l.push_back(obj);
+                    populateMainTable(l);
 
-        QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &groupDialog);
-        connect(buttonBox, &QDialogButtonBox::accepted, &groupDialog, &QDialog::accept);
-        connect(buttonBox, &QDialogButtonBox::rejected, &groupDialog, &QDialog::reject);
-        layout->addWidget(buttonBox);
-
-        if (groupDialog.exec() == QDialog::Accepted) {
-            std::vector<std::string> targetGroups;
-            for (auto item : listWidget->selectedItems()) targetGroups.push_back(item->text().toStdString());
-            if (targetGroups.empty()) return;
-
-            int successCount = 0;
-            for (const auto& idx : selectedRows) {
-                int64_t objId = ui->setsObjectTable->item(idx.row(), 0)->text().toLongLong();
-                for (const auto& groupName : targetGroups) {
-                    if (dbManager->addObjectToGroup(objId, groupName)) successCount++;
+                    if(ui->mainObjectTable->rowCount() > 0) {
+                        ui->mainObjectTable->selectRow(0);
+                        on_mainObjectTable_selectionChanged();
+                    }
+                    logMessage("Object found.");
+                } else {
+                    QMessageBox::information(this, "Search", "Not found.");
                 }
             }
-            logMessage("[OK] Groups assigned.");
-            on_refreshListButton_2_clicked();
         }
-    }
+        if(m_searchDialog) { m_searchDialog.release()->deleteLater(); }
+    });
+    m_searchDialog->show();
 }
 
-/**
- * @brief Toggles the "Show All Objects" filter.
- * * If checked, clears group selection to show the full dataset.
- */
-void MainWindow::on_showAllObjectsCheckBox_toggled(bool checked)
+// --- PANEL LATERAL ---
+void MainWindow::on_mainObjectTable_selectionChanged()
 {
-    if (checked) {
-        ui->listWidget->blockSignals(true);
-        ui->listWidget->clearSelection();
-        ui->listWidget->blockSignals(false);
-        on_refreshListButton_2_clicked();
-    }
-}
-
-/**
- * @brief Handles selection changes in the Group List.
- * * Automatically unchecks "Show All Objects" if a group is selected
- * and triggers a table refresh.
- */
-void MainWindow::on_listWidget_itemSelectionChanged()
-{
-    if (!ui->listWidget->selectedItems().isEmpty()) {
-        if (ui->showAllObjectsCheckBox->isChecked()) {
-            ui->showAllObjectsCheckBox->blockSignals(true);
-            ui->showAllObjectsCheckBox->setChecked(false);
-            ui->showAllObjectsCheckBox->blockSignals(false);
-        }
-        on_refreshListButton_2_clicked();
-    }
-}
-
-/**
- * @brief Updates the "Details" panel on the right side of the Sets tab.
- * * Fills the text fields and loads the image from GridFS when a row is selected.
- * Handles cases with multiple selections or no selection by clearing the fields.
- */
-void MainWindow::on_setsObjectTable_selectionChanged()
-{
-    auto selectedRows = ui->setsObjectTable->selectionModel()->selectedRows();
-
-    // Clear details if no selection or multiple items selected
-    if (selectedRows.isEmpty() || selectedRows.count() > 1) {
+    auto sel = ui->mainObjectTable->selectionModel()->selectedRows();
+    if (sel.size() != 1) {
         ui->setsDetailImageLabel->clear();
-        ui->setsDetailImageLabel->setText("No selection");
         ui->setsDetailNorad->clear();
         ui->setsDetailName->clear();
         ui->setsDetailAlias->clear();
@@ -1189,360 +396,474 @@ void MainWindow::on_setsObjectTable_selectionChanged()
         ui->setsDetailComments->clear();
         return;
     }
-    int row = selectedRows.first().row();
 
-    int idCol = g_tableHeaders.indexOf("_id");
-    if (idCol == -1) return;
-
-    QString idStr = ui->setsObjectTable->item(row, idCol)->text();
+    int row = sel.first().row();
+    int idCol = g_tableHeaders.indexOf("NORAD");
+    QString idStr = ui->mainObjectTable->item(row, idCol)->text();
     int64_t id = idStr.toLongLong();
 
     if (!dbManager) return;
-
-    // Retrieve Data (C++ Logic)
     nlohmann::json obj = dbManager->getSpaceObjectById(id);
     if (obj.empty() || obj.is_null()) return;
 
-    // Helper Lambda for safe string extraction
+    // --- HELPER SEGURO PARA ENTEROS ---
+    // Si el campo no existe, es null o no es número, devuelve el valor por defecto (-1)
+    auto getIntSafe = [&](const std::string& key, int defValue) -> int {
+        if (obj.contains(key) && !obj[key].is_null() && obj[key].is_number()) {
+            return obj[key].get<int>();
+        }
+        return defValue;
+    };
+
+    // --- HELPER SEGURO PARA STRINGS ---
     auto getStr = [&](const std::string& key) {
-        if (obj.contains(key) && obj[key].is_string()) {
+        if (obj.contains(key) && !obj[key].is_null() && obj[key].is_string()) {
             return QString::fromStdString(obj[key].get<std::string>());
         }
         return QString("-");
     };
 
-    // Update UI Fields
+    // Rellenar campos
     ui->setsDetailNorad->setText(QString::number(id));
     ui->setsDetailName->setText(getStr("Name"));
-    ui->setsDetailAlias->setText(getStr("Abbreviation"));
+    ui->setsDetailAlias->setText(getStr("Alias"));
     ui->setsDetailComments->setText(getStr("Comments"));
 
-    // Handle Numeric Fields
-    if (obj.contains("Altitude") && obj["Altitude"].is_number()) {
-        ui->setsDetailAltitude->setText(QString::number(obj["Altitude"].get<double>()) + " km");
-    } else {
+    // Altitud (Double)
+    if (obj.contains("Altitude") && obj["Altitude"].is_number())
+        ui->setsDetailAltitude->setText(QString::number(obj["Altitude"].get<double>()));
+    else
         ui->setsDetailAltitude->setText("-");
-    }
 
-    if (obj.contains("LaserRetroReflector")) {
-        // Handle boolean logic (0/1 or true/false)
-        if (obj["LaserRetroReflector"].is_null()) {
-            ui->setsDetailLrr->setText("Unknown");
-        } else {
-            int lrrVal = obj["LaserRetroReflector"].get<int>(); // Assuming it stores 0 or 1
-            ui->setsDetailLrr->setText(lrrVal == 1 ? "Yes" : "No");
-        }
-    } else {
-        ui->setsDetailLrr->setText("-");
-    }
+    // Laser Retro Reflector (Usando el helper seguro)
+    int lrrVal = getIntSafe("LaserRetroReflector", -1); // -1 = Unknown
 
-    // Handle Image (GridFS)
+    if (lrrVal == 1) ui->setsDetailLrr->setText("Yes");
+    else if (lrrVal == 0) ui->setsDetailLrr->setText("No");
+    else ui->setsDetailLrr->setText("Unknown");
+
+
+    // Imagen
     std::string picName = "";
-    if (obj.contains("Picture") && obj["Picture"].is_string()) {
+    if (obj.contains("Picture") && !obj["Picture"].is_null() && obj["Picture"].is_string()) {
         picName = obj["Picture"].get<std::string>();
     }
 
     ui->setsDetailImageLabel->clear();
     if (!picName.empty()) {
-        // Retrieve binary data
         std::string imgData = dbManager->getImageManager().downloadImageByName(picName);
-
         QPixmap pix;
-        if (!imgData.empty() && pix.loadFromData(QByteArray(imgData.data(), imgData.length()))) {
-            ui->setsDetailImageLabel->setPixmap(pix.scaled(
-                ui->setsDetailImageLabel->size(),
-                Qt::KeepAspectRatio,
-                Qt::SmoothTransformation
-                ));
-        } else {
+        if (!imgData.empty() && pix.loadFromData(QByteArray(imgData.data(), imgData.length())))
+            ui->setsDetailImageLabel->setPixmap(pix.scaled(200, 200, Qt::KeepAspectRatio));
+        else
             ui->setsDetailImageLabel->setText("Image Error");
-        }
     } else {
         ui->setsDetailImageLabel->setText("No Image");
     }
 }
 
-/**
- * @brief Search for an object by ID using a non-modal input dialog.
- * * Opens an independent window (QInputDialog).
- * * Validates input asynchronously and updates the table if found.
- */
-void MainWindow::on_searchObjectButton_clicked()
+// =================================================================
+// TAB 2: SETS
+// =================================================================
+
+void MainWindow::refreshSetListWidget()
 {
     if (!dbManager) return;
 
-    // 1. CONCURRENCY CHECK
-    if (m_searchDialog) {
-        logMessage("[Info] The search window is already open.");
-        m_searchDialog->showNormal();
-        m_searchDialog->raise();
-        m_searchDialog->activateWindow();
+    QString current = ui->setsListWidget->currentItem() ? ui->setsListWidget->currentItem()->text() : "";
+
+    ui->setsListWidget->clear();
+    for(const auto& s : dbManager->getAllUniqueSetNames()) {
+        QListWidgetItem* item = new QListWidgetItem(QString::fromStdString(s));
+        ui->setsListWidget->addItem(item);
+        if(s == current.toStdString()) ui->setsListWidget->setCurrentItem(item);
+    }
+}
+
+void MainWindow::on_setsListWidget_itemSelectionChanged()
+{
+    if (ui->setsListWidget->selectedItems().isEmpty()) {
+        populateReadOnlyTable(ui->setsViewTable, dbManager->getAllSpaceObjects());
+        return;
+    }
+    std::set<std::string> sets;
+    for(auto i : ui->setsListWidget->selectedItems()) sets.insert(i->text().toStdString());
+
+    populateReadOnlyTable(ui->setsViewTable, dbManager->getSpaceObjectsBySets(sets));
+}
+
+void MainWindow::on_createSetButton_clicked() {
+    QString name = ui->newSetLineEdit->text().trimmed();
+    if(!name.isEmpty() && dbManager->createSet(name.toStdString())) {
+        refreshSetListWidget();
+        ui->newSetLineEdit->clear();
+        logMessage("Set created: " + name);
+    }
+}
+
+void MainWindow::on_deleteSetButton_clicked() {
+    if(ui->setsListWidget->selectedItems().isEmpty()) return;
+    QString name = ui->setsListWidget->currentItem()->text();
+
+    if(QMessageBox::Yes != QMessageBox::question(this, "Delete", "Delete Set '" + name + "'?")) return;
+
+    if(dbManager->deleteSet(name.toStdString())) {
+        refreshSetListWidget();
+        on_setsListWidget_itemSelectionChanged();
+        refreshMainTable();
+        logMessage("Set deleted: " + name);
+    }
+}
+
+void MainWindow::on_assignToSetButton_clicked() {
+    // Logic: Assign selection from Main Table OR Sets View Table?
+    // Requirement: "In all tabs I want to select objects and add them to sets/groups"
+    // So we check if the current view table has selection, otherwise main table.
+
+    QList<QModelIndex> selectedObjs;
+    bool fromView = false;
+
+    if(ui->setsViewTable->selectionModel()->hasSelection()) {
+        selectedObjs = ui->setsViewTable->selectionModel()->selectedRows();
+        fromView = true;
+    } else {
+        selectedObjs = ui->mainObjectTable->selectionModel()->selectedRows();
+    }
+
+    auto sets = ui->setsListWidget->selectedItems();
+    if(selectedObjs.empty() || sets.empty()) {
+        QMessageBox::warning(this, "Info", "Select objects (in table) and destination Sets (in list).");
         return;
     }
 
-    // 2. CREATE INSTANCE (Independent Window -> nullptr parent)
-    m_searchDialog = std::make_unique<QInputDialog>(nullptr);
+    int idCol = g_tableHeaders.indexOf("NORAD");
+    int count = 0;
+    QTableWidget* table = fromView ? ui->setsViewTable : ui->mainObjectTable;
 
-    // Configure dialog
-    m_searchDialog->setWindowTitle("Search Object");
-    m_searchDialog->setLabelText("Enter ID (Norad):");
-    m_searchDialog->setInputMode(QInputDialog::TextInput);
-    m_searchDialog->setModal(false); // Explicitly non-modal
+    for(const auto& idx : selectedObjs) {
+        int64_t id = table->item(idx.row(), idCol)->text().toLongLong();
+        for(auto s : sets) if(dbManager->addObjectToSet(id, s->text().toStdString())) count++;
+    }
+    logMessage("Assigned " + QString::number(count) + " objects to sets.");
+    if(fromView) on_setsListWidget_itemSelectionChanged(); // Refresh view
+    else refreshMainTable();
+}
 
-    // 3. CONNECT SIGNAL
-    // Use a local pointer 'dlg' inside the lambda for safety
-    QInputDialog* dlg = m_searchDialog.get();
+void MainWindow::on_removeFromSetButton_clicked() {
+    // Same logic for removal
+    QList<QModelIndex> selectedObjs;
+    bool fromView = false;
 
-    connect(dlg, &QInputDialog::finished, this, [this, dlg](int result) {
-        if (result == QDialog::Accepted) {
-            QString text = dlg->textValue(); // Use local pointer
+    if(ui->setsViewTable->selectionModel()->hasSelection()) {
+        selectedObjs = ui->setsViewTable->selectionModel()->selectedRows();
+        fromView = true;
+    } else {
+        selectedObjs = ui->mainObjectTable->selectionModel()->selectedRows();
+    }
 
-            if (!text.isEmpty()) {
-                int64_t id = 0;
-                bool conversionOk = false;
-                try {
-                    id = text.toLongLong(&conversionOk);
-                } catch (...) {}
+    auto sets = ui->setsListWidget->selectedItems();
+    if(selectedObjs.empty() || sets.empty()) {
+        QMessageBox::warning(this, "Info", "Select objects and Sets to unassign.");
+        return;
+    }
 
-                if (!conversionOk) {
-                    QMessageBox::warning(this, "Error", "ID must be numeric.");
+    int idCol = g_tableHeaders.indexOf("NORAD");
+    QTableWidget* table = fromView ? ui->setsViewTable : ui->mainObjectTable;
+
+    for(const auto& idx : selectedObjs) {
+        int64_t id = table->item(idx.row(), idCol)->text().toLongLong();
+        for(auto s : sets) dbManager->removeObjectFromSet(id, s->text().toStdString());
+    }
+    logMessage("Removed from sets.");
+    if(fromView) on_setsListWidget_itemSelectionChanged();
+    else refreshMainTable();
+}
+
+// =================================================================
+// TAB 3: GROUPS
+// =================================================================
+
+void MainWindow::refreshGroupListWidget()
+{
+    if (!dbManager) return;
+    QString current = ui->groupsListWidget->currentItem() ? ui->groupsListWidget->currentItem()->text() : "";
+
+    ui->groupsListWidget->clear();
+    for(const auto& g : dbManager->getAllUniqueGroupNames()) {
+        QListWidgetItem* item = new QListWidgetItem(QString::fromStdString(g));
+        ui->groupsListWidget->addItem(item);
+        if(g == current.toStdString()) ui->groupsListWidget->setCurrentItem(item);
+    }
+}
+
+void MainWindow::on_groupsListWidget_itemSelectionChanged()
+{
+    if (ui->groupsListWidget->selectedItems().isEmpty()) {
+        populateReadOnlyTable(ui->groupsViewTable, dbManager->getAllSpaceObjects());
+        return;
+    }
+    std::set<std::string> groups;
+    for(auto i : ui->groupsListWidget->selectedItems()) groups.insert(i->text().toStdString());
+
+    populateReadOnlyTable(ui->groupsViewTable, dbManager->getSpaceObjectsByGroups(groups));
+}
+
+void MainWindow::on_createGroupButton_clicked() {
+    QString name = ui->newGroupLineEdit->text().trimmed();
+    if(!name.isEmpty() && dbManager->createGroup(name.toStdString())) {
+        refreshGroupListWidget();
+        logMessage("Group created: " + name);
+        ui->newGroupLineEdit->clear();
+    }
+}
+
+void MainWindow::on_deleteGroupButton_clicked() {
+    if(ui->groupsListWidget->selectedItems().isEmpty()) return;
+    QString name = ui->groupsListWidget->currentItem()->text();
+
+    if(QMessageBox::Yes != QMessageBox::question(this, "Delete", "Delete Group '" + name + "'?")) return;
+
+    if(dbManager->deleteGroup(name.toStdString())) {
+        refreshGroupListWidget();
+        on_groupsListWidget_itemSelectionChanged();
+        refreshMainTable();
+        logMessage("Group deleted: " + name);
+    }
+}
+
+void MainWindow::on_assignToGroupButton_clicked() {
+    // Logic: Assign selection from Main Table OR Groups View Table
+    QList<QModelIndex> selectedObjs;
+    bool fromView = false;
+
+    if(ui->groupsViewTable->selectionModel()->hasSelection()) {
+        selectedObjs = ui->groupsViewTable->selectionModel()->selectedRows();
+        fromView = true;
+    } else {
+        selectedObjs = ui->mainObjectTable->selectionModel()->selectedRows();
+    }
+
+    auto groups = ui->groupsListWidget->selectedItems();
+    if(selectedObjs.empty() || groups.empty()) {
+        QMessageBox::warning(this, "Info", "Select objects and Groups.");
+        return;
+    }
+
+    int idCol = g_tableHeaders.indexOf("NORAD");
+    QTableWidget* table = fromView ? ui->groupsViewTable : ui->mainObjectTable;
+    int count = 0;
+
+    for(const auto& idx : selectedObjs) {
+        int64_t id = table->item(idx.row(), idCol)->text().toLongLong();
+        for(auto g : groups) {
+            if(dbManager->addObjectToGroup(id, g->text().toStdString())) count++;
+        }
+    }
+    logMessage("Assigned " + QString::number(count) + " objects to groups.");
+    if(fromView) on_groupsListWidget_itemSelectionChanged();
+    else refreshMainTable();
+}
+
+void MainWindow::on_removeFromGroupButton_clicked() {
+    QList<QModelIndex> selectedObjs;
+    bool fromView = false;
+    if(ui->groupsViewTable->selectionModel()->hasSelection()) {
+        selectedObjs = ui->groupsViewTable->selectionModel()->selectedRows();
+        fromView = true;
+    } else {
+        selectedObjs = ui->mainObjectTable->selectionModel()->selectedRows();
+    }
+    auto groups = ui->groupsListWidget->selectedItems();
+    if(selectedObjs.empty() || groups.empty()) return;
+
+    int idCol = g_tableHeaders.indexOf("NORAD");
+    QTableWidget* table = fromView ? ui->groupsViewTable : ui->mainObjectTable;
+
+    for(const auto& idx : selectedObjs) {
+        int64_t id = table->item(idx.row(), idCol)->text().toLongLong();
+        for(auto g : groups) dbManager->removeObjectFromGroup(id, g->text().toStdString());
+    }
+    logMessage("Removed objects from groups.");
+    if(fromView) on_groupsListWidget_itemSelectionChanged();
+    else refreshMainTable();
+}
+
+// =================================================================
+// HELPERS & MENUS
+// =================================================================
+
+void MainWindow::populateReadOnlyTable(QTableWidget* table, const std::vector<nlohmann::json>& objects)
+{
+    table->setSortingEnabled(false);
+    table->setRowCount(0);
+    int colEn = g_tableHeaders.indexOf("EnablementPolicy");
+
+    for(const auto& obj : objects) {
+        if (!obj.contains("_id")) continue;
+        int row = table->rowCount();
+        table->insertRow(row);
+        for(int col=0; col<g_tableHeaders.size(); ++col) {
+            QTableWidgetItem* item = new QTableWidgetItem();
+            std::string k = g_tableHeaders[col].toStdString();
+
+            if(col==colEn) {
+                int val = -1;
+                if(obj.contains(k) && !obj[k].is_null()) val = obj[k].get<int>();
+                if(val==1) { item->setIcon(m_iconGreen); item->setText("Enabled"); }
+                else if(val==2) { item->setIcon(m_iconRed); item->setText("Disabled"); }
+                else { item->setIcon(m_iconGray); item->setText("Unknown"); }
+            } else if (k == "Sets" || k == "Groups") {
+                if (obj.contains(k) && obj[k].is_array()) {
+                    QStringList l;
+                    for(const auto& s : obj[k]) if(s.is_string()) l << QString::fromStdString(s.get<std::string>());
+                    item->setText(l.join(", "));
                 }
-                else {
-                    nlohmann::json obj = dbManager->getSpaceObjectById(id);
-                    if (obj.empty() || obj.is_null()) {
-                        QMessageBox::information(this, "No results", "No object found with that ID.");
-                    } else {
-                        // Reset UI Filters
-                        ui->showAllObjectsCheckBox->blockSignals(true);
-                        ui->showAllObjectsCheckBox->setChecked(false);
-                        ui->showAllObjectsCheckBox->blockSignals(false);
-
-                        ui->listWidget->blockSignals(true);
-                        ui->listWidget->clearSelection();
-                        ui->listWidget->blockSignals(false);
-
-                        // Populate table
-                        std::vector<nlohmann::json> singleObjList;
-                        singleObjList.push_back(obj);
-                        populateSetsObjectTable(singleObjList);
-
-                        if (ui->setsObjectTable->rowCount() > 0) {
-                            ui->setsObjectTable->selectRow(0);
-                            on_setsObjectTable_selectionChanged();
-                        }
-                        logMessage("[Info] Search finished. Object " + text + " found.");
-                    }
-                }
+            } else {
+                if(obj.contains(k)) item->setText(jsonValueToQString(obj[k]));
             }
-        } else {
-            logMessage("[Info] Search cancelled.");
+            table->setItem(row, col, item);
         }
+    }
+    table->setSortingEnabled(true);
+}
 
-        // --- FIX ANTICRASH ---
-        // 1. Release the raw pointer from the unique_ptr (m_searchDialog becomes null)
-        if (m_searchDialog) {
-            QInputDialog* rawPtr = m_searchDialog.release();
-            // 2. Tell Qt to delete the window when safe (not immediately)
-            rawPtr->deleteLater();
+void MainWindow::handleUniversalContextMenu(const QPoint &pos, QTableWidget* table)
+{
+    auto selectedRows = table->selectionModel()->selectedRows();
+    if (selectedRows.isEmpty()) return;
+
+    QMenu contextMenu(this);
+    QAction *copyJson = contextMenu.addAction("Copy JSON");
+    contextMenu.addSeparator();
+    QAction *assignSet = contextMenu.addAction("Assign to Sets...");
+    QAction *assignGroup = contextMenu.addAction("Assign to Groups...");
+
+    QAction *act = contextMenu.exec(table->mapToGlobal(pos));
+    int idCol = g_tableHeaders.indexOf("NORAD");
+
+    if (act == copyJson) {
+        nlohmann::json jArr = nlohmann::json::array();
+        for(const auto& i : selectedRows) {
+            int64_t id = table->item(i.row(), idCol)->text().toLongLong();
+            jArr.push_back(dbManager->getSpaceObjectById(id));
         }
-    });
+        QGuiApplication::clipboard()->setText(QString::fromStdString(jArr.dump(2)));
+        logMessage("JSON copied.");
+    }
+    else if (act == assignSet) {
+        QDialog dlg(this); dlg.setWindowTitle("Select Sets");
+        QVBoxLayout *l = new QVBoxLayout(&dlg);
+        QListWidget *lw = new QListWidget(&dlg); lw->setSelectionMode(QAbstractItemView::MultiSelection);
+        for(const auto& s : dbManager->getAllUniqueSetNames()) lw->addItem(QString::fromStdString(s));
+        l->addWidget(lw);
+        QDialogButtonBox *bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        l->addWidget(bb);
+        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
 
-    // 4. SHOW
-    m_searchDialog->show();
+        if(dlg.exec() == QDialog::Accepted) {
+            for(const auto& row : selectedRows) {
+                int64_t id = table->item(row.row(), idCol)->text().toLongLong();
+                for(auto s : lw->selectedItems()) dbManager->addObjectToSet(id, s->text().toStdString());
+            }
+            logMessage("Sets assigned.");
+            if(table == ui->setsViewTable) on_setsListWidget_itemSelectionChanged();
+            else refreshMainTable();
+        }
+    }
+    else if (act == assignGroup) {
+        QDialog dlg(this); dlg.setWindowTitle("Select Groups");
+        QVBoxLayout *l = new QVBoxLayout(&dlg);
+        QListWidget *lw = new QListWidget(&dlg); lw->setSelectionMode(QAbstractItemView::MultiSelection);
+        for(const auto& g : dbManager->getAllUniqueGroupNames()) lw->addItem(QString::fromStdString(g));
+        l->addWidget(lw);
+        QDialogButtonBox *bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        l->addWidget(bb);
+        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+        if(dlg.exec() == QDialog::Accepted) {
+            for(const auto& row : selectedRows) {
+                int64_t id = table->item(row.row(), idCol)->text().toLongLong();
+                for(auto g : lw->selectedItems()) dbManager->addObjectToGroup(id, g->text().toStdString());
+            }
+            logMessage("Groups assigned.");
+            if(table == ui->groupsViewTable) on_groupsListWidget_itemSelectionChanged();
+            else refreshMainTable();
+        }
+    }
+}
+
+void MainWindow::exportToCSV()
+{
+    QString fn = QFileDialog::getSaveFileName(this, "Export", QDir::homePath(), "CSV (*.csv)");
+    if(fn.isEmpty()) return;
+    QFile f(fn);
+    if(!f.open(QIODevice::WriteOnly)) return;
+    QTextStream ts(&f);
+
+    QStringList h;
+    for(int i=0; i<ui->mainObjectTable->columnCount(); ++i) h << ui->mainObjectTable->horizontalHeaderItem(i)->text();
+    ts << h.join(";") << "\n";
+
+    for(int i=0; i<ui->mainObjectTable->rowCount(); ++i) {
+        QStringList l;
+        for(int j=0; j<ui->mainObjectTable->columnCount(); ++j) {
+            QString t = ui->mainObjectTable->item(i,j)->text();
+            if(t.contains(";") || t.contains("\n")) t = "\"" + t + "\"";
+            l << t;
+        }
+        ts << l.join(";") << "\n";
+    }
+    f.close();
+    logMessage("Exported to " + fn);
+}
+
+void MainWindow::importFromJSON()
+{
+    QString fn = QFileDialog::getOpenFileName(this, "Import", QDir::homePath(), "JSON (*.json)");
+    if(fn.isEmpty()) return;
+
+    QFile f(fn);
+    if(!f.open(QIODevice::ReadOnly)) return;
+
+    try {
+        auto j = nlohmann::json::parse(f.readAll());
+        std::vector<nlohmann::json> list;
+        if(j.is_array()) for(const auto& o : j) list.push_back(o);
+        else list.push_back(j);
+
+        QDir dir = QFileInfo(fn).absoluteDir();
+        int ok=0;
+        for(const auto& obj : list) {
+            std::string err;
+            std::string imgPath = "";
+            if(obj.contains("Picture") && !obj["Picture"].is_null()) {
+                QString p = dir.filePath(QString::fromStdString(obj["Picture"]));
+                if(QFile::exists(p)) imgPath = p.toStdString();
+            }
+            if(dbManager->createSpaceObject(obj, imgPath, err)) ok++;
+        }
+        logMessage("Imported " + QString::number(ok) + " objects.");
+        refreshMainTable();
+        refreshSetListWidget();
+        refreshGroupListWidget();
+    } catch(...) {
+        QMessageBox::critical(this, "Error", "Invalid JSON");
+    }
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
 {
-    // Solo actuamos si estamos en la tabla de Sets y tiene el foco
-    if (ui->setsObjectTable->hasFocus())
-    {
-        // Tecla SUPR (Delete) -> Borrar
-        if (event->key() == Qt::Key_Delete)
-        {
+    if (ui->mainObjectTable->hasFocus()) {
+        if (event->key() == Qt::Key_Delete) {
             on_deleteObjectSetButton_clicked();
-            return;
-        }
-
-        // Tecla ENTER (Return) -> Editar
-        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
-        {
-            int count = ui->setsObjectTable->selectionModel()->selectedRows().count();
-
-            if (count == 1) {
-                // Caso Perfecto: Editar
-                on_editObjectButton_clicked();
-                return;
-            }
-            else if (count > 1) {
-                // --- CAMBIO AQUÍ: AVISO DE ERROR ---
-                QMessageBox::warning(this, "Warning", "You can only edit ONE object at a time.\nPlease select only one.");
-                return;
-            }
-            // Si count es 0, no hacemos nada
+        } else if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+            on_editObjectButton_clicked();
         }
     }
-
-    // Si no es ninguna de nuestras teclas, dejamos que Qt haga lo normal
     QMainWindow::keyPressEvent(event);
 }
-// Al final de mainwindow.cpp
 
-void MainWindow::exportToCSV()
-{
-    // 1. Preguntar al usuario dónde guardar el archivo
-    QString filename = QFileDialog::getSaveFileName(this, "Export Data",
-                                                    QDir::homePath() + "/space_objects_export.csv",
-                                                    "CSV Files (*.csv)");
 
-    // Si le da a cancelar, no hacemos nada
-    if (filename.isEmpty()) return;
 
-    // 2. Intentar crear el archivo
-    QFile file(filename);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "Error", "Could not create file for writing.");
-        return;
-    }
-
-    QTextStream out(&file);
-
-    // Usaremos punto y coma (;) como separador, es el estándar para Excel en muchos países.
-    const QString separator = ";";
-
-    // 3. Escribir las Cabeceras (Títulos de columna)
-    QStringList headers;
-    for(int i=0; i < ui->setsObjectTable->columnCount(); ++i) {
-        headers << ui->setsObjectTable->horizontalHeaderItem(i)->text();
-    }
-    out << headers.join(separator) << "\n";
-
-    // 4. Escribir los Datos (Fila a fila)
-    int rows = ui->setsObjectTable->rowCount();
-    int cols = ui->setsObjectTable->columnCount();
-
-    for (int i = 0; i < rows; ++i) {
-        QStringList rowData;
-        for (int j = 0; j < cols; ++j) {
-            QTableWidgetItem* item = ui->setsObjectTable->item(i, j);
-            QString text = "";
-
-            if (item) {
-                text = item->text();
-                // Limpieza: Quitamos saltos de línea para no romper el CSV
-                text.replace("\n", " ");
-                text.replace("\r", "");
-            }
-
-            // Si el texto contiene el separador (;), lo envolvemos en comillas
-            if (text.contains(separator)) {
-                text = "\"" + text + "\"";
-            }
-
-            rowData << text;
-        }
-        // Escribimos la fila completa en el archivo
-        out << rowData.join(separator) << "\n";
-    }
-
-    file.close();
-
-    // 5. Confirmación
-    logMessage("[OK] Data exported to " + filename);
-    QMessageBox::information(this, "Success", "Data exported successfully to CSV.");
-}
-void MainWindow::importFromJSON()
-{
-    // 1. Seleccionar archivo
-    QString filename = QFileDialog::getOpenFileName(this, "Import Data",
-                                                    QDir::homePath(),
-                                                    "JSON Files (*.json)");
-    if (filename.isEmpty()) return;
-
-    // 2. Leer archivo
-    QFile file(filename);
-    if (!file.open(QIODevice::ReadOnly)) {
-        QMessageBox::critical(this, "Error", "Could not open file.");
-        return;
-    }
-    QByteArray data = file.readAll();
-    file.close();
-
-    // 3. Parsear JSON
-    nlohmann::json jsonDoc;
-    try {
-        jsonDoc = nlohmann::json::parse(data.begin(), data.end());
-    } catch (const std::exception& e) {
-        QMessageBox::critical(this, "JSON Error", "Invalid JSON format:\n" + QString(e.what()));
-        return;
-    }
-
-    // 4. Preparar lista de objetos a importar
-    std::vector<nlohmann::json> objectsToImport;
-
-    if (jsonDoc.is_array()) {
-        // Es una lista de objetos
-        for (const auto& obj : jsonDoc) objectsToImport.push_back(obj);
-    }
-    else if (jsonDoc.is_object()) {
-        // Es un solo objeto
-        objectsToImport.push_back(jsonDoc);
-    }
-    else {
-        QMessageBox::warning(this, "Error", "The JSON file must contain an Object or an Array of Objects.");
-        return;
-    }
-
-    // 5. PROCESO DE IMPORTACIÓN
-    logMessage("[Info] Starting import of " + QString::number(objectsToImport.size()) + " objects from " + filename);
-
-    int success = 0;
-    int errors = 0;
-    int skipped = 0; // Por si ya existen
-
-    // Directorio base para buscar las imágenes (asumimos que están junto al json)
-    QFileInfo jsonInfo(filename);
-    QDir jsonDir = jsonInfo.absoluteDir();
-
-    for (const auto& obj : objectsToImport) {
-
-        // Preparar path de imagen si existe en el JSON
-        std::string localImgPath = "";
-        if (obj.contains("Picture") && !obj["Picture"].is_null()) {
-            std::string picName = obj["Picture"];
-            if (!picName.empty()) {
-                // Intentamos buscar la imagen en la misma carpeta que el JSON
-                QString possiblePath = jsonDir.filePath(QString::fromStdString(picName));
-                if (QFile::exists(possiblePath)) {
-                    localImgPath = possiblePath.toStdString();
-                }
-            }
-        }
-
-        std::string errorMsg;
-        // Usamos createSpaceObject.
-        // Nota: Esto fallará si el ID ya existe (retorna false y errorMsg).
-        if (dbManager->createSpaceObject(obj, localImgPath, errorMsg)) {
-            success++;
-        } else {
-            // Si falló, miramos por qué.
-            // Si es porque ya existe, podríamos intentar un 'update',
-            // pero para una importación segura, mejor lo contamos como error/skip.
-            errors++;
-            logMessage("[Import Error] ID " + jsonValueToQString(obj["_id"]) + ": " + QString::fromStdString(errorMsg));
-        }
-    }
-
-    // 6. RESULTADO
-    QString resultMsg = QString("Import Finished.\n\nSuccess: %1\nFailed/Duplicate: %2")
-                            .arg(success).arg(errors);
-
-    if (errors > 0) resultMsg += "\n(Check logs for details on failures)";
-
-    QMessageBox::information(this, "Import Result", resultMsg);
-
-    // 7. Refrescar
-    if (success > 0) {
-        on_refreshListButton_2_clicked();
-        on_refreshListButton_clicked();
-    }
-}
