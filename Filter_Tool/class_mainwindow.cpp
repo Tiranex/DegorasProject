@@ -15,6 +15,8 @@
 #include <QFormLayout>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
+#include <QClipboard>
+#include <QToolTip>
 
 
 #include <Tracking/trackingfilemanager.h>
@@ -29,9 +31,32 @@ m_isChanged(false)
 {
     ui->setupUi(this);
 
+    this->setStyleSheet("QToolTip { color: #000000; background-color: #ffffe0; border: 1px solid #888888; }");
+
     // Initial state
     updateUIState(false);
     setupConnections();
+
+    // Creamos una lista con todos los labels que queremos hacer "interactivos"
+    QList<QLabel*> statLabels = {
+        // Columna 1
+        ui->lbl_rms_ps, ui->lbl_mean_ps, ui->lbl_peak_ps,
+        // Columna 2 (Asegúrate de que existen en el .ui, si alguno falla, quítalo de la lista)
+        ui->lbl_stderr, ui->lbl_skew, ui->lbl_kurt, ui->lbl_snr,
+        // Columna 3
+        ui->lbl_returns, ui->lbl_echoes, ui->lbl_noise
+    };
+
+    // Aplicamos la configuración a todos en bucle
+    for (QLabel* label : statLabels) {
+        if (label) { // Protección por si alguno no existe todavía
+            label->installEventFilter(this);          // Activa la copia al hacer clic
+            label->setCursor(Qt::PointingHandCursor); // Pone la manita al pasar por encima
+
+            // Opcional: Añadir un tooltip por defecto para guiar al usuario
+            label->setToolTip("Click to copy value");
+        }
+    }
 
     // Process command line arguments
     QStringList arguments = QApplication::instance()->arguments();
@@ -479,161 +504,112 @@ void MainWindow::on_actionSave_triggered()
 
 void MainWindow::on_pb_calcStats_clicked()
 {
+    // 1. Validaciones
     if (!m_trackingData || !m_trackingData->dp_tracking) return;
-
     QVector<QPointF> v = ui->filterPlot->getSelectedSamples();
-
     if (v.isEmpty()) {
         QMessageBox::warning(this, "Aviso", "Selecciona puntos verdes primero.");
         return;
     }
 
-    // Preparar vectores visuales
-    QVector<QPointF> fitted_samples = ui->histogramPlot->getSelectedSamples();
-    QVector<QPointF> error_points, fitted_error_points;
-
-    // Preparar selección
+    // 2. Preparación
     std::set<qulonglong> selected;
-    std::transform(v.begin(), v.end(), std::inserter(selected, selected.begin()),
-                   [](const auto& e){return static_cast<qulonglong>(e.x());});
+    for(const auto& p : v) selected.insert(static_cast<qulonglong>(p.x()));
 
-    // ESTRUCTURAS LIBRERÍA
-    dpslr::ilrs::algorithms::RangeDataV rd;
-    dpslr::ilrs::algorithms::ResidualsStats resid;
-
-    // PASO 1: Calcular la media bruta manual
+    // 3. Centrado Manual
     double sum_val = 0.0;
     int count_val = 0;
+    long double min_time = 1e20, max_time = -1e20;
+
     for (const auto* echo : m_trackingData->listAll()) {
         if (selected.count(echo->time)) {
             sum_val += static_cast<double>(echo->difference);
+
+            double t_sec = static_cast<double>(echo->time) * 1.0e-9;
+            if (t_sec < min_time) min_time = t_sec;
+            if (t_sec > max_time) max_time = t_sec;
+
             count_val++;
         }
     }
     double manual_mean = (count_val > 0) ? sum_val / count_val : 0.0;
 
-    qDebug() << "Manual Mean Offset:" << manual_mean;
-
-    // PASO 2: Rellenar y CALCULAR AL VUELO (Aquí está la magia)
-    double min_res = 1e20;
-    double max_res = -1e20;
-
-    // VARIABLE DE RESPALDO: Suma de cuadrados calculada aquí mismo
-    double sum_sq_manual = 0.0;
+    // 4. RELLENAR DATOS (A PRUEBA DE BALAS)
+    dpslr::ilrs::algorithms::RangeDataV rd;
+    rd.reserve(count_val);
 
     for (const auto* echo : m_trackingData->listAll()) {
         if (selected.count(echo->time)) {
 
-            double centered_residual = static_cast<double>(echo->difference) - manual_mean;
+            // Usamos el tipo exacto que espera el vector para evitar errores
+            dpslr::ilrs::algorithms::RangeDataV::value_type item;
 
-            // Acumulamos para el RMS manual (A prueba de fallos)
-            sum_sq_manual += (centered_residual * centered_residual);
+            // Asignación por NOMBRE (No por orden)
+            item.ts = static_cast<long double>(echo->time) * 1.0e-9;
+            item.resid = static_cast<double>(echo->difference) - manual_mean;
 
-            // Min/Max para Bin Size
-            if (centered_residual < min_res) min_res = centered_residual;
-            if (centered_residual > max_res) max_res = centered_residual;
+            // Rellenar restos con 0 para seguridad
+            // (Si estos campos no existen en tu struct, borra estas líneas, pero resid y ts son seguros)
+            // item.tof = 0; item.pred_dist = 0; item.trop_corr = 0;
 
-            // Guardar para librería
-            rd.push_back({
-                static_cast<long double>(echo->time) * 1.0e-9,
-                centered_residual,
-                0.0, 0.0, 0.0
-            });
+            rd.push_back(item);
         }
     }
 
-    // PASO 3: Bin Size Dinámico (High Density)
-    double spread = max_res - min_res;
-    int dynamic_bin_size = m_trackingData->data.obj_bs;
-    if (dynamic_bin_size <= 0) dynamic_bin_size = 120;
+    // 5. BIN SIZE = DURACIÓN TOTAL
+    int global_bin_size = static_cast<int>(max_time - min_time) + 100;
 
-    // Usamos target 100 bins para asegurar densidad
-    if (spread > (dynamic_bin_size * 100.0)) {
-        dynamic_bin_size = static_cast<int>(spread / 100.0) + 1;
-        qDebug() << "Bin Dinámico ajustado a:" << dynamic_bin_size;
-    }
-
-    // PASO 4: Llamada a la librería
-    auto res_error = dpslr::ilrs::algorithms::calculateResidualsStats(dynamic_bin_size, rd, resid);
+    // 6. Calcular
+    dpslr::ilrs::algorithms::ResidualsStats resid;
+    auto res_error = dpslr::ilrs::algorithms::calculateResidualsStats(global_bin_size, rd, resid);
 
     if (res_error != dpslr::ilrs::algorithms::ResiStatsCalcErr::NOT_ERROR) {
-        qDebug() << "Error librería:" << (int)res_error;
-        // No retornamos, intentamos usar el manual
+        DegorasInformation::showWarning("Statistics", "Error Code: " + QString::number((int)res_error), "", this);
+        return;
     }
 
-    // --- GESTIÓN DE RESULTADOS (HÍBRIDA) ---
-    dpslr::ilrs::algorithms::ResidualsStats res_stats = resid;
-    auto stats = res_stats.total_bin_stats.stats_rfrms;
+    // 7. Resultados
+    auto stats = resid.total_bin_stats.stats_rfrms;
 
-    double final_rms = static_cast<double>(stats.rms);
-    double final_mean_residual = static_cast<double>(stats.mean);
-    long long final_ptn = res_stats.total_bin_stats.ptn;
+    double val_rms = static_cast<double>(stats.rms);
+    double val_mean = manual_mean + static_cast<double>(stats.mean);
+    double val_peak = static_cast<double>(stats.peak);
+    double val_skew = static_cast<double>(stats.skew);
+    double val_kurt = static_cast<double>(stats.kurt);
 
-    // Si la librería falla (da 0), usamos nuestro cálculo manual
-    if (final_rms == 0.0 && count_val > 0) {
-        final_rms = std::sqrt(sum_sq_manual / count_val);
-        final_ptn = count_val;
-        qDebug() << "--- USANDO RMS MANUAL (Fallback):" << final_rms;
-    } else {
-        qDebug() << "--- USANDO RMS LIBRERÍA:" << final_rms;
+    double val_stderr = (stats.aptn > 0) ? (val_rms / std::sqrt(static_cast<double>(stats.aptn))) : 0.0;
+
+    // SNR Simple: Peak / RMS
+    double val_snr = (val_rms > 1e-9) ? (10.0 * std::log10(std::abs(val_peak / val_rms))) : 0.0;
+    if (std::isnan(val_snr) || std::isinf(val_snr)) val_snr = 0.0;
+
+    // 8. Pantalla
+    ui->lbl_rms_ps->setText(QString::number(val_rms, 'f', 1));
+    ui->lbl_mean_ps->setText(QString::number(val_mean, 'f', 1));
+    ui->lbl_peak_ps->setText(QString::number(val_peak, 'f', 1));
+
+    if(ui->lbl_stderr) ui->lbl_stderr->setText(QString::number(val_stderr, 'f', 2));
+    if(ui->lbl_skew)   ui->lbl_skew->setText(QString::number(val_skew, 'f', 3));
+    if(ui->lbl_kurt)   ui->lbl_kurt->setText(QString::number(val_kurt, 'f', 3));
+    if(ui->lbl_snr)    ui->lbl_snr->setText(QString::number(val_snr, 'f', 2));
+
+    ui->lbl_returns->setText(QString::number(resid.total_bin_stats.ptn));
+    ui->lbl_echoes->setText(QString::number(stats.aptn));
+    ui->lbl_noise->setText(QString::number(stats.rptn));
+
+    // 9. Gráficas
+    QVector<QPointF> error_points;
+    const auto& mask = resid.total_bin_stats.amask_rfrms;
+    for (int idx = mask.size() - 1; idx >= 0; idx--) {
+        if (!mask[idx]) error_points.push_back(v.takeAt(idx));
     }
 
-    // Actualizar Gráficas (Solo si la librería funcionó y generó máscara)
-    // Si la librería falló, pintamos todo como válido por defecto
-    bool lib_ok = (stats.rms > 0.0);
+    ui->filterPlot->selected_curve->setSamples(v);
+    ui->filterPlot->error_curve->setSamples(error_points);
+    ui->filterPlot->replot();
 
-    if (lib_ok) {
-        // Lógica de filtrado de la librería
-        for (int idx = res_stats.total_bin_stats.amask_rfrms.size() - 1; idx >= 0; idx--)
-            if (!res_stats.total_bin_stats.amask_rfrms[idx]) {
-                error_points.push_back(v.takeAt(idx));
-                fitted_error_points.push_back(fitted_samples.takeAt(idx));
-            }
-    } else {
-        // Si RMS=0, no borramos puntos de la gráfica, los dejamos todos verdes
-    }
-
-    // NO TOCAR LOS PLOTS
-    //ui->filterPlot->selected_curve->setSamples(v);
-    //ui->filterPlot->error_curve->setSamples(error_points);
-    // ... (resto de updates de plots igual) ...
-    //ui->filterPlot->replot();
-
-    // --- ACTUALIZAR ETIQUETAS ---
-    // RMS
-    ui->lbl_rms_ps->setText(QString::number(final_rms, 'f', 2));
-
-    // MEAN (Sumamos el offset manual)
-    double real_mean_display = manual_mean + final_mean_residual;
-    ui->lbl_mean_ps->setText(QString::number(real_mean_display, 'f', 2));
-
-    // OTRAS
-    ui->lbl_peak_ps->setText(QString::number(static_cast<double>(stats.peak), 'f', 2));
-    ui->lbl_returns->setText(QString::number(final_ptn));
-    ui->lbl_echoes->setText(QString::number(lib_ok ? stats.aptn : count_val));
-    ui->lbl_noise->setText(QString::number(lib_ok ? stats.rptn : 0));
-
-    DegorasInformation::showInfo("Filter Tool", "Statistics calculated.", "", this);
+    DegorasInformation::showInfo("Statistics", "Calculated.", "", this);
 }
-
-
-// adición MARIO: funcionamiento botón cargar CPF
-void MainWindow::on_pb_loadCPF_clicked()
-{
-    QString path = QFileDialog::getOpenFileName(this,
-                                                "Select CPF File",
-                                                QDir::homePath(),
-                                                "CPF Files (*.cpf *.npt *.tjr);;All Files (*)");
-
-    if (!path.isEmpty()) {
-        m_cpfPath = path;               // Guardamos la ruta en la variable de clase
-        ui->le_cpfPath->setText(path);  // Mostramos la ruta en el cuadro de texto visual
-
-        // Habilitamos el botón de recalcular ahora que tenemos un archivo
-        ui->pb_recalculate->setEnabled(true);
-    }
-}
-
 
 // adición MARIO: funcionamiento botón recalcular una vez cargado el CPF (esta función estaba pero vacía)
 void MainWindow::on_pb_recalculate_clicked()
@@ -722,6 +698,21 @@ void MainWindow::on_pb_recalculate_clicked()
 
 }
 
+//adición MARIO: cargar CPF
+void MainWindow::on_pb_loadCPF_clicked()
+{
+    QString path = QFileDialog::getOpenFileName(this,
+                                                "Select CPF File",
+                                                QDir::homePath(),
+                                                "CPF Files (*.cpf *.npt *.tjr);;All Files (*)");
+
+    if (!path.isEmpty()) {
+        m_cpfPath = path;
+        ui->le_cpfPath->setText(path);
+        ui->pb_recalculate->setEnabled(true);
+    }
+}
+
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
@@ -737,6 +728,37 @@ void MainWindow::closeEvent(QCloseEvent* event)
     } else {
         event->accept();
     }
+}
+
+//Adición Mario, clickar estadísticas
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    // Solo nos interesa si es un Clic de Ratón (al soltar el botón)
+    if (event->type() == QEvent::MouseButtonRelease) {
+
+        // Intentamos ver si el objeto clickado es un QLabel
+        QLabel *label = qobject_cast<QLabel*>(obj);
+
+        if (label) {
+            QString text = label->text();
+
+            // Solo copiamos si no es el texto por defecto "..."
+            if (text != "..." && !text.isEmpty()) {
+
+                // 1. Copiar al portapapeles del sistema
+                QApplication::clipboard()->setText(text);
+
+                // 2. Feedback visual (Tooltip temporal)
+                QToolTip::showText(QCursor::pos(), "Copied: " + text, label);
+
+                return true; // Indicamos que ya hemos manejado el evento
+            }
+        }
+    }
+
+    // Para cualquier otro evento, dejamos que Qt haga lo normal
+    return QMainWindow::eventFilter(obj, event);
 }
 
 void MainWindow::syncPanFromMainPlot()
@@ -792,4 +814,7 @@ void MainWindow::on_deselectButton_clicked()
     ui->filterPlot->resetSelection();
     ui->histogramPlot->resetSelection();
 }
+
+
+
 
