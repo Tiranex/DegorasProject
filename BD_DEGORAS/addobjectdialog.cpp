@@ -3,7 +3,8 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDir>
-#include <iostream>
+#include <QIntValidator>
+#include <QDoubleValidator>
 
 // LOGGING INCLUDE
 #include <spdlog/spdlog.h>
@@ -14,11 +15,38 @@ AddObjectDialog::AddObjectDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    // Initialize combos
+    // 1. DEFINIR ESTILOS VISUALES
+    this->setStyleSheet(
+        "QLineEdit[state='warning'] { border: 2px solid #FBC02D; }"
+        "QLineEdit[state='error'] { border: 2px solid #D32F2F; }"
+        "QLineEdit { border: 1px solid #606060; border-radius: 2px; }"
+        "QLineEdit:read-only { color: #A0A0A0; border: 1px solid #404040; }"
+        );
+
+    connect(ui->noradEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
+    connect(ui->nameEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
+    connect(ui->aliasEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
+    connect(ui->cosparEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
+    connect(ui->altitudeEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
+    connect(ui->npiEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
+    connect(ui->bsEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
+
+    connect(ui->selectDBImageBtn, &QPushButton::clicked, this, &AddObjectDialog::on_selectDBImageBtn_clicked);
+    validateFormLive();
+
+    // 2. VALIDADORES
+    ui->noradEdit->setValidator(new QIntValidator(0, 999999999, this));
+    ui->npiEdit->setValidator(new QIntValidator(0, 999, this));
+
+    ui->altitudeEdit->setValidator(new QDoubleValidator(0.0, 100000.0, 4, this));
+    ui->rcsEdit->setValidator(new QDoubleValidator(0.0, 10000.0, 4, this));
+    ui->bsEdit->setValidator(new QDoubleValidator(0.0, 10000.0, 4, this));
+    ui->incEdit->setValidator(new QDoubleValidator(0.0, 360.0, 4, this));
+    ui->comEdit->setValidator(new QDoubleValidator(-1000.0, 1000.0, 4, this));
+
     if(ui->lrrCombo->count() == 0) ui->lrrCombo->addItems({"Unknown", "True", "False"});
     if(ui->debrisCombo->count() == 0) ui->debrisCombo->addItems({"Unknown", "True", "False"});
 
-    // Enable multi-selection for BOTH lists
     ui->setsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
     ui->groupsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
 
@@ -30,166 +58,339 @@ AddObjectDialog::~AddObjectDialog()
     delete ui;
 }
 
+void AddObjectDialog::setFieldState(QWidget* widget, const QString& state)
+{
+    widget->setProperty("state", state);
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+}
+
 void AddObjectDialog::setDbManager(SpaceObjectDBManager* dbManager)
 {
     m_dbManager = dbManager;
 }
 
-// --- LOAD SETS (Observation Lists) ---
-void AddObjectDialog::setAvailableSets(const std::set<std::string> &sets)
+// --- LOGICA DE GUARDADO CAMBIADA ---
+// AHORA NO ESCRIBE EN DB, SOLO VALIDA Y CIERRA
+// 2. MODIFICAR LA FUNCIÓN DE GUARDADO
+void AddObjectDialog::on_saveButton_clicked()
+{
+    QString errors;
+
+    // 1. LIMPIAR ESTADOS (Resetear colores)
+    setFieldState(ui->noradEdit, "");
+    setFieldState(ui->nameEdit, "");
+    setFieldState(ui->aliasEdit, "");
+    setFieldState(ui->cosparEdit, "");
+    setFieldState(ui->ilrsEdit, "");
+    setFieldState(ui->sicEdit, "");
+    setFieldState(ui->altitudeEdit, "");
+    setFieldState(ui->npiEdit, "");
+    setFieldState(ui->bsEdit, "");
+
+    // --- LÓGICA DE DETECCIÓN DE DUPLICADOS ---
+
+    // Obtenemos el ID que estamos intentando guardar
+    int64_t currentId = -1;
+    if (!ui->noradEdit->text().isEmpty()) currentId = ui->noradEdit->text().toLongLong();
+
+    // Lambda para chequear duplicados corregida
+    auto checkDuplicate = [&](const std::string& fieldName, const QString& uiValue, QLineEdit* widget) -> bool {
+        if (uiValue.trimmed().isEmpty()) return false;
+        if (!m_existingObjects) return false; // Si no hay lista, no podemos comprobar
+
+        std::string valToCheck = uiValue.trimmed().toStdString();
+
+        for (const auto& obj : *m_existingObjects) {
+
+            // CORRECCIÓN CRÍTICA AQUÍ:
+            // Solo debemos "saltarnos" el objeto si estamos en MODO EDICIÓN y el ID coincide.
+            // Si estamos en modo AÑADIR (Create), NO nos saltamos nada (porque si el ID existe, es un error).
+            if (m_isEditMode) {
+                if (obj.contains("_id") && obj["_id"] == currentId) continue;
+            }
+
+            // Comprobar coincidencia del valor
+            if (obj.contains(fieldName) && !obj[fieldName].is_null()) {
+                std::string objVal;
+                if (obj[fieldName].is_string()) objVal = obj[fieldName].get<std::string>();
+                else if (obj[fieldName].is_number()) objVal = std::to_string(obj[fieldName].get<int64_t>());
+
+                // Coincidencia encontrada (case sensitive)
+                if (objVal == valToCheck) {
+                    setFieldState(widget, "error"); // Poner ROJO el campo
+                    return true; // Es duplicado
+                }
+            }
+        }
+        return false;
+    };
+
+    // --- EJECUTAR VALIDACIONES ---
+
+    // 1. NORAD ID (Obligatorio y Único)
+    if (ui->noradEdit->text().isEmpty()) {
+        errors += "- Field 'Norad' is required.\n";
+        setFieldState(ui->noradEdit, "error");
+    }
+    // Si NO estamos editando, chequeamos si el ID ya existe en la lista
+    else if (!m_isEditMode && checkDuplicate("_id", ui->noradEdit->text(), ui->noradEdit)) {
+        errors += "- NORAD ID already exists in memory.\n";
+    }
+
+    // 2. NAME (Obligatorio y Único)
+    if (ui->nameEdit->text().isEmpty()) {
+        errors += "- Field 'Name' is required.\n";
+        setFieldState(ui->nameEdit, "error");
+    } else if (checkDuplicate("Name", ui->nameEdit->text(), ui->nameEdit)) {
+        errors += "- Name already exists in memory.\n";
+    }
+
+    // 3. ALIAS (Obligatorio y Único)
+    if (ui->aliasEdit->text().isEmpty()) {
+        errors += "- Field 'Alias' is required.\n";
+        setFieldState(ui->aliasEdit, "error");
+    } else if (checkDuplicate("Alias", ui->aliasEdit->text(), ui->aliasEdit)) {
+        errors += "- Alias already exists in memory.\n";
+    }
+
+    // 4. COSPAR (Obligatorio y Único)
+    if (ui->cosparEdit->text().isEmpty()) {
+        errors += "- Field 'COSPAR' is required.\n";
+        setFieldState(ui->cosparEdit, "error");
+    } else if (checkDuplicate("COSPAR", ui->cosparEdit->text(), ui->cosparEdit)) {
+        errors += "- COSPAR already exists in memory.\n";
+    }
+
+    // 5. ILRS y SIC (Opcionales, pero únicos si existen)
+    if (checkDuplicate("ILRSID", ui->ilrsEdit->text(), ui->ilrsEdit)) {
+        errors += "- ILRS ID already exists in memory.\n";
+    }
+    if (checkDuplicate("SIC", ui->sicEdit->text(), ui->sicEdit)) {
+        errors += "- SIC already exists in memory.\n";
+    }
+
+    // --- VALIDACIONES NUMÉRICAS (Restricciones) ---
+    if(ui->altitudeEdit->text().toDouble() <= 0) {
+        errors += "- Altitude > 0 required.\n";
+        setFieldState(ui->altitudeEdit, "error");
+    }
+    if(ui->npiEdit->text().toInt() <= 0) {
+        errors += "- NPI > 0 required.\n";
+        setFieldState(ui->npiEdit, "error");
+    }
+    if(ui->bsEdit->text().toDouble() <= 0) {
+        errors += "- BinSize > 0 required.\n";
+        setFieldState(ui->bsEdit, "error");
+    }
+
+    // --- PUNTO CRÍTICO: SI HAY ERRORES, HACEMOS RETURN ---
+    if(!errors.isEmpty()) {
+        spdlog::warn("Validation failed in Dialog: {}", errors.toStdString());
+
+        // Mantenemos la ventana abierta, mostramos el aviso y salimos de la función
+        QMessageBox::warning(this, "Invalid Data", "Please correct the fields marked in RED:\n\n" + errors);
+        return;
+    }
+
+    // Solo si NO hay errores llegamos aquí
+    spdlog::info("Object data validated successfully.");
+    accept(); // Cierra la ventana devolviendo QDialog::Accepted
+}
+
+// --- CARGAR LISTAS (Cambiado a std::vector para coincidir con MainWindow) ---
+void AddObjectDialog::setAvailableSets(const std::vector<std::string> &sets)
 {
     ui->setsListWidget->clear();
-    for(const auto& s : sets) {
-        ui->setsListWidget->addItem(QString::fromStdString(s));
-    }
+    for(const auto& s : sets) ui->setsListWidget->addItem(QString::fromStdString(s));
     ui->setsListWidget->clearSelection();
 }
 
-// --- LOAD GROUPS (Internal Categories) ---
-void AddObjectDialog::setAvailableGroups(const std::set<std::string> &groups)
+void AddObjectDialog::setAvailableGroups(const std::vector<std::string> &groups)
 {
     ui->groupsListWidget->clear();
-    for(const auto& g : groups) {
-        ui->groupsListWidget->addItem(QString::fromStdString(g));
-    }
+    for(const auto& g : groups) ui->groupsListWidget->addItem(QString::fromStdString(g));
     ui->groupsListWidget->clearSelection();
 }
 
+// Botón "Examinar..." (Archivo Local)
 void AddObjectDialog::on_browseImageBtn_clicked()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this, "Select Image", QDir::homePath(), "Images (*.jpg *.png *.bmp *.jpeg)");
 
-    if(!filePath.isEmpty()) {
-        m_selectedImagePath = filePath;
-        QFileInfo fi(filePath);
-        ui->imagePathEdit->setText(fi.fileName());
-        spdlog::info("Image selected: {}", filePath.toStdString());
+    if (filePath.isEmpty()) return;
+
+    QFileInfo fi(filePath);
+    QString fileName = fi.fileName();
+    std::string nameStd = fileName.toStdString();
+
+    // COMPROBACIÓN SOLO DE LECTURA (¿Existe ya en BBDD?)
+    // Esto es útil para avisar al usuario, pero no afecta al guardado
+    if (m_dbManager && m_dbManager->getImageManager().exists(nameStd)) {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(this, "Image Exists",
+                                      "The image '" + fileName + "' already exists in the database.\n\n"
+                                                                 "Do you want to use the existing image? (No upload will be performed)",
+                                      QMessageBox::Yes | QMessageBox::No);
+
+        if (reply == QMessageBox::No) {
+            return;
+        }
+        else {
+            // Reutilización: Ponemos nombre, borramos path local
+            m_selectedImagePath = "";
+            ui->imagePathEdit->setText(fileName);
+            return;
+        }
+    }
+
+    // Si no existe, guardamos el path para que MainWindow lo procese luego
+    m_selectedImagePath = filePath;
+    ui->imagePathEdit->setText(fileName);
+}
+
+void AddObjectDialog::on_selectDBImageBtn_clicked()
+{
+    if (!m_dbManager) return;
+
+    std::vector<std::string> images = m_dbManager->getImageManager().getAllImageNames();
+    if (images.empty()) {
+        QMessageBox::information(this, "Info", "No images found in the database.");
+        return;
+    }
+    std::sort(images.begin(), images.end());
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Select Image from DB");
+    dlg.setMinimumSize(400, 500);
+
+    QVBoxLayout *layout = new QVBoxLayout(&dlg);
+    layout->addWidget(new QLabel("Filter images:", &dlg));
+    QLineEdit *searchBox = new QLineEdit(&dlg);
+    searchBox->setPlaceholderText("Type to search...");
+    layout->addWidget(searchBox);
+
+    QListWidget *listWidget = new QListWidget(&dlg);
+    for(const auto& img : images) {
+        listWidget->addItem(QString::fromStdString(img));
+    }
+    layout->addWidget(listWidget);
+
+    QObject::connect(searchBox, &QLineEdit::textChanged, listWidget, [listWidget](const QString &text){
+        for(int i = 0; i < listWidget->count(); ++i) {
+            QListWidgetItem *item = listWidget->item(i);
+            bool match = item->text().contains(text, Qt::CaseInsensitive);
+            item->setHidden(!match);
+        }
+    });
+
+    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    layout->addWidget(buttonBox);
+
+    connect(buttonBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        if (!listWidget->selectedItems().isEmpty()) {
+            QString selectedName = listWidget->selectedItems().first()->text();
+            ui->imagePathEdit->setText(selectedName);
+            m_selectedImagePath.clear(); // Reutilización
+        }
     }
 }
 
-QString AddObjectDialog::getSelectedImagePath() const {
-    return m_selectedImagePath;
-}
+QString AddObjectDialog::getSelectedImagePath() const { return m_selectedImagePath; }
 
-void AddObjectDialog::on_cancelButton_clicked()
-{
-    spdlog::debug("AddObjectDialog cancelled by user.");
-    reject();
-}
+void AddObjectDialog::on_cancelButton_clicked() { reject(); }
 
-// 1. GENERAR JSON (GUARDAR)
+// --- GENERAR JSON ---
 nlohmann::json AddObjectDialog::getNewObjectData() const
 {
     nlohmann::json j;
 
-    // Helpers
     auto setStringOrNull = [&](const std::string& key, const QString& value) {
         if (value.trimmed().isEmpty()) j[key] = nullptr;
         else j[key] = value.trimmed().toStdString();
     };
-
     auto setTristate = [&](const std::string& key, const QString& value) {
-        if (value == "True") j[key] = 1;
-        else if (value == "False") j[key] = 0;
-        else j[key] = nullptr;
+        if (value == "True") j[key] = 1; else if (value == "False") j[key] = 0; else j[key] = nullptr;
     };
 
-    // --- IDENTIFIERS (Required ! *) ---
     try {
         if (ui->noradEdit->text().isEmpty()) j["_id"] = nullptr;
         else j["_id"] = ui->noradEdit->text().toLongLong();
     } catch (...) { j["_id"] = nullptr; }
 
-    j["NORAD"]  = ui->noradEdit->text().trimmed().toStdString();
-    j["Name"]   = ui->nameEdit->text().trimmed().toStdString();
+    j["NORAD"] = ui->noradEdit->text().trimmed().toStdString();
+    j["Name"] = ui->nameEdit->text().trimmed().toStdString();
+    j["Alias"] = ui->aliasEdit->text().trimmed().toStdString();
     j["COSPAR"] = ui->cosparEdit->text().trimmed().toStdString();
 
-    // Alias (Antes Abbreviation)
-    j["Alias"]  = ui->aliasEdit->text().trimmed().toStdString();
-
-    // Classification (EL CAMPO QUE FALTABA)
     setStringOrNull("Classification", ui->classEdit->text());
-
-    // --- OPTIONAL IDENTIFIERS (*) ---
     setStringOrNull("ILRSID", ui->ilrsEdit->text());
     setStringOrNull("SIC", ui->sicEdit->text());
 
-    // --- BOOLEANS (!) ---
-    // Has LRR / Is Debris
     setTristate("LaserRetroReflector", ui->lrrCombo->currentText());
     setTristate("IsDebris", ui->debrisCombo->currentText());
-
-    // Track High Power (Checkbox -> 1/0)
     j["TrackHighPower"] = ui->highPowerCheck->isChecked() ? 1 : 0;
 
-    // (Nota: Si tu BBDD antigua usa "TrackPolicy" con valores 0/1/2, avísame.
-    // Aquí estamos guardando "TrackHighPower" como 0/1 según tu lista).
-
-    // --- NUMERIC FIELDS (!) ---
-    // Altitude, NPI, BS son obligatorios (validados en on_saveButton_clicked)
     j["Altitude"] = ui->altitudeEdit->text().toDouble();
+    j["RadarCrossSection"] = ui->rcsEdit->text().toDouble();
     j["NormalPointIndicator"] = ui->npiEdit->text().toInt();
     j["BinSize"] = ui->bsEdit->text().toDouble();
-
-    // Opcionales
-    j["RadarCrossSection"] = ui->rcsEdit->text().toDouble();
     j["Inclination"] = ui->incEdit->text().toDouble();
-    j["CoM"] = ui->comEdit->text().toDouble(); // Center of Mass
+    j["CoM"] = ui->comEdit->text().toDouble();
 
-    // --- TEXTOS VARIOS ---
     setStringOrNull("Comments", ui->commentsEdit->toPlainText());
     setStringOrNull("ProviderCPF", ui->cpfEdit->text());
-    setStringOrNull("Config", ui->configEdit->text()); // Configuraciones (9 chars)
+    setStringOrNull("Config", ui->configEdit->text());
     setStringOrNull("Picture", ui->imagePathEdit->text());
 
-    // Default enablement (Si es nuevo, activado por defecto)
-    if (!m_isEditMode) j["EnablementPolicy"] = 1;
-
-    // --- ARRAYS ---
-
-    // 1. SETS (Observation Sets)
+    // ARRAYS
     std::vector<std::string> selectedSets;
-    for(auto item : ui->setsListWidget->selectedItems()) {
-        selectedSets.push_back(item->text().toStdString());
-    }
+    for(auto item : ui->setsListWidget->selectedItems()) selectedSets.push_back(item->text().toStdString());
     j["Sets"] = selectedSets;
 
-    // 2. GROUPS (Internal Categories)
     std::vector<std::string> selectedGroups;
-    for(auto item : ui->groupsListWidget->selectedItems()) {
-        selectedGroups.push_back(item->text().toStdString());
-    }
+    for(auto item : ui->groupsListWidget->selectedItems()) selectedGroups.push_back(item->text().toStdString());
     j["Groups"] = selectedGroups;
+
+    // --- CORRECCIÓN AQUÍ ---
+    if (!m_isEditMode) {
+        // Si es NUEVO, habilitado por defecto
+        j["EnablementPolicy"] = 1;
+    } else {
+        // Si es EDICIÓN, mantenemos el valor que tenía antes
+        j["EnablementPolicy"] = m_storedEnablement;
+    }
 
     return j;
 }
 
-// 2. CARGAR DATOS (EDITAR)
+// --- CARGAR DATOS ---
 void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
 {
-    spdlog::debug("Loading object data into form.");
-
     auto getString = [&](const std::string& key) -> QString {
-        if(obj.contains(key) && !obj[key].is_null())
-            return QString::fromStdString(obj[key].get<std::string>());
+        if(obj.contains(key) && !obj[key].is_null()) return QString::fromStdString(obj[key].get<std::string>());
         return "";
     };
-
     auto getDouble = [&](const std::string& key) -> double {
         if(obj.contains(key) && !obj[key].is_null()) return obj[key];
         return 0.0;
     };
+    if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null()) {
+        m_storedEnablement = obj["EnablementPolicy"].get<int>();
+    } else {
+        m_storedEnablement = 1; // Default si no existe
+    }
 
-    // Textos
     ui->noradEdit->setText(QString::number(obj.value("_id", 0LL)));
     ui->nameEdit->setText(getString("Name"));
-    ui->aliasEdit->setText(getString("Alias"));     // Cargamos "Alias"
+    ui->aliasEdit->setText(getString("Alias"));
     ui->cosparEdit->setText(getString("COSPAR"));
     ui->ilrsEdit->setText(getString("ILRSID"));
     ui->sicEdit->setText(getString("SIC"));
-
-    // Classification (AÑADIDO)
     ui->classEdit->setText(getString("Classification"));
 
     ui->commentsEdit->setPlainText(getString("Comments"));
@@ -197,7 +398,6 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     ui->configEdit->setText(getString("Config"));
     ui->imagePathEdit->setText(getString("Picture"));
 
-    // Números
     ui->altitudeEdit->setText(QString::number(getDouble("Altitude")));
     ui->rcsEdit->setText(QString::number(getDouble("RadarCrossSection")));
     ui->npiEdit->setText(QString::number(obj.value("NormalPointIndicator", 0)));
@@ -205,36 +405,23 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     ui->incEdit->setText(QString::number(getDouble("Inclination")));
     ui->comEdit->setText(QString::number(getDouble("CoM")));
 
-    // Combos/Checks
     if(obj.contains("LaserRetroReflector")) {
         if(obj["LaserRetroReflector"].is_null()) ui->lrrCombo->setCurrentText("Unknown");
-        else {
-            int val = obj["LaserRetroReflector"];
-            ui->lrrCombo->setCurrentText(val == 1 ? "True" : "False");
-        }
+        else ui->lrrCombo->setCurrentText(obj["LaserRetroReflector"] == 1 ? "True" : "False");
     }
-
     if(obj.contains("IsDebris")) {
         if(obj["IsDebris"].is_null()) ui->debrisCombo->setCurrentText("Unknown");
-        else {
-            int val = obj["IsDebris"];
-            ui->debrisCombo->setCurrentText(val == 1 ? "True" : "False");
-        }
+        else ui->debrisCombo->setCurrentText(obj["IsDebris"] == 1 ? "True" : "False");
     }
-
     if(obj.contains("TrackHighPower") && !obj["TrackHighPower"].is_null()) {
         ui->highPowerCheck->setChecked(obj["TrackHighPower"] == 1);
     }
 
-    // Listas (Sets y Groups)
     ui->setsListWidget->clearSelection();
     if(obj.contains("Sets") && obj["Sets"].is_array()) {
         std::vector<std::string> sets = obj["Sets"];
         for(int i=0; i < ui->setsListWidget->count(); ++i) {
-            QListWidgetItem* item = ui->setsListWidget->item(i);
-            for(const auto& s : sets) {
-                if(item->text().toStdString() == s) { item->setSelected(true); break; }
-            }
+            for(const auto& s : sets) if(ui->setsListWidget->item(i)->text().toStdString() == s) ui->setsListWidget->item(i)->setSelected(true);
         }
     }
 
@@ -242,10 +429,7 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     if(obj.contains("Groups") && obj["Groups"].is_array()) {
         std::vector<std::string> groups = obj["Groups"];
         for(int i=0; i < ui->groupsListWidget->count(); ++i) {
-            QListWidgetItem* item = ui->groupsListWidget->item(i);
-            for(const auto& g : groups) {
-                if(item->text().toStdString() == g) { item->setSelected(true); break; }
-            }
+            for(const auto& g : groups) if(ui->groupsListWidget->item(i)->text().toStdString() == g) ui->groupsListWidget->item(i)->setSelected(true);
         }
     }
 }
@@ -255,61 +439,36 @@ void AddObjectDialog::setEditMode(bool enable)
     m_isEditMode = enable;
     if(enable) {
         this->setWindowTitle("Edit Object");
-        ui->noradEdit->setEnabled(false); // ID is immutable
+        ui->noradEdit->setEnabled(false);
         ui->saveButton->setText("Update Object");
-        spdlog::debug("AddObjectDialog set to EDIT mode.");
     } else {
         this->setWindowTitle("Create New Object");
         ui->noradEdit->setEnabled(true);
         ui->saveButton->setText("Save Object");
-        spdlog::debug("AddObjectDialog set to CREATE mode.");
     }
 }
 
-void AddObjectDialog::on_saveButton_clicked()
+void AddObjectDialog::validateFormLive()
 {
-    QString errors;
+    auto checkRequired = [&](QLineEdit* widget) {
+        if (widget->text().trimmed().isEmpty()) setFieldState(widget, "warning");
+        else setFieldState(widget, "");
+    };
 
-    // --- VALIDATIONS ---
-    if(ui->noradEdit->text().trimmed().isEmpty()) errors += "- Field 'Norad' is required.\n";
-    if(ui->nameEdit->text().trimmed().isEmpty()) errors += "- Field 'Name' is required.\n";
-    if(ui->aliasEdit->text().trimmed().isEmpty()) errors += "- Field 'Alias' is required.\n";
-    if(ui->cosparEdit->text().trimmed().isEmpty()) errors += "- Field 'COSPAR' is required.\n";
+    auto checkNumeric = [&](QLineEdit* widget) {
+        if (widget->text().isEmpty() || widget->text().toDouble() <= 0) setFieldState(widget, "warning");
+        else setFieldState(widget, "");
+    };
 
-    bool ok;
-    ui->noradEdit->text().toLongLong(&ok);
-    if(!ok) errors += "- 'Norad' must be a valid integer.\n";
+    checkRequired(ui->noradEdit);
+    checkRequired(ui->nameEdit);
+    checkRequired(ui->aliasEdit);
+    checkRequired(ui->cosparEdit);
+    checkNumeric(ui->altitudeEdit);
+    checkNumeric(ui->npiEdit);
+    checkNumeric(ui->bsEdit);
+}
 
-    // Numeric checks (Optional: check if > 0)
-    // if(ui->altitudeEdit->text().toDouble() <= 0) errors += "- Altitude > 0 required.\n";
-
-    if(!errors.isEmpty()) {
-        spdlog::warn("Validation failed: {}", errors.toStdString());
-        QMessageBox::warning(this, "Invalid Data", "Please correct:\n\n" + errors);
-        return;
-    }
-
-    if (!m_dbManager) {
-        QMessageBox::critical(this, "Error", "No connection to database.");
-        return;
-    }
-
-    // --- SAVE ---
-    nlohmann::json newData = getNewObjectData();
-    std::string errorDetails;
-    bool success = false;
-
-    if (m_isEditMode) {
-        success = m_dbManager->updateSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
-    } else {
-        success = m_dbManager->createSpaceObject(newData, m_selectedImagePath.toStdString(), errorDetails);
-    }
-
-    if (success) {
-        QMessageBox::information(this, "Success", m_isEditMode ? "Object updated." : "Object created.");
-        accept();
-    } else {
-        spdlog::error("Save failed: {}", errorDetails);
-        QMessageBox::critical(this, "Error", "Operation failed.\n\n" + QString::fromStdString(errorDetails));
-    }
+void AddObjectDialog::setExistingObjects(const std::vector<nlohmann::json>* objects) {
+    m_existingObjects = objects;
 }

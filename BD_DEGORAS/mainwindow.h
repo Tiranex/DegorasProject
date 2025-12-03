@@ -4,16 +4,18 @@
 #include <QMainWindow>
 #include <QTableWidgetItem>
 #include <QKeyEvent>
-#include <memory> // Necesario para std::unique_ptr
+#include <QCloseEvent> // Necesario para detectar el cierre
+#include <memory>
+#include <QRegularExpression>
 
-// --- INCLUDES FALTANTES AÑADIDOS ---
+// UI Includes
 #include <QInputDialog>
 #include <QTableWidget>
 #include <QListWidget>
 #include <QCheckBox>
 #include <QRadioButton>
 
-// Tus clases propias
+// Clases propias
 #include "SpaceObjectDBManager.h"
 #include "addobjectdialog.h"
 
@@ -26,76 +28,92 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
 
+    // --- NUEVO: Detectar cierre de la ventana para avisar de cambios no guardados ---
+    void closeEvent(QCloseEvent *event) override;
+
 private slots:
-    // --- TAB 1: SPACE OBJECTS (Main Management) ---
+    // --- TAB 1: SPACE OBJECTS ---
     void on_addNewObjectSetButton_clicked();
     void on_editObjectButton_clicked();
     void on_deleteObjectSetButton_clicked();
     void on_searchObjectButton_clicked();
 
-    // Filtros y Visualización Tab 1
-    void refreshMainTable();
+    // Visualización
+    void refreshMainTable(); // Ahora leerá de m_localCache
     void on_mainObjectTable_selectionChanged();
 
-
-    // --- TAB 2: OBSERVATION SETS ---
+    // --- TAB 2 & 3 (Sets / Groups) ---
     void on_createSetButton_clicked();
     void on_deleteSetButton_clicked();
     void on_setsListWidget_itemSelectionChanged();
     void on_assignToSetButton_clicked();
     void on_removeFromSetButton_clicked();
 
-    // --- TAB 3: GROUPS ---
     void on_createGroupButton_clicked();
     void on_deleteGroupButton_clicked();
     void on_groupsListWidget_itemSelectionChanged();
     void on_assignToGroupButton_clicked();
     void on_removeFromGroupButton_clicked();
 
-    // --- MENU DATA ---
+    // --- DATA MENU & SEARCH ---
     void exportToCSV();
     void importFromJSON();
+    void on_searchLineEdit_textChanged(const QString &arg1);
+
+    // --- NUEVO: SAVE / VERSIONING ---
+    void on_saveChangesToDbButton_clicked(); // Botón "Commit"
+    void createDatabaseVersion(); // Función auxiliar para crear el snapshot
+
+    // --- LOGGING ---
+    void onLogReceived(const QString& msg, const QString& level);
+
+private slots:
+    // Slot para context menu
+    // (Nota: ya estaba declarado como lambda o función en cpp, si lo tienes en .h mantenlo)
+    // void onMainTableContextMenuRequested(const QPoint &pos);
 
 private:
     Ui::MainWindow *ui;
     std::unique_ptr<SpaceObjectDBManager> dbManager;
 
-    // Ventanas independientes
+    // Ventanas
     std::unique_ptr<AddObjectDialog> m_addDialog;
     std::unique_ptr<AddObjectDialog> m_editDialog;
-
-    // AQUÍ ESTABA EL ERROR: Faltaba #include <QInputDialog> arriba
     std::unique_ptr<QInputDialog> m_searchDialog;
 
-    // En private:
-    // Función auxiliar para manejar el click derecho en CUALQUIER tabla
-    void handleUniversalContextMenu(const QPoint &pos, QTableWidget* table);
+    // --- NUEVO: MEMORIA Y ESTADO ---
+    std::vector<nlohmann::json> m_localCache;
+    std::set<std::string> m_localSets;   // <--- NUEVO: Sets en memoria
+    std::set<std::string> m_localGroups;
+    bool m_hasUnsavedChanges = false;         // ¿Hay cambios sin subir a BBDD?
 
-    // Helpers UI
+    // Helpers
+    void handleUniversalContextMenu(const QPoint &pos, QTableWidget* table);
     void setupTables();
+    void setupLogTable();
     void logMessage(const QString& msg);
 
-    // Helpers Lógica
     void refreshSetListWidget();
     void refreshGroupListWidget();
 
     void populateMainTable(const std::vector<nlohmann::json>& objects);
+    void populateReadOnlyTable(QTableWidget* table, const std::vector<nlohmann::json>& objects);
     void on_tabWidget_currentChanged(int index);
 
-    // Helper genérico para Tab 2 y 3
-    void populateReadOnlyTable(QTableWidget* table, const std::vector<nlohmann::json>& objects);
+    // Iconos
     QIcon m_iconGreen;
     QIcon m_iconRed;
     QIcon m_iconGray;
-
-    // Helper para inicializarlos
     void initIcons();
+
+    // Helper para marcar la UI como "Sucia" (Cambios pendientes)
+    void setUnsavedChanges(bool changed);
 };
 
 #endif // MAINWINDOW_H

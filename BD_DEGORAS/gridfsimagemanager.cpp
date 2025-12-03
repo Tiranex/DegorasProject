@@ -95,3 +95,29 @@ bool GridFSImageManager::deleteImageByName(const std::string& nameInDB)
         return false;
     }
 }
+
+bool GridFSImageManager::exists(const std::string& filename)
+{
+    try {
+        bsoncxx::builder::basic::document filter{};
+        filter.append(bsoncxx::builder::basic::kvp("filename", filename));
+        // count_documents es la forma rápida de verificar existencia
+        return _gridfsFilesCollection.count_documents(filter.view()) > 0;
+    } catch (...) {
+        return false;
+    }
+}
+
+std::vector<std::string> GridFSImageManager::getAllImageNames()
+{
+    std::vector<std::string> names;
+    try {
+        auto cursor = _gridfsFilesCollection.find({});
+        for (auto&& doc : cursor) {
+            if (doc["filename"] && doc["filename"].type() == bsoncxx::type::k_string) {
+                names.push_back(std::string(doc["filename"].get_string().value));
+            }
+        }
+    } catch (...) {}
+    return names;
+}

@@ -7,6 +7,8 @@
 #include <fstream>
 #include <sstream>
 #include <set>
+#include <chrono>
+#include <iomanip>
 
 // LOGGING
 #include <spdlog/spdlog.h>
@@ -21,12 +23,13 @@ SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std
     _db(_client[db_name]),
     _collection(_db[col_name]),
     _setsCollection(_db["sets"]),
-    _groupsCollection(_db["groups"]),    // <--- AHORA APUNTA A "sets"
+    _groupsCollection(_db["groups"]),
+    _versionsCollection(_db["versions"]), // <--- NUEVA COLECCIÓN
     _imageManager(_db)
 {
     try {
         _db.run_command(make_document(kvp("ping", 1)));
-        spdlog::info("SpaceObjectDBManager connected. Sets collection initialized.");
+        spdlog::info("SpaceObjectDBManager connected. Sets, Groups and Versions collections initialized.");
     } catch (const mongocxx::exception& ex) {
         spdlog::critical("Failed to initialize DB: {}", ex.what());
         throw;
@@ -38,17 +41,11 @@ SpaceObjectDBManager::~SpaceObjectDBManager() {
 }
 
 // --- GET BY ID ---
-nlohmann::json SpaceObjectDBManager::getSpaceObjectById(int64_t id)
-{
+nlohmann::json SpaceObjectDBManager::getSpaceObjectById(int64_t id) {
     try {
-        bsoncxx::builder::basic::document filter{};
-        filter.append(bsoncxx::builder::basic::kvp("_id", bsoncxx::types::b_int64{id}));
-        auto result = _collection.find_one(filter.view());
-        return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
-    } catch (const mongocxx::exception& ex) {
-        spdlog::error("Failed in getSpaceObjectById: {}", ex.what());
-        return nlohmann::json{};
-    }
+        auto res = _collection.find_one(make_document(kvp("_id", bsoncxx::types::b_int64{id})));
+        return res ? bsoncxxToNjson(res->view()) : nlohmann::json{};
+    } catch (...) { return nlohmann::json{}; }
 }
 
 // --- GET BY NAME ---
@@ -168,39 +165,39 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
-        // 3. IMAGE MANAGEMENT
+        // --- 3. IMAGE MANAGEMENT (Lógica de Reutilización) ---
         std::string picName = "";
         if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
             picName = objectData["Picture"];
         }
 
         if (!picName.empty()) {
-            // A. Uniqueness
-            nlohmann::json existing_pic = getSpaceObjectByPicture(picName);
-            if (!existing_pic.empty() && !existing_pic.is_null()) {
-                errorMsg = "An object is already using image: " + picName;
-                return false;
-            }
-            // B. Local path
-            if (localPicturePath.empty()) {
-                errorMsg = "Image name specified but no file selected.";
-                return false;
-            }
-            // C. Read file
-            std::ifstream file(localPicturePath, std::ios::binary);
-            if (!file.is_open()) {
-                errorMsg = "Could not read local image file.";
-                return false;
-            }
-            std::stringstream buffer;
-            buffer << file.rdbuf();
-            std::string imageData = buffer.str();
-            file.close();
+            // CASO A: Subida de nueva imagen (Hay ruta local)
+            if (!localPicturePath.empty()) {
 
-            // D. Upload
-            if (!_imageManager.uploadImage(picName, imageData)) {
-                errorMsg = "Failed to upload image to GridFS.";
-                return false;
+                // Verificar si ya existe (Opcional: Podríamos sobrescribir o avisar)
+                // En este caso, si el usuario eligió local, subimos y sobrescribimos.
+
+                std::ifstream file(localPicturePath, std::ios::binary);
+                if (!file.is_open()) {
+                    errorMsg = "Could not read local image file.";
+                    return false;
+                }
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                if (!_imageManager.uploadImage(picName, buffer.str())) {
+                    errorMsg = "Failed to upload image to GridFS.";
+                    return false;
+                }
+            }
+            // CASO B: Reutilización (No hay ruta local, pero hay nombre)
+            else {
+                // Verificamos que la imagen exista realmente en GridFS para no crear enlaces rotos
+                if (!_imageManager.exists(picName)) {
+                    errorMsg = "Image '" + picName + "' does not exist in Database and no local file was provided.";
+                    return false;
+                }
+                // Si existe, no hacemos nada. El objeto se guardará con el nombre y ya está vinculado.
             }
         }
 
@@ -305,8 +302,8 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
         if (!checkUniqueExceptSelf("Name", objectData["Name"], "Name")) return false;
         if (!checkUniqueExceptSelf("COSPAR", objectData["COSPAR"], "COSPAR")) return false;
 
-        if (objectData.contains("Abbreviation") && !objectData["Abbreviation"].is_null()) {
-            if(!checkUniqueExceptSelf("Abbreviation", objectData["Abbreviation"], "Alias")) return false;
+        if (objectData.contains("Alias") && !objectData["Alias"].is_null()) {
+            if(!checkUniqueExceptSelf("Alias", objectData["Alias"], "Alias")) return false;
         }
 
         if (objectData.contains("ILRSID") && !objectData["ILRSID"].is_null()) {
@@ -319,36 +316,39 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             if(!val.empty()) if(!checkUniqueExceptSelf("SIC", val, "SIC")) return false;
         }
 
-        // 3. IMAGE MANAGEMENT
-        std::string finalPicName = "";
+        // --- 3. IMAGE MANAGEMENT (Lógica de Reutilización) ---
+        std::string picName = "";
         if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
-            finalPicName = objectData["Picture"];
+            picName = objectData["Picture"];
         }
 
-        if (!localPicturePath.empty()) {
-            auto filterPic = make_document(
-                kvp("Picture", finalPicName),
-                kvp("_id", make_document(kvp("$ne", bsoncxx::types::b_int64{id})))
-                );
-            if (_collection.count_documents(filterPic.view()) > 0) {
-                errorMsg = "Another object is already using image: " + finalPicName;
-                return false;
+        if (!picName.empty()) {
+            // CASO A: Subida de nueva imagen (Hay ruta local)
+            if (!localPicturePath.empty()) {
+
+                // Verificar si ya existe (Opcional: Podríamos sobrescribir o avisar)
+                // En este caso, si el usuario eligió local, subimos y sobrescribimos.
+
+                std::ifstream file(localPicturePath, std::ios::binary);
+                if (!file.is_open()) {
+                    errorMsg = "Could not read local image file.";
+                    return false;
+                }
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                if (!_imageManager.uploadImage(picName, buffer.str())) {
+                    errorMsg = "Failed to upload image to GridFS.";
+                    return false;
+                }
             }
-
-            std::string oldPic = "";
-            if(existing_obj.contains("Picture") && !existing_obj["Picture"].is_null())
-                oldPic = existing_obj["Picture"];
-
-            std::ifstream file(localPicturePath, std::ios::binary);
-            std::stringstream buffer;
-            buffer << file.rdbuf();
-            if (!_imageManager.uploadImage(finalPicName, buffer.str())) {
-                errorMsg = "Error uploading new image.";
-                return false;
-            }
-
-            if(!oldPic.empty() && oldPic != finalPicName) {
-                _imageManager.deleteImageByName(oldPic);
+            // CASO B: Reutilización (No hay ruta local, pero hay nombre)
+            else {
+                // Verificamos que la imagen exista realmente en GridFS para no crear enlaces rotos
+                if (!_imageManager.exists(picName)) {
+                    errorMsg = "Image '" + picName + "' does not exist in Database and no local file was provided.";
+                    return false;
+                }
+                // Si existe, no hacemos nada. El objeto se guardará con el nombre y ya está vinculado.
             }
         }
 
@@ -421,19 +421,12 @@ bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)
     }
 }
 
-// --- GET ALL ---
-std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects()
-{
-    std::vector<nlohmann::json> allObjects;
-    try {
-        mongocxx::cursor cursor = _collection.find({});
-        for (bsoncxx::document::view doc : cursor) {
-            allObjects.push_back(bsoncxxToNjson(doc));
-        }
-    } catch (const mongocxx::exception& ex) {
-        spdlog::error("Failed in getAllSpaceObjects: {}", ex.what());
-    }
-    return allObjects;
+int64_t SpaceObjectDBManager::getSpaceObjectsCount() { return _collection.count_documents({}); }
+std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects() {
+    std::vector<nlohmann::json> all;
+    auto cursor = _collection.find({});
+    for(auto&& doc : cursor) all.push_back(bsoncxxToNjson(doc));
+    return all;
 }
 
 // --- SETS METHODS ---
@@ -687,6 +680,369 @@ bool SpaceObjectDBManager::removeObjectFromGroup(int64_t objectId, const std::st
 
     } catch (const mongocxx::exception& ex) {
         spdlog::error("Failed in removeObjectFromGroup: {}", ex.what());
+        return false;
+    }
+}
+
+// =================================================================
+// NUEVAS FUNCIONES DE VERSIONADO Y GUARDADO MASIVO
+// =================================================================
+
+bool SpaceObjectDBManager::createVersionSnapshot(const std::string& versionName, const std::string& comment, std::string& errorMsg)
+{
+    try {
+        errorMsg = "";
+
+        // 1. Recuperar TODO lo que hay en BBDD ahora mismo
+        std::vector<nlohmann::json> currentData = getAllSpaceObjects();
+
+        if (currentData.empty()) {
+            // Opcional: Permitir versiones vacías o no. Aquí permitimos pero avisamos.
+            spdlog::warn("Creating version snapshot of empty database.");
+        }
+
+        // 2. Convertir a BSON Array
+        bsoncxx::builder::basic::array objectsArray;
+        for (const auto& obj : currentData) {
+            objectsArray.append(njsonToBsoncxx(obj));
+        }
+
+        // 3. Timestamp
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&now_c), "%Y-%m-%dT%H:%M:%S");
+
+        // 4. Documento de Versión
+        auto versionDoc = make_document(
+            kvp("versionName", versionName),
+            kvp("comment", comment),
+            kvp("timestamp", ss.str()),
+            kvp("objectCount", static_cast<int64_t>(currentData.size())),
+            kvp("snapshot", objectsArray)
+            );
+
+        _versionsCollection.insert_one(versionDoc.view());
+        spdlog::info("Version snapshot '{}' created.", versionName);
+        return true;
+
+    } catch (const std::exception& ex) {
+        errorMsg = ex.what();
+        spdlog::error("Failed to create version: {}", errorMsg);
+        return false;
+    }
+}
+
+bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& allObjects,
+                                             const std::set<std::string>& allSets,
+                                             const std::set<std::string>& allGroups,
+                                             const std::string& versionName,
+                                             const std::string& comment,
+                                             SaveMode mode,
+                                             std::string& errorMsg)
+{
+    try {
+        // =================================================================================
+        // 1. ANÁLISIS DE DIFERENCIAS (DIFF)
+        // =================================================================================
+
+        // A. DIFERENCIAS DE OBJETOS
+        std::vector<nlohmann::json> diffAdded;
+        std::vector<nlohmann::json> diffModified;
+        std::vector<int64_t> diffDeleted;
+
+        std::map<int64_t, nlohmann::json> oldDbState;
+        auto currentDbObjects = getAllSpaceObjects();
+        for(const auto& obj : currentDbObjects) {
+            if(obj.contains("_id") && obj["_id"].is_number()) {
+                oldDbState[obj["_id"].get<int64_t>()] = obj;
+            }
+        }
+
+        // B. DIFERENCIAS DE SETS
+        std::vector<std::string> setsAdded, setsDeleted;
+        std::set<std::string> oldSets = getAllUniqueSetNames(); // Leemos BD actual
+
+        // Calcular Sets Added (Están en memoria, no en BD)
+        for(const auto& s : allSets) {
+            if(oldSets.find(s) == oldSets.end()) setsAdded.push_back(s);
+        }
+        // Calcular Sets Deleted (Estaban en BD, no en memoria)
+        for(const auto& s : oldSets) {
+            if(allSets.find(s) == allSets.end()) setsDeleted.push_back(s);
+        }
+
+        // C. DIFERENCIAS DE GROUPS
+        std::vector<std::string> groupsAdded, groupsDeleted;
+        std::set<std::string> oldGroups = getAllUniqueGroupNames(); // Leemos BD actual
+
+        // Calcular Groups Added
+        for(const auto& g : allGroups) {
+            if(oldGroups.find(g) == oldGroups.end()) groupsAdded.push_back(g);
+        }
+        // Calcular Groups Deleted
+        for(const auto& g : oldGroups) {
+            if(allGroups.find(g) == allGroups.end()) groupsDeleted.push_back(g);
+        }
+
+        spdlog::info("[DIFF START] Objects: {} vs {}, Sets: {} vs {}, Groups: {} vs {}",
+                     oldDbState.size(), allObjects.size(),
+                     oldSets.size(), allSets.size(),
+                     oldGroups.size(), allGroups.size());
+
+        // =================================================================================
+        // 2. DOBLE COMPROBACIÓN DE SEGURIDAD (INTEGRADO)
+        //    Verificamos que no haya duplicados internos y calculamos las diferencias.
+        // =================================================================================
+
+        std::set<int64_t> checkIds;
+        std::set<std::string> checkNames;
+        std::set<std::string> checkAliases;
+        std::set<std::string> checkCospars;
+
+        for(const auto& newObj : allObjects) {
+            // --- A. VALIDACIONES DE SEGURIDAD (Tus checks de duplicados) ---
+
+            // ID (NORAD) - Crítico
+            if(!newObj.contains("_id") || newObj["_id"].is_null()) {
+                errorMsg = "Critical: Object without _id found in save list.";
+                return false;
+            }
+            int64_t id = newObj["_id"].get<int64_t>(); // Asegurar tipo
+
+            if(checkIds.count(id)) {
+                errorMsg = "Critical: Duplicate NORAD ID in save list: " + std::to_string(id);
+                return false;
+            }
+            checkIds.insert(id);
+
+            // NAME - Crítico
+            if(newObj.contains("Name") && newObj["Name"].is_string()) {
+                std::string n = newObj["Name"];
+                if(!n.empty()) {
+                    if(checkNames.count(n)) {
+                        errorMsg = "Critical: Duplicate Name in save list: " + n;
+                        return false;
+                    }
+                    checkNames.insert(n);
+                }
+            }
+
+            // ALIAS - Estricto
+            if(newObj.contains("Alias") && newObj["Alias"].is_string()) {
+                std::string a = newObj["Alias"];
+                if(!a.empty()) {
+                    if(checkAliases.count(a)) {
+                        errorMsg = "Critical: Duplicate Alias in save list: " + a;
+                        return false;
+                    }
+                    checkAliases.insert(a);
+                }
+            }
+
+            // COSPAR - Estricto
+            if(newObj.contains("COSPAR") && newObj["COSPAR"].is_string()) {
+                std::string c = newObj["COSPAR"];
+                if(!c.empty()) {
+                    if(checkCospars.count(c)) {
+                        errorMsg = "Critical: Duplicate COSPAR in save list: " + c;
+                        return false;
+                    }
+                    checkCospars.insert(c);
+                }
+            }
+
+            // --- CÁLCULO DIFF OBJETOS ---
+            if (oldDbState.find(id) == oldDbState.end()) {
+                diffAdded.push_back(newObj);
+            } else {
+                if (oldDbState[id] != newObj) diffModified.push_back(newObj);
+                oldDbState.erase(id);
+            }
+        }
+
+        // Detectar eliminados
+        for(const auto& kv : oldDbState) diffDeleted.push_back(kv.first);
+
+        // =================================================================================
+        // 3. APLICAR CAMBIOS (COMMIT)
+        // =================================================================================
+
+        // Reemplazar OBJETOS
+        _collection.drop();
+        if (!allObjects.empty()) {
+            std::vector<bsoncxx::document::value> docs;
+            docs.reserve(allObjects.size());
+            for(const auto& j : allObjects) docs.push_back(njsonToBsoncxx(j));
+            _collection.insert_many(docs);
+        }
+
+        // Reemplazar SETS
+        _setsCollection.drop();
+        if (!allSets.empty()) {
+            std::vector<bsoncxx::document::value> setDocs;
+            setDocs.reserve(allSets.size());
+            for(const auto& s : allSets) setDocs.push_back(bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("name", s)));
+            _setsCollection.insert_many(setDocs);
+        }
+
+        // Reemplazar GROUPS
+        _groupsCollection.drop();
+        if (!allGroups.empty()) {
+            std::vector<bsoncxx::document::value> groupDocs;
+            groupDocs.reserve(allGroups.size());
+            for(const auto& g : allGroups) groupDocs.push_back(bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("name", g)));
+            _groupsCollection.insert_many(groupDocs);
+        }
+
+        // =================================================================================
+        // 4. REGISTRAR VERSIÓN
+        // =================================================================================
+
+        if (mode == SaveMode::FULL_SNAPSHOT) {
+            return createVersionSnapshotInternal(allObjects, versionName, comment, errorMsg);
+        }
+        else {
+            // Pasamos todas las listas de diferencias a la nueva función
+            return createIncrementalVersion(diffAdded, diffModified, diffDeleted,
+                                            setsAdded, setsDeleted,
+                                            groupsAdded, groupsDeleted,
+                                            versionName, comment, errorMsg);
+        }
+
+    } catch (const std::exception& e) {
+        errorMsg = "Critical error during bulk save: " + std::string(e.what());
+        spdlog::critical(errorMsg);
+        return false;
+    }
+}
+// NUEVA FUNCIÓN PRIVADA PARA GUARDAR DELTAS
+// SpaceObjectDBManager.cpp
+
+// Actualiza la firma en el .cpp (recuerda cambiarla también en el .h)
+bool SpaceObjectDBManager::createIncrementalVersion(const std::vector<nlohmann::json>& added,
+                                                    const std::vector<nlohmann::json>& modified,
+                                                    const std::vector<int64_t>& deletedIds,
+                                                    // NUEVOS PARÁMETROS:
+                                                    const std::vector<std::string>& setsAdded,
+                                                    const std::vector<std::string>& setsDeleted,
+                                                    const std::vector<std::string>& groupsAdded,
+                                                    const std::vector<std::string>& groupsDeleted,
+                                                    // ------------------
+                                                    const std::string& versionName,
+                                                    const std::string& comment,
+                                                    std::string& errorMsg)
+{
+    try {
+        using bsoncxx::builder::basic::make_document;
+        using bsoncxx::builder::basic::kvp;
+        using bsoncxx::builder::basic::make_array;
+
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&now_c), "%Y-%m-%dT%H:%M:%S");
+
+        // Construir arrays BSON para objetos
+        bsoncxx::builder::basic::array arrAdded;
+        for(const auto& j : added) arrAdded.append(njsonToBsoncxx(j));
+
+        bsoncxx::builder::basic::array arrModified;
+        for(const auto& j : modified) arrModified.append(njsonToBsoncxx(j));
+
+        bsoncxx::builder::basic::array arrDeleted;
+        for(const auto& id : deletedIds) arrDeleted.append(id);
+
+        // --- NUEVO: Construir arrays BSON para Sets/Groups ---
+        bsoncxx::builder::basic::array arrSetsAdded, arrSetsDeleted;
+        for(const auto& s : setsAdded) arrSetsAdded.append(s);
+        for(const auto& s : setsDeleted) arrSetsDeleted.append(s);
+
+        bsoncxx::builder::basic::array arrGroupsAdded, arrGroupsDeleted;
+        for(const auto& g : groupsAdded) arrGroupsAdded.append(g);
+        for(const auto& g : groupsDeleted) arrGroupsDeleted.append(g);
+
+        // Documento de versión optimizado
+        auto versionDoc = make_document(
+            kvp("versionName", versionName),
+            kvp("comment", comment),
+            kvp("timestamp", ss.str()),
+            kvp("type", "incremental"),
+            kvp("changes", make_document(
+                               // Contadores Objeto
+                               kvp("objects", make_document(
+                                                  kvp("addedCount", static_cast<int64_t>(added.size())),
+                                                  kvp("modifiedCount", static_cast<int64_t>(modified.size())),
+                                                  kvp("deletedCount", static_cast<int64_t>(deletedIds.size())),
+                                                  kvp("added", arrAdded),
+                                                  kvp("modified", arrModified),
+                                                  kvp("deleted", arrDeleted)
+                                                  )),
+                               // Contadores Sets
+                               kvp("sets", make_document(
+                                               kvp("added", arrSetsAdded),
+                                               kvp("deleted", arrSetsDeleted)
+                                               )),
+                               // Contadores Groups
+                               kvp("groups", make_document(
+                                                 kvp("added", arrGroupsAdded),
+                                                 kvp("deleted", arrGroupsDeleted)
+                                                 ))
+                               ))
+            );
+
+        _versionsCollection.insert_one(versionDoc.view());
+        spdlog::info("Incremental version '{}' created. (Sets: +{}/-{}, Groups: +{}/-{})",
+                     versionName, setsAdded.size(), setsDeleted.size(), groupsAdded.size(), groupsDeleted.size());
+        return true;
+
+    } catch (const std::exception& ex) {
+        errorMsg = ex.what();
+        return false;
+    }
+}
+bool SpaceObjectDBManager::createVersionSnapshotInternal(const std::vector<nlohmann::json>& data,
+                                                         const std::string& versionName,
+                                                         const std::string& comment,
+                                                         std::string& errorMsg)
+{
+    try {
+        using bsoncxx::builder::basic::kvp;
+        using bsoncxx::builder::basic::make_document;
+        using bsoncxx::builder::basic::make_array;
+
+        // 1. Timestamp actual
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&now_c), "%Y-%m-%dT%H:%M:%S");
+
+        // 2. Convertir el vector de JSON a BSON Array
+        // Esto es mucho más eficiente que leer de la BBDD porque ya tenemos los datos en RAM
+        bsoncxx::builder::basic::array objectsArray;
+        for (const auto& obj : data) {
+            objectsArray.append(njsonToBsoncxx(obj));
+        }
+
+        // 3. Crear el documento de versión
+        auto versionDoc = make_document(
+            kvp("versionName", versionName),
+            kvp("comment", comment),
+            kvp("timestamp", ss.str()),
+            kvp("type", "full_snapshot"), // Marcamos que es completa
+            kvp("objectCount", static_cast<int64_t>(data.size())),
+            kvp("snapshot", objectsArray)
+            );
+
+        // 4. Insertar en la colección de versiones
+        _versionsCollection.insert_one(versionDoc.view());
+
+        spdlog::info("Full Version snapshot '{}' created successfully.", versionName);
+        return true;
+
+    } catch (const std::exception& ex) {
+        errorMsg = ex.what();
+        spdlog::error("Failed to create version snapshot: {}", errorMsg);
         return false;
     }
 }

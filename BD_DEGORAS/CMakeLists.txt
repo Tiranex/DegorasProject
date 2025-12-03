@@ -103,6 +103,7 @@ add_executable(App_SpaceObjectManager
     ${PROJECT_SOURCES}
     addobjectdialog.h addobjectdialog.cpp addobjectdialog.ui
     loggersetup.h loggersetup.cpp
+    qtlogsink.h
 
 )
 

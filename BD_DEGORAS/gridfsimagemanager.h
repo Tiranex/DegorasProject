@@ -16,6 +16,11 @@ public:
     std::string downloadImageByName(const std::string& nameInDB);
     bool deleteImageByName(const std::string& nameInDB);
 
+    // Verificar si existe un archivo
+    bool exists(const std::string& filename);
+    // Listar todas las imágenes
+    std::vector<std::string> getAllImageNames();
+
 private:
     mongocxx::gridfs::bucket _gridfsBucket;
     mongocxx::collection _gridfsFilesCollection;

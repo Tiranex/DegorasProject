@@ -7,6 +7,8 @@
 #include <vector>
 #include "json_helpers.h"
 #include "SpaceObjectDBManager.h"
+#include <QIntValidator>
+#include <QDoubleValidator>
 
 namespace Ui {
 class AddObjectDialog;
@@ -20,11 +22,9 @@ public:
     explicit AddObjectDialog(QWidget *parent = nullptr);
     ~AddObjectDialog();
 
-    // Carga la lista de GRUPOS (Categorías internas)
-    void setAvailableGroups(const std::set<std::string>& groups);
-
-    // Carga la lista de SETS (Listas de observación)
-    void setAvailableSets(const std::set<std::string>& sets);
+    // En addobjectdialog.h
+    void setAvailableSets(const std::vector<std::string> &sets);
+    void setAvailableGroups(const std::vector<std::string> &groups);
 
     // Pasa el puntero del gestor de base de datos
     void setDbManager(SpaceObjectDBManager* dbManager);
@@ -41,6 +41,12 @@ public:
     // Activa el modo edición (bloquea el ID/NORAD)
     void setEditMode(bool enable);
 
+    void on_selectDBImageBtn_clicked();
+
+    void setExistingObjects(const std::vector<nlohmann::json>* objects);
+
+
+
 private slots:
     void on_browseImageBtn_clicked();
     void on_saveButton_clicked();
@@ -51,6 +57,11 @@ private:
     QString m_selectedImagePath;
     SpaceObjectDBManager* m_dbManager = nullptr;
     bool m_isEditMode = false;
+
+    void setFieldState(QWidget* widget, const QString& state); // state: "error", "warning", ""
+    void validateFormLive();
+    int m_storedEnablement = 1;
+    const std::vector<nlohmann::json>* m_existingObjects = nullptr;
 };
 
 #endif // ADDOBJECTDIALOG_H
