@@ -119,8 +119,7 @@ void MainWindow::on_actionLoad_triggered()
         }
     }
 
-    //QString path_test = SalaraSettings::instance().getGlobalConfigString("SalaraProjectDataPaths/SP_CurrentObservations");
-    QString filePath = QFileDialog::getOpenFileName(this, "Open Tracking File","test_path");
+    QString filePath = QFileDialog::getOpenFileName(this, "Open Tracking File", QCoreApplication::applicationDirPath());
 
     if (!filePath.isEmpty()) {
         loadTrackingData(filePath);
@@ -388,16 +387,55 @@ void MainWindow::on_actionSave_triggered()
         return;
     }
 
+    // Get Last saved file path
+    QSettings* settings = DegorasSettings::instance().config();
+    const QString settingKey = "Paths/LastSaveDir";
+
+    QString storedDir;
+
+    // Only read if settings initilized correctly
+    if(settings)
+    {
+        storedDir = settings->value(settingKey).toString();
+    }
+
+    // If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
+    if(storedDir.isEmpty() || !QDir(storedDir).exists())
+    {
+        if(!m_currentFilePath.isEmpty()) // Check if current file path is not empty for whatever reason
+        {
+            storedDir = QFileInfo(m_currentFilePath).absolutePath(); // Get its directory path (not file path)
+        }
+        else // Current File Path empty. Default to project path
+        {
+            storedDir = QCoreApplication::applicationDirPath();
+        }
+    }
+
     // 1. Use getSaveFileName (not getOpenFileName)
     // 2. Add the filter string "Description (*.ext)"
     QString filter = "Tracking Files (*.dptr)";
     QString filePath = QFileDialog::getSaveFileName(this,
                                                     "Save Tracking File",
-                                                    QDir::homePath(), // Or use a specific default folder
+                                                    storedDir, // Use last stored save path if possible
                                                     filter);
 
     // 3. Check if the path is NOT empty (User did not click Cancel)
     if (!filePath.isEmpty()) {
+
+        // -------- Save path for next use ----------------
+        // Get the selected folder path
+        QString newDir = QFileInfo(filePath).absolutePath();
+        // Save it
+        settings->setValue(settingKey, newDir);
+        // Optional: sync to disk
+        settings->sync();
+        // Ensure correct extension
+        if(!filePath.endsWith(".dptr", Qt::CaseInsensitive))
+        {
+            filePath += ".dptr";
+        }
+        // ------------------------------------------------
 
         // 4. Manually ensure the extension is present
         // (Some OS file dialogs don't auto-append the extension)

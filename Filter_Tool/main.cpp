@@ -4,12 +4,54 @@
 #include <QColor>
 #include "class_mainwindow.h"
 
+#include "degoras_settings.h"
+#include <QDir>
+#include <QDebug>
+#include <QStandardPaths> // OPTIONAL
+
 // Assuming these are available from your project
 #include <global_utils.h>
 
 int main( int argc, char **argv )
 {
     QApplication a( argc, argv );
+
+    // Initialize DegorasSettings -----------------
+
+    QString configFilePath;
+
+    // --- DEFAULT OPTION: .ini files in Project Directory (Portable) ---
+
+    // WARNING: Make sure to have read/write permissions in folder
+    QString appDir = QCoreApplication::applicationDirPath(); // Will be /FilterTool PREGUNTAR
+    QDir portableDir(appDir);
+
+    if(!portableDir.exists("config"))
+    {
+        portableDir.mkpath("config");
+    }
+
+    configFilePath = portableDir.filePath("config/settings.ini");
+
+    // --- ALTERNATIVE: .ini files in StandardPath (Single User Config) ---
+/*
+    QString singleUserPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir singleUserDir(singleUserPath);
+
+    if(!singleUserDir.exists())
+    {
+        singleUserDir.mkpath(".");
+    }
+
+    configFilePath = singleUserDir.filePath("settings.ini");
+*/
+    // --------------------------------------------
+    // Initilize singleton
+    DegorasSettings::instance().initialize(configFilePath);
+    // --------------------------------------------
+
+
+
 
     // Initialize your application utilities if needed
     //GlobalUtils::initApp("Filter Tool", "Filter Tool", NAME_SPACEOBJECTSMANAGERCONFIGFILE, ICON_SPACEOBJECTSMANAGER);
