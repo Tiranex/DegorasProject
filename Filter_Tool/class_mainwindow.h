@@ -28,6 +28,9 @@ public:
 protected:
     void closeEvent(QCloseEvent* event) override;
 
+    //Adición Mario, para copiar las estadísticas
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
 private slots:
     // Slots for UI actions from .ui file (auto-connected)
     void on_pb_load_clicked();
@@ -65,6 +68,7 @@ private slots:
     void on_redoButton_clicked();
 
     void on_deselectButton_clicked();
+
 
 private:
     void setupConnections();
