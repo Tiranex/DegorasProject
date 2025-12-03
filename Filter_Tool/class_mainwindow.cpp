@@ -18,6 +18,10 @@
 #include <QClipboard>
 #include <QToolTip>
 
+// Last Save/Load Directory Settings
+#include "degoras_settings.h"
+#include <QDir>
+// <QFileInfo> already present
 
 #include <Tracking/trackingfilemanager.h>
 #include <datafilter.h>
