@@ -705,10 +705,31 @@ void MainWindow::on_pb_recalculate_clicked()
 //adición MARIO: cargar CPF
 void MainWindow::on_pb_loadCPF_clicked()
 {
+
+    QString baseDir = QDir::fromNativeSeparators("T:/builds/DegorasProjectLite-main/DeployData/data/SP_DataFiles/SP_CPF");
+
+    QString filter = "CPF Files (*.cpf *.sgf *dgf *.npt *.tjr);;All Files (*)";
+    QString dialogTitle = "Select CPF File";
+
+
+    if (m_trackingData) {
+
+        QString currentFileName = QFileInfo(m_trackingData->file_name).fileName();
+        QStringList parts = currentFileName.split('_');
+
+
+        if (parts.size() >= 4) {
+            QString satID = parts[3];
+            filter = QString("Satellite %1 (*%1*.cpf *%1*.npt *%1*.tjr);;All Files (*)").arg(satID);
+            dialogTitle = "Select CPF for Satellite " + satID;
+            qDebug() << "Auto-filter for Satellite ID:" << satID;
+        }
+    }
+
     QString path = QFileDialog::getOpenFileName(this,
-                                                "Select CPF File",
-                                                QDir::homePath(),
-                                                "CPF Files (*.cpf *.npt *.tjr);;All Files (*)");
+                                                dialogTitle,
+                                                baseDir,
+                                                filter);
 
     if (!path.isEmpty()) {
         m_cpfPath = path;
