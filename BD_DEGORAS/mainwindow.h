@@ -42,7 +42,6 @@ private slots:
     void on_addNewObjectSetButton_clicked();
     void on_editObjectButton_clicked();
     void on_deleteObjectSetButton_clicked();
-    void on_searchObjectButton_clicked();
 
     // Visualización
     void refreshMainTable(); // Ahora leerá de m_localCache
@@ -64,7 +63,10 @@ private slots:
     // --- DATA MENU & SEARCH ---
     void exportToCSV();
     void importFromJSON();
-    void on_searchLineEdit_textChanged(const QString &arg1);
+    // Search Slots
+    void on_LineEditSpaceObjects_textChanged(const QString &arg1); // Tab 1
+    void on_searchLineEditSet_textChanged(const QString &arg1);    // Tab 2
+    void on_searchLineEditGroups_textChanged(const QString &arg1); // Tab 3
 
     // --- NUEVO: SAVE / VERSIONING ---
     void on_saveChangesToDbButton_clicked(); // Botón "Commit"
@@ -114,6 +116,9 @@ private:
 
     // Helper para marcar la UI como "Sucia" (Cambios pendientes)
     void setUnsavedChanges(bool changed);
+
+    // Helper
+    void applyTableFilter(QTableWidget* table, const QString& text);
 };
 
 #endif // MAINWINDOW_H

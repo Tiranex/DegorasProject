@@ -72,9 +72,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->filterAllRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
     connect(ui->filterEnabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
     connect(ui->filterDisabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
-    connect(ui->showAllObjectsCheckBox, &QCheckBox::toggled, this, &MainWindow::refreshMainTable);
-    connect(ui->searchLineEdit, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEdit_textChanged);
-
+    connect(ui->LineEditSpaceObjects, &QLineEdit::textChanged, this, &MainWindow::on_LineEditSpaceObjects_textChanged);
+    connect(ui->searchLineEditSet, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditSet_textChanged);
+    connect(ui->searchLineEditGroups, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditGroups_textChanged);
     // Tab Sets
     connect(ui->setsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_setsListWidget_itemSelectionChanged);
     connect(ui->setsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
@@ -307,47 +307,6 @@ void MainWindow::on_deleteObjectSetButton_clicked()
     logMessage("[Memory] Objects deleted.");
 }
 
-void MainWindow::on_searchObjectButton_clicked()
-{
-    // Búsqueda en memoria
-    if (m_searchDialog) { m_searchDialog->activateWindow(); return; }
-
-    m_searchDialog = std::make_unique<QInputDialog>(nullptr);
-    m_searchDialog->setWindowTitle("Search in Memory");
-    m_searchDialog->setLabelText("Enter NORAD:");
-    m_searchDialog->setModal(false);
-
-    QInputDialog* ptr = m_searchDialog.get();
-    connect(ptr, &QInputDialog::finished, this, [this, ptr](int r){
-        if (r == QDialog::Accepted && !ptr->textValue().isEmpty()) {
-            int64_t id = ptr->textValue().toLongLong();
-
-            auto it = std::find_if(m_localCache.begin(), m_localCache.end(),
-                                   [id](const nlohmann::json& j){ return j["_id"] == id; });
-
-            if (it != m_localCache.end()) {
-                // Reset UI para mostrarlo
-                ui->showAllObjectsCheckBox->blockSignals(true);
-                ui->showAllObjectsCheckBox->setChecked(false); // Quitar filtro 'all' si afecta visualización
-                ui->showAllObjectsCheckBox->blockSignals(false);
-
-                // Forzamos tabla con solo este objeto
-                std::vector<nlohmann::json> l; l.push_back(*it);
-                populateMainTable(l);
-
-                if(ui->mainObjectTable->rowCount() > 0) {
-                    ui->mainObjectTable->selectRow(0);
-                    on_mainObjectTable_selectionChanged();
-                }
-                logMessage("Object found in memory.");
-            } else {
-                QMessageBox::information(this, "Search", "Not found in local cache.");
-            }
-        }
-        if(m_searchDialog) { m_searchDialog.release()->deleteLater(); }
-    });
-    m_searchDialog->show();
-}
 
 // --- SAVE COMMIT ---
 
@@ -483,28 +442,74 @@ void MainWindow::closeEvent(QCloseEvent *event)
 // --- ASIGNACIONES EN MEMORIA (Tab 2/3) ---
 
 void MainWindow::on_assignToSetButton_clicked() {
-    auto objs = ui->mainObjectTable->selectionModel()->selectedRows();
-    auto sets = ui->setsListWidget->selectedItems();
-    if(objs.empty() || sets.empty()) return;
+
+    // 1. Determine active table (Prioritize setsViewTable in this tab)
+    QTableWidget* activeTable = ui->setsViewTable;
+
+    // Fallback: If setsViewTable has no selection, check mainObjectTable
+    if (!activeTable->selectionModel()->hasSelection()) {
+        activeTable = ui->mainObjectTable;
+    }
+
+    auto selectedRows = activeTable->selectionModel()->selectedRows();
+    auto selectedSets = ui->setsListWidget->selectedItems();
+
+    // 2. Validation
+    if(selectedRows.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select an Object in the table first.");
+        return;
+    }
+    if(selectedSets.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select a target Set in the list.");
+        return;
+    }
 
     int idCol = g_tableHeaders.indexOf("NORAD");
-    for(const auto& idx : objs) {
-        int64_t id = ui->mainObjectTable->item(idx.row(), idCol)->text().toLongLong();
+    int count = 0;
+
+    // 3. Process Assignment in Memory
+    for(const auto& idx : selectedRows) {
+        int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
+
         for(auto& o : m_localCache) {
             if(o["_id"] == id) {
-                std::vector<std::string> cur = o.value("Sets", std::vector<std::string>());
-                for(auto s : sets) {
-                    std::string n = s->text().toStdString();
-                    if(std::find(cur.begin(), cur.end(), n) == cur.end()) cur.push_back(n);
+                // Get current sets vector
+                std::vector<std::string> curSets = o.value("Sets", std::vector<std::string>());
+
+                bool modified = false;
+                for(auto s : selectedSets) {
+                    std::string setName = s->text().toStdString();
+                    // Avoid duplicates: only add if not present
+                    if(std::find(curSets.begin(), curSets.end(), setName) == curSets.end()) {
+                        curSets.push_back(setName);
+                        modified = true;
+                    }
                 }
-                o["Sets"] = cur;
+
+                if(modified) {
+                    o["Sets"] = curSets;
+                    count++;
+                }
+                break;
             }
         }
     }
-    setUnsavedChanges(true);
-    refreshMainTable();
-    // Forzar refresco de la vista sets si el set asignado está seleccionado
-    on_setsListWidget_itemSelectionChanged();
+
+    // 4. Update UI and State
+    if (count > 0) {
+        setUnsavedChanges(true);
+        refreshMainTable(); // Refresh main table
+
+        // Log success
+        QString msg = "Assigned " + QString::number(count) + " object(s) to selected Set(s).";
+        logMessage("[Action] " + msg);
+        ui->statusbar->showMessage(msg, 3000);
+
+        // Optional: If you want to see the result immediately (refresh the view to match the clicked set),
+        // you could uncheck the box here. For now, we leave it as is to allow multiple operations.
+    } else {
+        QMessageBox::information(this, "Info", "The object is already assigned to the selected Set(s).");
+    }
 }
 
 void MainWindow::on_removeFromSetButton_clicked() {
@@ -537,26 +542,73 @@ void MainWindow::on_removeFromSetButton_clicked() {
 }
 
 void MainWindow::on_assignToGroupButton_clicked() {
-    auto objs = ui->mainObjectTable->selectionModel()->selectedRows();
-    auto groups = ui->groupsListWidget->selectedItems();
-    if(objs.empty() || groups.empty()) return;
+
+    // 1. Determine active table (Prioritize groupsViewTable in this tab)
+    QTableWidget* activeTable = ui->groupsViewTable;
+
+    // Fallback: If groupsViewTable has no selection, check mainObjectTable
+    if (!activeTable->selectionModel()->hasSelection()) {
+        activeTable = ui->mainObjectTable;
+    }
+
+    auto selectedRows = activeTable->selectionModel()->selectedRows();
+    auto selectedGroups = ui->groupsListWidget->selectedItems();
+
+    // 2. Validation
+    if(selectedRows.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select an Object in the table first.");
+        return;
+    }
+    if(selectedGroups.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select a target Group in the list.");
+        return;
+    }
+
     int idCol = g_tableHeaders.indexOf("NORAD");
-    for(const auto& idx : objs) {
-        int64_t id = ui->mainObjectTable->item(idx.row(), idCol)->text().toLongLong();
+    int count = 0;
+
+    // 3. Process Assignment in Memory
+    for(const auto& idx : selectedRows) {
+        int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
+
         for(auto& o : m_localCache) {
             if(o["_id"] == id) {
-                std::vector<std::string> cur = o.value("Groups", std::vector<std::string>());
-                for(auto g : groups) {
-                    std::string n = g->text().toStdString();
-                    if(std::find(cur.begin(), cur.end(), n) == cur.end()) cur.push_back(n);
+                // Get current Groups vector
+                std::vector<std::string> curGroups = o.value("Groups", std::vector<std::string>());
+
+                bool modified = false;
+                for(auto g : selectedGroups) {
+                    std::string groupName = g->text().toStdString();
+                    // Avoid duplicates
+                    if(std::find(curGroups.begin(), curGroups.end(), groupName) == curGroups.end()) {
+                        curGroups.push_back(groupName);
+                        modified = true;
+                    }
                 }
-                o["Groups"] = cur;
+
+                if(modified) {
+                    o["Groups"] = curGroups;
+                    count++;
+                }
+                break;
             }
         }
     }
-    setUnsavedChanges(true);
-    refreshMainTable();
-    on_groupsListWidget_itemSelectionChanged();
+
+    // 4. Update UI and State
+    if (count > 0) {
+        setUnsavedChanges(true);
+        refreshMainTable(); // Refresh main table to show changes
+
+        QString msg = "Assigned " + QString::number(count) + " object(s) to selected Group(s).";
+        logMessage("[Action] " + msg);
+        ui->statusbar->showMessage(msg, 3000);
+
+        // Optional: Trigger refresh of the current view if lock is off,
+        // or just rely on manual refresh.
+    } else {
+        QMessageBox::information(this, "Info", "The object is already assigned to the selected Group(s).");
+    }
 }
 
 void MainWindow::on_removeFromGroupButton_clicked() {
@@ -666,17 +718,54 @@ void MainWindow::setupLogTable()
     ui->logTable->horizontalHeader()->setStretchLastSection(true);
 }
 
+
+// Tab 1: Space Objects Search
+void MainWindow::on_LineEditSpaceObjects_textChanged(const QString &arg1) {
+    applyTableFilter(ui->mainObjectTable, arg1);
+}
+
+// Tab 2: Sets Search
+void MainWindow::on_searchLineEditSet_textChanged(const QString &arg1) {
+    applyTableFilter(ui->setsViewTable, arg1);
+}
+
+// Tab 3: Groups Search
+void MainWindow::on_searchLineEditGroups_textChanged(const QString &arg1) {
+    applyTableFilter(ui->groupsViewTable, arg1);
+}
 void MainWindow::on_tabWidget_currentChanged(int index)
 {
     if (!dbManager) return;
-    // En las pestañas 1 y 2, los ListWidgets ya se mantienen actualizados en memoria
-    // Solo forzamos la vista de tabla para reflejar cambios
+
+    // TAB 0: MAIN SPACE OBJECTS
     if (index == 0) {
+        // 1. Load Data (This resets the table showing all rows)
         refreshMainTable();
-    } else if (index == 1) {
+
+        // 2. Re-apply Filter immediately if text exists
+        if (ui->LineEditSpaceObjects && !ui->LineEditSpaceObjects->text().isEmpty()) {
+            applyTableFilter(ui->mainObjectTable, ui->LineEditSpaceObjects->text());
+        }
+    }
+    // TAB 1: SETS
+    else if (index == 1) {
+        // 1. Load Data based on selected sets
         on_setsListWidget_itemSelectionChanged();
-    } else if (index == 2) {
+
+        // 2. Re-apply Filter immediately
+        if (ui->searchLineEditSet && !ui->searchLineEditSet->text().isEmpty()) {
+            applyTableFilter(ui->setsViewTable, ui->searchLineEditSet->text());
+        }
+    }
+    // TAB 2: GROUPS
+    else if (index == 2) {
+        // 1. Load Data based on selected groups
         on_groupsListWidget_itemSelectionChanged();
+
+        // 2. Re-apply Filter immediately
+        if (ui->searchLineEditGroups && !ui->searchLineEditGroups->text().isEmpty()) {
+            applyTableFilter(ui->groupsViewTable, ui->searchLineEditGroups->text());
+        }
     }
 }
 
@@ -773,43 +862,96 @@ void MainWindow::refreshGroupListWidget()
 
 void MainWindow::on_setsListWidget_itemSelectionChanged()
 {
-    if (ui->setsListWidget->selectedItems().isEmpty()) {
-        populateReadOnlyTable(ui->setsViewTable, m_localCache); // Mostrar todo si vacio
+    // --- LOCK VIEW LOGIC ---
+    // If the checkbox is checked, we do NOT refresh the table.
+    if (ui->CheckBoxSets && ui->CheckBoxSets->isChecked()) {
         return;
     }
-    std::set<std::string> sets;
-    for(auto i : ui->setsListWidget->selectedItems()) sets.insert(i->text().toStdString());
 
-    // Filtro en Memoria
+    // Safety checks
+    if (!ui->setsListWidget || !ui->setsViewTable) return;
+
+    if (ui->setsListWidget->selectedItems().isEmpty()) {
+        populateReadOnlyTable(ui->setsViewTable, m_localCache); // Show all if empty
+        return;
+    }
+
+    std::set<std::string> sets;
+    for(auto i : ui->setsListWidget->selectedItems()) {
+        if (i) sets.insert(i->text().toStdString());
+    }
+
+    // Filter in Memory
     std::vector<nlohmann::json> filtered;
-    for(const auto& obj : m_localCache) {
-        if(obj.contains("Sets") && obj["Sets"].is_array()) {
-            for(const auto& s : obj["Sets"]) {
-                if(sets.count(s.get<std::string>())) { filtered.push_back(obj); break; }
+
+    try {
+        for(const auto& obj : m_localCache) {
+            if(obj.contains("Sets") && obj["Sets"].is_array()) {
+                for(const auto& s : obj["Sets"]) {
+
+                    // --- CRASH FIX ---
+                    // Verify that the element is actually a string before accessing it.
+                    // This prevents crashes if the array contains 'null' or numbers.
+                    if (s.is_string()) {
+                        if(sets.count(s.get<std::string>())) {
+                            filtered.push_back(obj);
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
+    catch (const std::exception& e) {
+        spdlog::error("Error filtering sets: {}", e.what());
+    }
+
     populateReadOnlyTable(ui->setsViewTable, filtered);
 }
-
 void MainWindow::on_groupsListWidget_itemSelectionChanged()
 {
-    if (ui->groupsListWidget->selectedItems().isEmpty()) {
-        populateReadOnlyTable(ui->groupsViewTable, m_localCache); // Todo
+    // --- LOCK VIEW LOGIC ---
+    // If the checkbox is checked, we do NOT refresh the table.
+    // This allows selecting a target Group in the list without losing the table selection.
+    if (ui->CheckBoxGroups && ui->CheckBoxGroups->isChecked()) {
         return;
     }
+
+    // Safety checks
+    if (!ui->groupsListWidget || !ui->groupsViewTable) return;
+
+    if (ui->groupsListWidget->selectedItems().isEmpty()) {
+        populateReadOnlyTable(ui->groupsViewTable, m_localCache); // Show all
+        return;
+    }
+
     std::set<std::string> groups;
-    for(auto i : ui->groupsListWidget->selectedItems()) groups.insert(i->text().toStdString());
+    for(auto i : ui->groupsListWidget->selectedItems()) {
+        if(i) groups.insert(i->text().toStdString());
+    }
 
     // Filter MEMORY
     std::vector<nlohmann::json> filtered;
-    for(const auto& obj : m_localCache) {
-        if(obj.contains("Groups") && obj["Groups"].is_array()) {
-            for(const auto& g : obj["Groups"]) {
-                if(groups.count(g.get<std::string>())) { filtered.push_back(obj); break; }
+
+    try {
+        for(const auto& obj : m_localCache) {
+            if(obj.contains("Groups") && obj["Groups"].is_array()) {
+                for(const auto& g : obj["Groups"]) {
+                    // CRASH FIX: Check if string before access
+                    if (g.is_string()) {
+                        if(groups.count(g.get<std::string>())) {
+                            filtered.push_back(obj);
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
+    catch (const std::exception& e) {
+        spdlog::error("Error filtering groups: {}", e.what());
+    }
+
     populateReadOnlyTable(ui->groupsViewTable, filtered);
 }
 
@@ -1101,22 +1243,36 @@ void MainWindow::handleUniversalContextMenu(const QPoint &pos, QTableWidget* tab
     }
 }
 
-void MainWindow::on_searchLineEdit_textChanged(const QString &text) {
+// Helper function to filter rows in any table
+void MainWindow::applyTableFilter(QTableWidget* table, const QString& text) {
+    if (!table) return;
+
     QRegularExpression regex(text, QRegularExpression::CaseInsensitiveOption);
     if (!regex.isValid()) return;
-    int index = ui->tabWidget->currentIndex();
-    QTableWidget* t = (index==0)?ui->mainObjectTable : (index==1)?ui->setsViewTable : ui->groupsViewTable;
-    int visibleCount = 0;
-    for(int i=0; i<t->rowCount(); ++i) {
-        bool m = false;
-        if(text.isEmpty()) m=true;
-        else for(int j=1; j<5; ++j) if(t->item(i,j)->text().contains(regex)) { m=true; break; }
-        t->setRowHidden(i, !m);
-        if(m) visibleCount++;
-    }
-    if(ui->lblCountVisible) ui->lblCountVisible->setText("Visible: " + QString::number(visibleCount));
-}
 
+    int visibleCount = 0;
+    for(int i = 0; i < table->rowCount(); ++i) {
+        bool match = false;
+        if(text.isEmpty()) {
+            match = true;
+        } else {
+            // Search columns 1 to 4 (Avoid column 0 which might be hidden ID)
+            for(int j = 1; j < 5 && j < table->columnCount(); ++j) {
+                if(table->item(i, j) && table->item(i, j)->text().contains(regex)) {
+                    match = true;
+                    break;
+                }
+            }
+        }
+        table->setRowHidden(i, !match);
+        if(match) visibleCount++;
+    }
+
+    // Update label only if we are on the main table
+    if (table == ui->mainObjectTable && ui->lblCountVisible) {
+        ui->lblCountVisible->setText("Visible: " + QString::number(visibleCount));
+    }
+}
 void MainWindow::exportToCSV() {
     QString fn = QFileDialog::getSaveFileName(this, "Export", QDir::homePath(), "CSV (*.csv)");
     if(fn.isEmpty()) return;
