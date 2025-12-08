@@ -1,109 +1,101 @@
 #include "cpf_predictor.h"
-#include <cmath>
 #include <QDebug>
+#include <cmath>
 
+// --- NAMESPACES (Vital para evitar el error 'no member named dpbase') ---
+using namespace dpbase::timing::dates;
+using namespace dpbase::timing::types;
+using namespace dpslr::geo::types;
+using namespace dpslr::geo::meteo;
 
-const double C_LIGHT = 299792458.0;
+// Constantes
+const double SEC_TO_PS = 1.0e12;
+const double PI = 3.14159265358979323846;
+const double DEG_TO_RAD = PI / 180.0;
 
-using namespace dpslr::ilrs::cpf;
+// --- FUNCIÓN AUXILIAR (Privada en el .cpp) ---
+// Calcula X, Y, Z a partir de Lat, Lon, Alt
+void toGeocentricWGS84(const GeodeticPointDeg& geo, GeocentricPoint& outXyz)
+{
+    const double a = 6378137.0;             // Radio mayor
+    const double f = 1.0 / 298.257223563;   // Aplanamiento
+    const double e2 = 2*f - f*f;            // Excentricidad
 
-CPFPredictor::CPFPredictor() : m_cpfLib(1.0f) { // Inicializa con versión dummy
-    // Coordenadas San Fernando (ROA) por defecto
-    st_x = 5105445.163;
-    st_y = -555145.748;
-    st_z = 3769803.483;
+    double lat_rad = static_cast<double>(geo.lat) * DEG_TO_RAD;
+    double lon_rad = static_cast<double>(geo.lon) * DEG_TO_RAD;
+    double alt_m   = static_cast<double>(geo.alt);
+
+    double sin_lat = std::sin(lat_rad);
+    double cos_lat = std::cos(lat_rad);
+    double N = a / std::sqrt(1.0 - e2 * sin_lat * sin_lat);
+
+    outXyz.x = (N + alt_m) * cos_lat * std::cos(lon_rad);
+    outXyz.y = (N + alt_m) * cos_lat * std::sin(lon_rad);
+    outXyz.z = (N * (1.0 - e2) + alt_m) * sin_lat;
+}
+
+// =========================================================
+
+CPFPredictor::CPFPredictor() {
+    // Coordenadas por defecto San Fernando
+    setStationCoordinates(36.4624, -6.2062, 197.0);
 }
 
 CPFPredictor::~CPFPredictor() {}
 
-void CPFPredictor::setStationCoordinates(double x, double y, double z) {
-    st_x = x; st_y = y; st_z = z;
+void CPFPredictor::setStationCoordinates(double lat_deg, double lon_deg, double alt_m) {
+    // Guardamos en las variables de TU .h
+    m_stationGeodetic.lat = lat_deg;
+    m_stationGeodetic.lon = lon_deg;
+    m_stationGeodetic.alt = alt_m;
 }
 
 bool CPFPredictor::load(const QString& filePath) {
+    try {
+        // 1. CALCULAMOS LA GEOCÉNTRICA (X, Y, Z)
+        // Esto rellena m_stationGeocentric automáticamente usando las matemáticas
+        toGeocentricWGS84(m_stationGeodetic, m_stationGeocentric);
 
-    auto error = m_cpfLib.openCPFFile(filePath.toStdString(), CPF::OpenOptionEnum::ALL_DATA);
+        // 2. INICIALIZAMOS EL MOTOR
+        m_engine = std::make_unique<PredictorSlrCPF>(
+            filePath.toStdString(),
+            m_stationGeodetic,
+            m_stationGeocentric
+            );
 
-    if (error != CPF::ReadFileErrorEnum::NOT_ERROR &&
-        error != CPF::ReadFileErrorEnum::HEADER_LOAD_WARNING) {
-        qDebug() << "Error loading CPF with LibDegoras. Error Code:" << static_cast<int>(error);
+        // 3. CONFIGURACIÓN FÍSICA
+        m_engine->setPredictionMode(PredictorSlrBase::PredictionMode::INSTANT_VECTOR);
+        m_engine->enableCorrections(true);
+        m_engine->setTropoCorrParams(1013.0, 293.0, 0.50, 0.532, WtrVapPressModel::GIACOMO_DAVIS);
+
+        return m_engine->isReady();
+
+    } catch (const std::exception& e) {
+        qDebug() << "Error loading CPF:" << e.what();
         return false;
     }
-
-    return m_cpfLib.hasData();
 }
 
+long long CPFPredictor::calculateTwoWayTOF(int mjd, double seconds_of_day) {
+    if (!m_engine || !m_engine->isReady()) return 0;
 
-double CPFPredictor::interpolateLagrange(double target_s, int start_idx, int comp) {
+    // Crear tiempo
+    MJDate date(mjd);
+    SoD sod(seconds_of_day);
+    MJDateTime time(date, sod);
 
-    const auto& records = m_cpfLib.getData().positionRecords();
+    PredictionSLR result;
+    auto error = m_engine->predict(time, result);
 
-    double result = 0.0;
-    int max_size = static_cast<int>(records.size());
-    int end_idx = (start_idx + 8 > max_size) ? max_size : start_idx + 8;
-
-    for (int i = start_idx; i < end_idx; i++) {
-        // En LibDegoras: geo_pos.x es comp 0, y es 1, z es 2
-        double val_i = (comp == 0) ? records[i].geo_pos.x :
-                           (comp == 1) ? records[i].geo_pos.y :
-                           records[i].geo_pos.z;
-
-        double term = val_i;
-
-        for (int j = start_idx; j < end_idx; j++) {
-            if (i != j) {
-                double num = target_s - records[j].sod; // sod = Seconds of Day
-                double den = records[i].sod - records[j].sod;
-                term *= (num / den);
-            }
-        }
-        result += term;
-    }
-    return result;
-}
-
-long long CPFPredictor::calculateTwoWayTOF(int shot_mjd, unsigned long long shot_time_ns) {
-
-    const auto& records = m_cpfLib.getData().positionRecords();
-    if (records.empty()) return 0;
-
-    double shot_seconds = shot_time_ns * 1.0e-9;
-    int idx = -1;
-
-
-
-    int limit = static_cast<int>(records.size()) - 9;
-    for (int i = 0; i < limit; ++i) {
-
-        if (records[i].mjd == shot_mjd &&
-            records[i].sod <= shot_seconds &&
-            records[i+1].sod > shot_seconds) {
-
-            idx = i - 3; // Centrar Lagrange
-            if (idx < 0) idx = 0;
-            break;
-        }
-
-        // Manejo básico de cruce de día (Si el disparo es al día siguiente del registro actual)
-        if (shot_mjd > records[i].mjd) {
-            // Lógica más compleja requerida para cruce exacto,
-            // por ahora buscamos coincidencia exacta de día.
-        }
+    // CORRECCIÓN DEL ERROR ROJO: Casteamos el Enum a int
+    if (error != static_cast<unsigned int>(PredictorSlrCPF::PredictionError::NOT_ERROR)) {
+        return 0;
     }
 
-    if (idx == -1) return 0; // No encontrado en este CPF
+    if (result.instant_data.has_value()) {
+        double tof_seconds = static_cast<double>(result.instant_data->tof_2w);
+        return static_cast<long long>(tof_seconds * SEC_TO_PS);
+    }
 
-
-    double sat_x = interpolateLagrange(shot_seconds, idx, 0);
-    double sat_y = interpolateLagrange(shot_seconds, idx, 1);
-    double sat_z = interpolateLagrange(shot_seconds, idx, 2);
-
-    double dx = sat_x - st_x;
-    double dy = sat_y - st_y;
-    double dz = sat_z - st_z;
-
-    double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
-    double tof = (2.0 * dist) / C_LIGHT;
-
-    return static_cast<long long>(tof * 1.0e12); // Picosegundos
+    return 0;
 }

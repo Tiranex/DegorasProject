@@ -1,32 +1,30 @@
-#ifndef CPF_PREDICTOR_H
-#define CPF_PREDICTOR_H
-
-
 #pragma once
 
 #include <QString>
+#include "LibDegorasSLR/UtilitiesSLR/predictors/predictor_slr_cpf.h"
 
-#include <LibDegorasSLR/ILRS/formats/cpf/cpf.h>
-#include <LibDegorasSLR/ILRS/formats/cpf/records/cpf_data.h>
+using namespace dpslr::slr::predictors;
+using namespace dpslr::geo::types;
 
 class CPFPredictor {
 public:
-
     CPFPredictor();
     ~CPFPredictor();
 
+    // Configurar coordenadas de la estación (San Fernando)
+    void setStationCoordinates(double lat_deg, double lon_deg, double alt_m);
+
+    // Carga el archivo y prepara el predictor
     bool load(const QString& filePath);
 
-    long long calculateTwoWayTOF(int mjd, unsigned long long time_ns);
-
-    // Configurar coordenadas de la estación (San Fernando por defecto)
-    void setStationCoordinates(double x, double y, double z);
+    // Calcula el Tiempo de Vuelo (Ida y Vuelta) teórico en Picosegundos
+    long long calculateTwoWayTOF(int mjd, double seconds_of_day);
 
 private:
+    // Puntero inteligente o instancia directa del predictor de la librería
+    std::unique_ptr<PredictorSlrCPF> m_engine;
 
-    dpslr::ilrs::cpf::CPF m_cpfLib;
-    double st_x, st_y, st_z;
-    double interpolateLagrange(double target_s, int start_idx, int comp);
+    // Coordenadas guardadas para reiniciar el predictor
+    GeodeticPointDeg m_stationGeodetic;
+    GeocentricPoint m_stationGeocentric;
 };
-
-#endif // CPF_H
