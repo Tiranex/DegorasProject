@@ -35,15 +35,15 @@
 #include "plot.h"
 
 /// @file errorplot.h
-/// @brief Contiene la definición de la clase ErrorPlot, una gráfica especializada en residuos.
+/// @brief Contains the definition of the ErrorPlot class, a specialized residual plot.
 
 /**
  * @class ErrorPlot
- * @brief Implementa una gráfica Qwt especializada para visualizar desviaciones o errores.
+ * @brief Implements a specialized Qwt plot for visualizing deviations or errors.
  *
- * Hereda de la clase Plot y añade funcionalidades específicas para el análisis estadístico,
- * incluyendo el cálculo de desviación estándar (STD), el establecimiento dinámico de umbrales
- * (como 2.5*STD) mediante QwtPlotMarkers, y el ajuste simétrico de los ejes Y.
+ * It inherits from the Plot class and adds specific functionalities for statistical analysis,
+ * including the calculation of the Standard Deviation (STD), the dynamic establishment of thresholds
+ * (such as 2.5*STD) using QwtPlotMarkers, and the symmetric adjustment of the Y-axes.
  */
 
 class ErrorPlot : public Plot
@@ -53,50 +53,50 @@ class ErrorPlot : public Plot
 public:
 
     /**
-    * @brief Constructor de la gráfica de errores.
-    *
-    * Inicializa los ejes, configura el dibujado de escala de tiempo en el eje superior,
-    * y crea los dos marcadores horizontales (mark_thresh1 y mark_thresh2)
-    * que indicarán los umbrales de desviación.
-    *
-    * @param parent Widget padre de la gráfica.
-    * @param title Título de la gráfica.
-    */
+ * @brief Constructor for the error plot.
+ *
+ * Initializes the axes, configures the time scale drawing on the top axis,
+ * and creates the two horizontal markers (mark_thresh1 and mark_thresh2)
+ * that will indicate the deviation thresholds.
+ *
+ * @param parent Parent widget of the plot.
+ * @param title Title of the plot.
+ */
 
     ErrorPlot( QWidget *parent = nullptr, QString title = "");
 
     /**
-    * @brief Procesa, establece y ajusta dinámicamente la gráfica de errores.
-    *
-    * Esta función es el motor del análisis. Realiza la limpieza de datos,
-    * el cálculo de la desviación estándar (STD), establece el umbral de filtrado (2.5*STD),
-    * ajusta las escalas de los ejes y calcula métricas clave como el RMS.
-    *
-    * @param samples Vector de puntos (X: tiempo, Y: desviación o error en picosegundos).
-    *
-    * @post Los ejes X e Y están ajustados al rango de los datos y al umbral calculado,
-    * los marcadores de umbral se han reubicado, y la gráfica se ha repintado.
-    */
+ * @brief Processes, sets, and dynamically adjusts the error plot.
+ *
+ * This function is the engine of the analysis. It performs data cleanup,
+ * the calculation of the **Standard Deviation (STD)**, sets the filtering threshold (**2.5*STD**),
+ * adjusts the axis scales, and calculates key metrics like the **RMS** (Root Mean Square).
+ *
+ * @param samples Vector of points (X: time, Y: deviation or error in picoseconds).
+ *
+ * @post The X and Y axes are adjusted to the data range and the calculated threshold,
+ * the threshold markers have been relocated, and the plot has been redrawn.
+ */
 
     void setSamples( const QVector<QPointF> &samples );
 
     /**
-    * @brief Obtiene las muestras que se encuentran dentro de los umbrales de desviación.
-    *
-    * Esta función filtra el conjunto completo de muestras y devuelve únicamente
-    * los puntos cuya desviación (coordenada Y) está comprendida entre los límites
-    * definidos por los marcadores mark_thresh1 (umbral superior) y mark_thresh2
-    * (umbral inferior), que a su vez representan típicamente +/- 2.5 veces la STD.
-    *
-    * @return QVector<QPointF> Un vector que contiene solo los puntos clasificados
-    * como "inliers" (puntos dentro del umbral de calidad).
-    */
+ * @brief Retrieves the samples that fall within the deviation thresholds.
+ *
+ * This function filters the complete set of samples and returns only
+ * the points whose deviation (Y coordinate) is comprised between the limits
+ * defined by the mark_thresh1 (upper threshold) and mark_thresh2
+ * (lower threshold) markers, which typically represent +/- 2.5 times the STD.
+ *
+ * @return QVector<QPointF> A vector containing only the points classified
+ * as "inliers" (points within the quality threshold).
+ */
 
     QVector<QPointF> getThreshSamples() const;
 
-    /** @name Marcadores de Umbral de Desviación */
+    /** @name Deviation Threshold Markers */
     ///@{
-    QwtPlotMarker *mark_thresh1; ///< Marcador horizontal del umbral superior (e.g., +2.5*STD).
-    QwtPlotMarker *mark_thresh2; ///< Marcador horizontal del umbral inferior (e.g., -2.5*STD).
+    QwtPlotMarker *mark_thresh1; ///< Horizontal marker for the upper threshold (e.g., +2.5*STD).
+    QwtPlotMarker *mark_thresh2; ///< Horizontal marker for the lower threshold (e.g., -2.5*STD).
     ///@}
 };
