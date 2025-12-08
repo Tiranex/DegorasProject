@@ -148,10 +148,37 @@ void MainWindow::on_actionLoad_triggered()
         }
     }
 
-    QString filePath = QFileDialog::getOpenFileName(this, "Open Tracking File", QCoreApplication::applicationDirPath());
+    // 1. Get Last loaded file path
+    QSettings* settings = DegorasSettings::instance().config();
+    const QString settingKey = "Paths/LastLoadDir";
 
+    QString storedDir;
+
+    // Only read if settings initilized correctly
+    if(settings)
+    {
+        storedDir = settings->value(settingKey).toString();
+    }
+
+    // 2. If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
+    if(storedDir.isEmpty() || !QDir(storedDir).exists())
+    {
+        storedDir = QCoreApplication::applicationDirPath(); // Returns 'build' directory instead of 'workspace/DegorasProject/...'.
+    }
+
+    // 3. Dialog: getOpenFileName + filter string "Description (*.ext)"
+    QString filter = "Tracking Files (*.dptr)";
+    QString filePath = QFileDialog::getOpenFileName(this, "Open Tracking File", storedDir, filter);
+
+    // 4. Load Data
     if (!filePath.isEmpty()) {
         loadTrackingData(filePath);
+
+        // --- 5. Save path for next use ---
+        QString newDir = QFileInfo(filePath).absolutePath();
+        settings->setValue(settingKey, newDir);
+        settings->sync();
+        // ---------------------------------
     }
 }
 
@@ -416,7 +443,7 @@ void MainWindow::on_actionSave_triggered()
         return;
     }
 
-    // Get Last saved file path
+    // 1. Get Last saved file path
     QSettings* settings = DegorasSettings::instance().config();
     const QString settingKey = "Paths/LastSaveDir";
 
@@ -428,51 +455,49 @@ void MainWindow::on_actionSave_triggered()
         storedDir = settings->value(settingKey).toString();
     }
 
-    // If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
+    // 2. If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
     if(storedDir.isEmpty() || !QDir(storedDir).exists())
     {
-        if(!m_currentFilePath.isEmpty()) // Check if current file path is not empty for whatever reason
+        if(!m_currentFilePath.isEmpty()) // Check if current file path variable is empty for whatever reason
         {
             storedDir = QFileInfo(m_currentFilePath).absolutePath(); // Get its directory path (not file path)
         }
         else // Current File Path empty. Default to project path
         {
-            storedDir = QCoreApplication::applicationDirPath();
+            storedDir = QCoreApplication::applicationDirPath(); // Returns 'build' directory instead of 'workspace/DegorasProject/...'. Does that make sense?
         }
     }
 
-    // 1. Use getSaveFileName (not getOpenFileName)
-    // 2. Add the filter string "Description (*.ext)"
+    // 3. Combine folder + current filename to pre-fill the dialog
+    QString currentFileName = QFileInfo(m_currentFilePath).fileName();
+    QString initialPath = QDir(storedDir).filePath(currentFileName);
+
+    // 4. Dialog: getSaveFileName + filter string "Description (*.ext)"
     QString filter = "Tracking Files (*.dptr)";
     QString filePath = QFileDialog::getSaveFileName(this,
                                                     "Save Tracking File",
-                                                    storedDir, // Use last stored save path if possible
+                                                    initialPath, // Use last stored save path if possible
                                                     filter);
 
-    // 3. Check if the path is NOT empty (User did not click Cancel)
+    // Check if the path is NOT empty (User did not click Cancel)
     if (!filePath.isEmpty()) {
 
-        // -------- Save path for next use ----------------
+        // ------- 5. Save path for next use --------------
         // Get the selected folder path
         QString newDir = QFileInfo(filePath).absolutePath();
         // Save it
         settings->setValue(settingKey, newDir);
         // Optional: sync to disk
         settings->sync();
-        // Ensure correct extension
-        if(!filePath.endsWith(".dptr", Qt::CaseInsensitive))
-        {
-            filePath += ".dptr";
-        }
         // ------------------------------------------------
 
-        // 4. Manually ensure the extension is present
+        // 6. Manually ensure the extension is present
         // (Some OS file dialogs don't auto-append the extension)
         if (!filePath.endsWith(".dptr", Qt::CaseInsensitive)) {
             filePath += ".dptr";
         }
 
-        // Update the internal data structure with the current valid samples from the plot
+        // 7. Update the internal data structure with the current valid samples from the plot
         QVector<QPointF> validSamples = ui->filterPlot->getSelectedSamples();
         std::set<unsigned long long> validTimes;
         for(const auto& p : validSamples) {
@@ -501,8 +526,16 @@ void MainWindow::on_actionSave_triggered()
             }
         }
 
-        // 5. Perform the write operation
+        // 8. Perform the write operation
         TrackingFileManager::writeTrackingPrivate(this->m_trackingData->data, filePath);
+
+        // -----------------------------
+        // 9. Update internal path variable
+        m_currentFilePath = filePath;
+        ui ->le_filePath->setText(m_currentFilePath);
+        onFilterSaved();
+        DegorasInformation::showInfo("Filter Tool", "File saved successfully.", "", this);
+        // -----------------------------
     }
 }
 
@@ -706,14 +739,31 @@ void MainWindow::on_pb_recalculate_clicked()
 void MainWindow::on_pb_loadCPF_clicked()
 {
 
-    QString baseDir = QDir::fromNativeSeparators("T:/builds/DegorasProjectLite-main/DeployData/data/SP_DataFiles/SP_CPF");
+    // 1. Get Last loaded CPF file path
+    QSettings* settings = DegorasSettings::instance().config();
+    const QString settingKey = "Paths/LastLoadCPFDir";
+
+    QString storedDir;
+
+    // Only read if settings initilized correctly
+    if(settings)
+    {
+        storedDir = settings->value(settingKey).toString();
+    }
+
+    // 2. If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
+    if(storedDir.isEmpty() || !QDir(storedDir).exists())
+    {   // Default path
+        storedDir = QCoreApplication::applicationDirPath(); // Returns 'build' directory instead of 'workspace/DegorasProject/...'.
+    }
+
+    //QString storedDir = QDir::fromNativeSeparators("T:/builds/DegorasProjectLite-main/DeployData/data/SP_DataFiles/SP_CPF");
 
     QString filter = "CPF Files (*.cpf *.sgf *dgf *.npt *.tjr);;All Files (*)";
     QString dialogTitle = "Select CPF File";
 
 
     if (m_trackingData) {
-
         QString currentFileName = QFileInfo(m_trackingData->file_name).fileName();
         QStringList parts = currentFileName.split('_');
 
@@ -728,13 +778,20 @@ void MainWindow::on_pb_loadCPF_clicked()
 
     QString path = QFileDialog::getOpenFileName(this,
                                                 dialogTitle,
-                                                baseDir,
+                                                storedDir,
                                                 filter);
 
+    // 3. Load Data
     if (!path.isEmpty()) {
         m_cpfPath = path;
         ui->le_cpfPath->setText(path);
         ui->pb_recalculate->setEnabled(true);
+
+        // --- 5. Save path for next use ---
+        QString newDir = QFileInfo(path).absolutePath();
+        settings->setValue(settingKey, newDir);
+        settings->sync();
+        // ---------------------------------
     }
 }
 
