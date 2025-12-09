@@ -6,7 +6,6 @@
 #define GRIDFS_IMAGE_MANAGER_H
 
 #include <string>
-#include <vector> // Required for std::vector in getAllImageNames
 #include <mongocxx/database.hpp>
 #include <mongocxx/gridfs/bucket.hpp>
 #include <mongocxx/collection.hpp>
