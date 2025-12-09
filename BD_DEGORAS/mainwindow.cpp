@@ -75,6 +75,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->LineEditSpaceObjects, &QLineEdit::textChanged, this, &MainWindow::on_LineEditSpaceObjects_textChanged);
     connect(ui->searchLineEditSet, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditSet_textChanged);
     connect(ui->searchLineEditGroups, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditGroups_textChanged);
+    //Save Button
+    connect(ui->GlobalSaveButton, &QPushButton::clicked, this, &MainWindow::on_saveChangesToDbButton_clicked);
     // Tab Sets
     connect(ui->setsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_setsListWidget_itemSelectionChanged);
     connect(ui->setsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
@@ -323,26 +325,30 @@ void MainWindow::createDatabaseVersion()
 {
     QDialog dlg(this);
     dlg.setWindowTitle("Commit Changes");
-    dlg.setMinimumWidth(400);
+    dlg.setMinimumWidth(500);
 
     QVBoxLayout* l = new QVBoxLayout(&dlg);
     QFormLayout* f = new QFormLayout();
     QLineEdit* nameEd = new QLineEdit(&dlg);
     QPlainTextEdit* commEd = new QPlainTextEdit(&dlg);
 
-
-    // --- NUEVO CHECKBOX ---
-    QCheckBox* chkIncremental = new QCheckBox("Save as Incremental (Changes Only)", &dlg);
-    chkIncremental->setChecked(true); // Recomendado activarlo por defecto
-    chkIncremental->setToolTip("If checked, only modified objects are saved in history.\nUncheck to save a full backup copy.");
-
-
     f->addRow("Version Name:", nameEd);
     f->addRow("Comment:", commEd);
     l->addLayout(f);
 
+    QCheckBox* chkIncremental = new QCheckBox("Save as Incremental (Changes Only)", &dlg);
+    chkIncremental->setChecked(true);
+    chkIncremental->setToolTip("If checked, only modified objects are saved in history.\nUncheck to save a full backup copy.");
+
     QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    l->addWidget(bb);
+
+    QHBoxLayout* bottomLayout = new QHBoxLayout();
+    bottomLayout->addWidget(chkIncremental);
+    bottomLayout->addStretch();
+    bottomLayout->addWidget(bb);
+
+    l->addLayout(bottomLayout);
+
     connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
 
@@ -358,7 +364,6 @@ void MainWindow::createDatabaseVersion()
 
         QApplication::setOverrideCursor(Qt::WaitCursor);
 
-        // 1. Procesar Imágenes Pendientes
         bool imagesOk = true;
         for(auto& obj : m_localCache) {
             if (obj.contains("_tempLocalImgPath")) {
@@ -378,21 +383,15 @@ void MainWindow::createDatabaseVersion()
         }
 
         if(imagesOk) {
-            // 2. PREPARAR SETS/GROUPS PARA DB
-            // CORRECCIÓN: Tu DBManager espera std::set, no hace falta convertir a vector.
-            // Pasamos m_localSets y m_localGroups directamente.
-
-            // Determinar modo
             SaveMode mode = chkIncremental->isChecked() ? SaveMode::INCREMENTAL : SaveMode::FULL_SNAPSHOT;
 
-            // Llamada actualizada
             ok = dbManager->saveAllAndVersion(m_localCache, m_localSets, m_localGroups,
                                               nameEd->text().toStdString(),
                                               commEd->toPlainText().toStdString(),
-                                              mode, // <--- Pasamos el modo
+                                              mode,
                                               err);
         }
-        // 4. GARBAGE COLLECTOR
+
         if (ok) {
             std::vector<std::string> allDbImages = dbManager->getImageManager().getAllImageNames();
             std::set<std::string> usedImages;
@@ -420,7 +419,6 @@ void MainWindow::createDatabaseVersion()
         }
     }
 }
-
 void MainWindow::setUnsavedChanges(bool changed)
 {
     m_hasUnsavedChanges = changed;
@@ -443,20 +441,16 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::on_assignToSetButton_clicked() {
 
-    // 1. Determine active table (Prioritize setsViewTable in this tab)
+    // 1. Define active table (Strictly the Sets View Table)
+    // We removed the fallback to ui->mainObjectTable.
     QTableWidget* activeTable = ui->setsViewTable;
-
-    // Fallback: If setsViewTable has no selection, check mainObjectTable
-    if (!activeTable->selectionModel()->hasSelection()) {
-        activeTable = ui->mainObjectTable;
-    }
 
     auto selectedRows = activeTable->selectionModel()->selectedRows();
     auto selectedSets = ui->setsListWidget->selectedItems();
 
     // 2. Validation
     if(selectedRows.empty()) {
-        QMessageBox::warning(this, "Warning", "Please select an Object in the table first.");
+        QMessageBox::warning(this, "Warning", "Please select an Object in the current table (Sets View).");
         return;
     }
     if(selectedSets.empty()) {
@@ -498,15 +492,17 @@ void MainWindow::on_assignToSetButton_clicked() {
     // 4. Update UI and State
     if (count > 0) {
         setUnsavedChanges(true);
-        refreshMainTable(); // Refresh main table
+        refreshMainTable(); // Refresh main table to keep data consistent
 
-        // Log success
+        // Refresh the current view to reflect changes immediately
+        // (Unless locked, but manual refresh is handled by the loop logic usually)
+        if (!ui->CheckBoxSets->isChecked()) {
+            on_setsListWidget_itemSelectionChanged();
+        }
+
         QString msg = "Assigned " + QString::number(count) + " object(s) to selected Set(s).";
         logMessage("[Action] " + msg);
         ui->statusbar->showMessage(msg, 3000);
-
-        // Optional: If you want to see the result immediately (refresh the view to match the clicked set),
-        // you could uncheck the box here. For now, we leave it as is to allow multiple operations.
     } else {
         QMessageBox::information(this, "Info", "The object is already assigned to the selected Set(s).");
     }
@@ -543,20 +539,16 @@ void MainWindow::on_removeFromSetButton_clicked() {
 
 void MainWindow::on_assignToGroupButton_clicked() {
 
-    // 1. Determine active table (Prioritize groupsViewTable in this tab)
+    // 1. Define active table (Strictly the Groups View Table)
+    // Removed fallback to ui->mainObjectTable to prevent cross-tab actions.
     QTableWidget* activeTable = ui->groupsViewTable;
-
-    // Fallback: If groupsViewTable has no selection, check mainObjectTable
-    if (!activeTable->selectionModel()->hasSelection()) {
-        activeTable = ui->mainObjectTable;
-    }
 
     auto selectedRows = activeTable->selectionModel()->selectedRows();
     auto selectedGroups = ui->groupsListWidget->selectedItems();
 
     // 2. Validation
     if(selectedRows.empty()) {
-        QMessageBox::warning(this, "Warning", "Please select an Object in the table first.");
+        QMessageBox::warning(this, "Warning", "Please select an Object in the current table (Groups View).");
         return;
     }
     if(selectedGroups.empty()) {
@@ -600,17 +592,20 @@ void MainWindow::on_assignToGroupButton_clicked() {
         setUnsavedChanges(true);
         refreshMainTable(); // Refresh main table to show changes
 
+        // Refresh the current view to reflect changes immediately
+        // (Unless locked)
+        if (!ui->CheckBoxGroups->isChecked()) {
+            on_groupsListWidget_itemSelectionChanged();
+        }
+
         QString msg = "Assigned " + QString::number(count) + " object(s) to selected Group(s).";
         logMessage("[Action] " + msg);
         ui->statusbar->showMessage(msg, 3000);
 
-        // Optional: Trigger refresh of the current view if lock is off,
-        // or just rely on manual refresh.
     } else {
         QMessageBox::information(this, "Info", "The object is already assigned to the selected Group(s).");
     }
 }
-
 void MainWindow::on_removeFromGroupButton_clicked() {
     QList<QModelIndex> sel;
     bool fromView = false;
@@ -696,6 +691,7 @@ void MainWindow::setupTables()
         table->setSelectionBehavior(QAbstractItemView::SelectRows);
         table->setSelectionMode(QAbstractItemView::ExtendedSelection);
         table->setContextMenuPolicy(Qt::CustomContextMenu);
+        table->horizontalHeader()->setSectionsMovable(true);
     };
     ui->mainObjectTable->setSortingEnabled(true);
     configTable(ui->mainObjectTable);

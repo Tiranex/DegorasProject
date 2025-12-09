@@ -222,7 +222,7 @@
     <rect>
      <x>640</x>
      <y>30</y>
-     <width>254</width>
+     <width>325</width>
      <height>511</height>
     </rect>
    </property>
@@ -337,7 +337,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Save</string>
+    <string>Save Object</string>
    </property>
   </widget>
   <widget class="QPushButton" name="cancelButton">

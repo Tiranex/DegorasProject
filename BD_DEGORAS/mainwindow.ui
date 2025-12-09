@@ -20,11 +20,11 @@
       <x>0</x>
       <y>0</y>
       <width>1571</width>
-      <height>541</height>
+      <height>551</height>
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -333,9 +333,22 @@
        <rect>
         <x>620</x>
         <y>30</y>
-        <width>113</width>
+        <width>281</width>
         <height>28</height>
        </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_3">
+      <property name="geometry">
+       <rect>
+        <x>520</x>
+        <y>30</y>
+        <width>101</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Search Object:</string>
       </property>
      </widget>
     </widget>
@@ -458,9 +471,22 @@
         <rect>
          <x>630</x>
          <y>40</y>
-         <width>211</width>
+         <width>281</width>
          <height>28</height>
         </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_2">
+       <property name="geometry">
+        <rect>
+         <x>530</x>
+         <y>40</y>
+         <width>101</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Search Object:</string>
        </property>
       </widget>
      </widget>
@@ -570,11 +596,24 @@
      <widget class="QLineEdit" name="searchLineEditGroups">
       <property name="geometry">
        <rect>
-        <x>600</x>
-        <y>30</y>
-        <width>201</width>
+        <x>630</x>
+        <y>40</y>
+        <width>281</width>
         <height>28</height>
        </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label">
+      <property name="geometry">
+       <rect>
+        <x>530</x>
+        <y>40</y>
+        <width>101</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Search Object:</string>
       </property>
      </widget>
     </widget>
@@ -585,7 +624,7 @@
       <x>90</x>
       <y>550</y>
       <width>1031</width>
-      <height>171</height>
+      <height>211</height>
      </rect>
     </property>
     <property name="editTriggers">
@@ -597,6 +636,19 @@
     <attribute name="verticalHeaderVisible">
      <bool>false</bool>
     </attribute>
+   </widget>
+   <widget class="QPushButton" name="GlobalSaveButton">
+    <property name="geometry">
+     <rect>
+      <x>1160</x>
+      <y>560</y>
+      <width>90</width>
+      <height>29</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Save</string>
+    </property>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
