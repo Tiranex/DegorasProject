@@ -148,10 +148,37 @@ void MainWindow::on_actionLoad_triggered()
         }
     }
 
-    QString filePath = QFileDialog::getOpenFileName(this, "Open Tracking File", QCoreApplication::applicationDirPath());
+    // 1. Get Last loaded file path
+    QSettings* settings = DegorasSettings::instance().config();
+    const QString settingKey = "Paths/LastLoadDir";
 
+    QString storedDir;
+
+    // Only read if settings initilized correctly
+    if(settings)
+    {
+        storedDir = settings->value(settingKey).toString();
+    }
+
+    // 2. If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
+    if(storedDir.isEmpty() || !QDir(storedDir).exists())
+    {
+        storedDir = QCoreApplication::applicationDirPath(); // Returns 'build' directory instead of 'workspace/DegorasProject/...'.
+    }
+
+    // 3. Dialog: getOpenFileName + filter string "Description (*.ext)"
+    QString filter = "Tracking Files (*.dptr)";
+    QString filePath = QFileDialog::getOpenFileName(this, "Open Tracking File", storedDir, filter);
+
+    // 4. Load Data
     if (!filePath.isEmpty()) {
         loadTrackingData(filePath);
+
+        // --- 5. Save path for next use ---
+        QString newDir = QFileInfo(filePath).absolutePath();
+        settings->setValue(settingKey, newDir);
+        settings->sync();
+        // ---------------------------------
     }
 }
 
@@ -416,7 +443,7 @@ void MainWindow::on_actionSave_triggered()
         return;
     }
 
-    // Get Last saved file path
+    // 1. Get Last saved file path
     QSettings* settings = DegorasSettings::instance().config();
     const QString settingKey = "Paths/LastSaveDir";
 
@@ -428,51 +455,49 @@ void MainWindow::on_actionSave_triggered()
         storedDir = settings->value(settingKey).toString();
     }
 
-    // If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
+    // 2. If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
     if(storedDir.isEmpty() || !QDir(storedDir).exists())
     {
-        if(!m_currentFilePath.isEmpty()) // Check if current file path is not empty for whatever reason
+        if(!m_currentFilePath.isEmpty()) // Check if current file path variable is empty for whatever reason
         {
             storedDir = QFileInfo(m_currentFilePath).absolutePath(); // Get its directory path (not file path)
         }
         else // Current File Path empty. Default to project path
         {
-            storedDir = QCoreApplication::applicationDirPath();
+            storedDir = QCoreApplication::applicationDirPath(); // Returns 'build' directory instead of 'workspace/DegorasProject/...'. Does that make sense?
         }
     }
 
-    // 1. Use getSaveFileName (not getOpenFileName)
-    // 2. Add the filter string "Description (*.ext)"
+    // 3. Combine folder + current filename to pre-fill the dialog
+    QString currentFileName = QFileInfo(m_currentFilePath).fileName();
+    QString initialPath = QDir(storedDir).filePath(currentFileName);
+
+    // 4. Dialog: getSaveFileName + filter string "Description (*.ext)"
     QString filter = "Tracking Files (*.dptr)";
     QString filePath = QFileDialog::getSaveFileName(this,
                                                     "Save Tracking File",
-                                                    storedDir, // Use last stored save path if possible
+                                                    initialPath, // Use last stored save path if possible
                                                     filter);
 
-    // 3. Check if the path is NOT empty (User did not click Cancel)
+    // Check if the path is NOT empty (User did not click Cancel)
     if (!filePath.isEmpty()) {
 
-        // -------- Save path for next use ----------------
+        // ------- 5. Save path for next use --------------
         // Get the selected folder path
         QString newDir = QFileInfo(filePath).absolutePath();
         // Save it
         settings->setValue(settingKey, newDir);
         // Optional: sync to disk
         settings->sync();
-        // Ensure correct extension
-        if(!filePath.endsWith(".dptr", Qt::CaseInsensitive))
-        {
-            filePath += ".dptr";
-        }
         // ------------------------------------------------
 
-        // 4. Manually ensure the extension is present
+        // 6. Manually ensure the extension is present
         // (Some OS file dialogs don't auto-append the extension)
         if (!filePath.endsWith(".dptr", Qt::CaseInsensitive)) {
             filePath += ".dptr";
         }
 
-        // Update the internal data structure with the current valid samples from the plot
+        // 7. Update the internal data structure with the current valid samples from the plot
         QVector<QPointF> validSamples = ui->filterPlot->getSelectedSamples();
         std::set<unsigned long long> validTimes;
         for(const auto& p : validSamples) {
@@ -501,8 +526,16 @@ void MainWindow::on_actionSave_triggered()
             }
         }
 
-        // 5. Perform the write operation
+        // 8. Perform the write operation
         TrackingFileManager::writeTrackingPrivate(this->m_trackingData->data, filePath);
+
+        // -----------------------------
+        // 9. Update internal path variable
+        m_currentFilePath = filePath;
+        ui ->le_filePath->setText(m_currentFilePath);
+        onFilterSaved();
+        DegorasInformation::showInfo("Filter Tool", "File saved successfully.", "", this);
+        // -----------------------------
     }
 }
 
@@ -618,102 +651,109 @@ void MainWindow::on_pb_calcStats_clicked()
 // adición MARIO: funcionamiento botón recalcular una vez cargado el CPF (esta función estaba pero vacía)
 void MainWindow::on_pb_recalculate_clicked()
 {
-
-
-    // 1. Validaciones de seguridad
     if (!m_trackingData) return;
 
-    // Si el usuario escribió la ruta a mano en vez de usar el botón Load, la cogemos del texto
-    if (m_cpfPath.isEmpty()) {
-        m_cpfPath = ui->le_cpfPath->text();
-    }
+    // Cargar el Motor
+    CPFPredictor predictor;
 
-    if (m_cpfPath.isEmpty()) {
-        QMessageBox::warning(this, "Warning", "Please load a CPF file first.");
+
+    if (!predictor.load(m_cpfPath)) {
+        QMessageBox::critical(this, "Error", "Failed to initialize CPF Predictor with file:\n" + m_cpfPath);
         return;
     }
 
-    // 2. Cargar el objeto CPF
-    CPFPredictor newPrediction;
-    if (!newPrediction.load(m_cpfPath)) {
-        QMessageBox::critical(this, "Error", "Could not parse the CPF file.");
-        return;
-    }
-
-    // 3. Procesamiento (Iterar sobre TODOS los datos, incluso el ruido)
-    // Usamos un ProgressDialog por si son muchos datos
-    QProgressDialog progress("Recalculating Residuals...", "Abort", 0, m_trackingData->listAll().size(), this);
+    // Recalcular cada punto
+    QProgressDialog progress("Recalculating Orbit...", "Abort", 0, m_trackingData->listAll().size(), this);
     progress.setWindowModality(Qt::WindowModal);
 
-    int counter = 0;
-    for (TrackingData::Echo* echo : m_trackingData->listAll()) {
+    int count = 0;
+    for (auto* echo : m_trackingData->listAll()) {
         if (progress.wasCanceled()) break;
 
-        // A. Calcular el TOF teórico con el nuevo CPF
-        // Pasamos el MJD y el tiempo en nanosegundos del disparo
-        long long predicted_ps = newPrediction.calculateTwoWayTOF(echo->mjd, echo->time);
+        // Conversión de tiempo: echo->time suele ser ns del día o del pase
+        // Asumimos acceso al "seconds of day" (SoD).
+        // Si echo->time son nanosegundos del día:
+        double sod = static_cast<double>(echo->time) * 1.0e-9;
 
+        // LLAMADA AL MOTOR
+        long long predicted_tof_ps = predictor.calculateTwoWayTOF(echo->mjd, sod);
 
-
-
-        // --- PEGA AQUÍ EL DEBUG (Solo imprimirá el primero para no saturar) ---
-        if (counter == 0)
-        {
-            qDebug() << "========================================";
-            qDebug() << "TEST DE RECALCULO:";
-            qDebug() << "MJD:" << echo->mjd << " Time(ns):" << echo->time;
-            qDebug() << "Vuelo Real (ps):" << echo->flight_time;
-            qDebug() << "Predicción (ps):" << predicted_ps;
-            qDebug() << "Diferencia (ps):" << (echo->flight_time - predicted_ps);
-
-            if (predicted_ps == 0) {
-                qDebug() << "ALERTA: La predicción ha dado 0. Revisa fechas o carga del CPF.";
-            }
-            qDebug() << "========================================";
+        if (predicted_tof_ps > 0) {
+            // Actualizamos el RESIDUO (Observed - Calculated)
+            // echo->flight_time es el observado en ps
+            echo->difference = echo->flight_time - predicted_tof_ps;
         }
 
-
-
-
-
-
-
-
-
-
-
-
-        // B. IMPORTANTE: Actualizar el residuo
-        // Residuo = Observado (Hardware) - Calculado (CPF)
-        // echo->flight_time es el valor crudo del láser.
-        echo->difference = echo->flight_time - predicted_ps;
-
-        counter++;
-        if (counter % 100 == 0) progress.setValue(counter);
+        count++;
+        if (count % 100 == 0) progress.setValue(count);
     }
     progress.setValue(m_trackingData->listAll().size());
 
-    // 4. Actualizar la interfaz gráfica
-    updatePlots();      // Redibuja los puntos verdes con las nuevas alturas Y
-    onFilterChanged();  // Marca que hay cambios sin guardar
+    // 3. Refrescar todo
+    updatePlots();
+    onFilterChanged(); // Para recalcular estadísticas con los nuevos residuos
 
-    // Informar al usuario
-    ui->lbl_sessionID->setText("Recalculated with: " + QFileInfo(m_cpfPath).fileName());
-
+    ui->lbl_sessionID->setText("Recalculated: " + QFileInfo(m_cpfPath).fileName());
+    DegorasInformation::showInfo("Recalculation", "Residuals updated using new CPF.", "", this);
 }
 
 //adición MARIO: cargar CPF
 void MainWindow::on_pb_loadCPF_clicked()
 {
-    QString path = QFileDialog::getOpenFileName(this,
-                                                "Select CPF File",
-                                                QDir::homePath(),
-                                                "CPF Files (*.cpf *.npt *.tjr);;All Files (*)");
 
+    // 1. Get Last loaded CPF file path
+    QSettings* settings = DegorasSettings::instance().config();
+    const QString settingKey = "Paths/LastLoadCPFDir";
+
+    QString storedDir;
+
+    // Only read if settings initilized correctly
+    if(settings)
+    {
+        storedDir = settings->value(settingKey).toString();
+    }
+
+    // 2. If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
+    if(storedDir.isEmpty() || !QDir(storedDir).exists())
+    {   // Default path
+        storedDir = QCoreApplication::applicationDirPath(); // Returns 'build' directory instead of 'workspace/DegorasProject/...'.
+    }
+
+    //QString storedDir = QDir::fromNativeSeparators("T:/builds/DegorasProjectLite-main/DeployData/data/SP_DataFiles/SP_CPF");
+
+    QString filter = "CPF Files (*.cpf *.sgf *dgf *.npt *.tjr);;All Files (*)";
+    QString dialogTitle = "Select CPF File";
+
+
+    if (m_trackingData) {
+        QString currentFileName = QFileInfo(m_trackingData->file_name).fileName();
+        QStringList parts = currentFileName.split('_');
+
+
+        if (parts.size() >= 4) {
+            QString satID = parts[3];
+            filter = QString("Satellite %1 (*%1*.cpf *%1*.npt *%1*.tjr);;All Files (*)").arg(satID);
+            dialogTitle = "Select CPF for Satellite " + satID;
+            qDebug() << "Auto-filter for Satellite ID:" << satID;
+        }
+    }
+
+    QString path = QFileDialog::getOpenFileName(this,
+                                                dialogTitle,
+                                                storedDir,
+                                                filter);
+
+    // 3. Load Data
     if (!path.isEmpty()) {
         m_cpfPath = path;
         ui->le_cpfPath->setText(path);
         ui->pb_recalculate->setEnabled(true);
+
+        // --- 5. Save path for next use ---
+        QString newDir = QFileInfo(path).absolutePath();
+        settings->setValue(settingKey, newDir);
+        settings->sync();
+        // ---------------------------------
     }
 }
 
