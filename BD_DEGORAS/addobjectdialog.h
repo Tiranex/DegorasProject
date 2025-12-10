@@ -7,6 +7,7 @@
 #include <vector>
 #include "json_helpers.h"
 #include "SpaceObjectDBManager.h"
+#include "pluginmanager.h"
 #include <QIntValidator>
 #include <QDoubleValidator>
 
@@ -51,6 +52,7 @@ private slots:
     void on_browseImageBtn_clicked();
     void on_saveButton_clicked();
     void on_cancelButton_clicked();
+    void on_searchPluginBtn_clicked();
 
 private:
     Ui::AddObjectDialog *ui;

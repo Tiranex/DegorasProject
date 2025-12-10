@@ -7,7 +7,7 @@
 #      Jesús Relinque Madroñal
 #
 #  Licensed under the MIT License.
-# =================================T=====================================================================================
+# =================================T====================================================================================
 #   APP SPACEOBJECT MANAGER - CMAKELIST (Versión QT)
 # ======================================================================================================================
 
@@ -42,6 +42,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Core
     Gui
     Widgets
+    Network  # <--- AÑADIDO: Necesario para que el plugin pueda descargar datos
 )
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -96,6 +97,16 @@ set(PROJECT_SOURCES
     json_helpers.cpp
     gridfsimagemanager.h
     gridfsimagemanager.cpp
+
+    # --- ARCHIVOS LEGACY (El Puente) ---
+    interface_plugin.h
+    interface_plugin.cpp
+    interface_spaceobjectsearchengine.h
+    class_spaceobject.h
+    class_spaceobject.cpp
+
+    pluginmanager.h
+    pluginmanager.cpp
 )
 
 # Define the main executable target.
@@ -104,7 +115,6 @@ add_executable(App_SpaceObjectManager
     addobjectdialog.h addobjectdialog.cpp addobjectdialog.ui
     loggersetup.h loggersetup.cpp
     qtlogsink.h
-
 )
 
 # Link required libraries.
@@ -141,4 +151,33 @@ if (MINGW)
         target_link_options(App_SpaceObjectManager PRIVATE -static-libgcc -static-libstdc++)
 endif()
 
+# ==============================================================================
+#  AÑADIR PLUGIN: STANDARD SEARCH ENGINE
+# ==============================================================================
 
+# 1. Definimos los archivos que forman el plugin
+set(PLUGIN_FILES
+    pluginsource/stdsearchengine/stdsearchengine.h
+    pluginsource/stdsearchengine/stdsearchengine.cpp
+    # El plugin necesita estos archivos del núcleo para entender qué es un SpaceObject
+    class_spaceobject.cpp
+    interface_plugin.cpp
+)
+
+# 2. Creamos una "Librería Compartida" (Shared Library = DLL) llamada 'stdsearchengine'
+add_library(stdsearchengine SHARED ${PLUGIN_FILES})
+
+# 3. Le damos las librerías que necesita (Qt Network para descargar cosas)
+target_link_libraries(stdsearchengine PRIVATE Qt::Core Qt::Network)
+
+# 4. Le decimos dónde buscar los archivos .h (en la carpeta raíz del proyecto)
+target_include_directories(stdsearchengine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# 5. [TRUCO] Hacemos que la DLL se guarde automáticamente en la carpeta /plugins junto al .exe
+set_target_properties(stdsearchengine PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins"
+)
+
+# 6. Aseguramos que si limpias el proyecto, también se limpie el plugin
+add_dependencies(App_SpaceObjectManager stdsearchengine)

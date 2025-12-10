@@ -353,6 +353,19 @@
     <string>Cancel</string>
    </property>
   </widget>
+  <widget class="QPushButton" name="searchPluginBtn">
+   <property name="geometry">
+    <rect>
+     <x>980</x>
+     <y>290</y>
+     <width>121</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Auto-Fill</string>
+   </property>
+  </widget>
  </widget>
  <tabstops>
   <tabstop>noradEdit</tabstop>

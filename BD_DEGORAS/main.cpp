@@ -6,6 +6,7 @@
 #include <QColor>
 #include <mongocxx/instance.hpp>
 #include <iostream>
+#include "pluginmanager.h"
 
 // Constant expresions for Logger names.
 constexpr std::string_view kLogger1 = "DegorasMainLogger";
@@ -77,6 +78,10 @@ int main(int argc, char *argv[])
 
     spdlog::info("Global logger [{}] initialized.", kLogger1);
     spdlog::info("Starting Degoras Application...");
+
+    // --- NUEVO: Cargar Plugins ---
+    PluginManager::instance().loadPlugins(); // Busca en la carpeta /plugins junto al .exe
+    spdlog::info("Plugins loaded: {}", PluginManager::instance().getLoadedEngines().join(", ").toStdString());
 
     // 8. Create and show Main Window.
     int exitCode = 0;

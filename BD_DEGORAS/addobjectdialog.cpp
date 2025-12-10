@@ -472,3 +472,42 @@ void AddObjectDialog::validateFormLive()
 void AddObjectDialog::setExistingObjects(const std::vector<nlohmann::json>* objects) {
     m_existingObjects = objects;
 }
+
+void AddObjectDialog::on_searchPluginBtn_clicked()
+{
+    QString noradStr = ui->noradEdit->text().trimmed();
+    if (noradStr.isEmpty()) {
+        QMessageBox::warning(this, "Warning", "Please enter a NORAD ID first.");
+        return;
+    }
+
+    int64_t noradId = noradStr.toLongLong();
+
+    // 1. Deshabilitar UI mientras busca (opcional, por si tarda)
+    this->setCursor(Qt::WaitCursor);
+    ui->searchPluginBtn->setEnabled(false);
+
+    // 2. Llamar al Manager
+    nlohmann::json result = PluginManager::instance().searchSpaceObject(noradId);
+
+    // 3. Reactivar UI
+    this->setCursor(Qt::ArrowCursor);
+    ui->searchPluginBtn->setEnabled(true);
+
+    // 4. Procesar resultado
+    if (result.empty()) {
+        QMessageBox::information(this, "Not Found",
+                                 "Object not found in any loaded plugin.\n\n"
+                                 "Check that you have the DLLs in the 'plugins' folder.");
+    } else {
+        // ¡MAGIA! Reutilizamos tu función de carga existente
+        // Como loadObjectData espera un JSON completo, y el plugin nos da eso...
+        loadObjectData(result);
+
+        // Forzamos validación visual para que se pongan verdes/rojos los campos
+        validateFormLive();
+
+        spdlog::info("Form auto-filled via plugin for NORAD: {}", noradId);
+        QMessageBox::information(this, "Success", "Object data loaded from plugin!");
+    }
+}
