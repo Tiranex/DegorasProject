@@ -678,6 +678,10 @@ void MainWindow::on_tabWidget_currentChanged(int index)
     } else if (index == 2) {
         on_groupsListWidget_itemSelectionChanged();
     }
+    QString currentSearchText = ui->searchLineEdit->text();
+    if (!currentSearchText.isEmpty()) {
+        on_searchLineEdit_textChanged(currentSearchText);
+    }
 }
 
 // --- SELECCIONES & PANELES ---
