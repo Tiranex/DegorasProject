@@ -72,7 +72,11 @@ public:
      * @param v The value in picoseconds (ps).
      * @return The QwtText label showing the value in meters (m).
      */
-    QwtText label(double v) const;
+    QwtText label(double v) const{
+        double light_speed = 0.000299792458;
+        double value = v*light_speed;
+        return QString::number(value, 'd', 3);
+    }
 };
 
 /**
@@ -89,7 +93,10 @@ public:
      * @param v The value in nanoseconds (ns).
      * @return The QwtText label showing the time in "hh:mm:ss" UTC format.
      */
-    QwtText label(double v) const;
+    QwtText label(double v) const{
+        double value_seconds = v*0.000000001;
+        return QDateTime::fromSecsSinceEpoch(uint(value_seconds)).toUTC().toString("hh:mm:ss");
+    }
 };
 
 
