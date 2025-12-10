@@ -81,6 +81,9 @@ private slots:
     // void onMainTableContextMenuRequested(const QPoint &pos);
 
 private:
+    bool m_dirtyMain = true;
+    bool m_dirtySets = true;
+    bool m_dirtyGroups = true;
     Ui::MainWindow *ui;
     std::unique_ptr<SpaceObjectDBManager> dbManager;
 

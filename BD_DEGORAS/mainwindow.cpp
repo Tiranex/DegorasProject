@@ -182,6 +182,7 @@ void MainWindow::refreshMainTable()
     }
 
     populateMainTable(filtered);
+    m_dirtyMain = false;
 }
 
 void MainWindow::on_addNewObjectSetButton_clicked()
@@ -288,6 +289,7 @@ void MainWindow::on_editObjectButton_clicked()
         m_editDialog.reset();
     });
     m_editDialog->show();
+    m_dirtySets = false;
 }
 
 void MainWindow::on_deleteObjectSetButton_clicked()
@@ -425,6 +427,12 @@ void MainWindow::setUnsavedChanges(bool changed)
     QString t = "Degoras Project";
     if (changed) t += " * (Unsaved Changes)";
     this->setWindowTitle(t);
+
+    if (changed) {
+        m_dirtyMain = true;
+        m_dirtySets = true;
+        m_dirtyGroups = true;
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -735,6 +743,7 @@ void MainWindow::on_tabWidget_currentChanged(int index)
 
     // TAB 0: MAIN SPACE OBJECTS
     if (index == 0) {
+        if (m_dirtyMain) {
         // 1. Load Data (This resets the table showing all rows)
         refreshMainTable();
 
@@ -742,9 +751,12 @@ void MainWindow::on_tabWidget_currentChanged(int index)
         if (ui->LineEditSpaceObjects && !ui->LineEditSpaceObjects->text().isEmpty()) {
             applyTableFilter(ui->mainObjectTable, ui->LineEditSpaceObjects->text());
         }
+        m_dirtyMain = false;
+        }
     }
     // TAB 1: SETS
     else if (index == 1) {
+        if (m_dirtySets) {
         // 1. Load Data based on selected sets
         on_setsListWidget_itemSelectionChanged();
 
@@ -752,9 +764,12 @@ void MainWindow::on_tabWidget_currentChanged(int index)
         if (ui->searchLineEditSet && !ui->searchLineEditSet->text().isEmpty()) {
             applyTableFilter(ui->setsViewTable, ui->searchLineEditSet->text());
         }
+        m_dirtySets = false;
+        }
     }
     // TAB 2: GROUPS
     else if (index == 2) {
+        if (m_dirtyGroups) {
         // 1. Load Data based on selected groups
         on_groupsListWidget_itemSelectionChanged();
 
@@ -762,10 +777,8 @@ void MainWindow::on_tabWidget_currentChanged(int index)
         if (ui->searchLineEditGroups && !ui->searchLineEditGroups->text().isEmpty()) {
             applyTableFilter(ui->groupsViewTable, ui->searchLineEditGroups->text());
         }
-    }
-    QString currentSearchText = ui->searchLineEdit->text();
-    if (!currentSearchText.isEmpty()) {
-        on_searchLineEdit_textChanged(currentSearchText);
+        }
+        m_dirtyGroups = false;
     }
 }
 
@@ -953,6 +966,7 @@ void MainWindow::on_groupsListWidget_itemSelectionChanged()
     }
 
     populateReadOnlyTable(ui->groupsViewTable, filtered);
+    m_dirtyGroups = false;
 }
 
 

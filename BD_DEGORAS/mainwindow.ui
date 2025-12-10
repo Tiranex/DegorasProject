@@ -40,19 +40,6 @@
        </rect>
       </property>
      </widget>
-     <widget class="QPushButton" name="searchObjectButton">
-      <property name="geometry">
-       <rect>
-        <x>30</x>
-        <y>240</y>
-        <width>121</width>
-        <height>24</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Search Object</string>
-      </property>
-     </widget>
      <widget class="QPushButton" name="addNewObjectSetButton">
       <property name="geometry">
        <rect>
