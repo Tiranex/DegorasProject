@@ -3,6 +3,7 @@
 #include "SpaceObjectDBManager.h"
 #include "json_helpers.h"
 #include "addobjectdialog.h"
+
 #include "QtLogSink.h"
 
 // QT INCLUDES
@@ -31,6 +32,7 @@
 #include <spdlog/spdlog.h>
 #include <QCoreApplication>
 #include <QThread>
+#include "logwidget.h"
 
 // STD
 #include <string>
@@ -55,7 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
+    m_logWidget = new LogWidget(nullptr);
     // 1. UI Setup
     setupTables();
     setupLogTable();
@@ -675,6 +677,16 @@ void MainWindow::onLogReceived(const QString& msg, const QString& level)
     ui->logTable->setItem(row, 3, createItem(level));
     ui->logTable->setItem(row, 4, createItem(msg));
     ui->logTable->scrollToBottom();
+
+    if (m_logWidget) {
+        QString fullMsg = QString("[%1] [%2] %3")
+        .arg(QDateTime::currentDateTime().toString("HH:mm:ss"), level, msg);
+
+        // AHORA PASAMOS DOS ARGUMENTOS: fullMsg y level
+        QMetaObject::invokeMethod(m_logWidget, "appendLog", Qt::QueuedConnection,
+                                  Q_ARG(QString, fullMsg),
+                                  Q_ARG(QString, level));
+    }
 }
 
 void MainWindow::initIcons()
@@ -1344,4 +1356,12 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
         else if(event->key() == Qt::Key_Enter) on_editObjectButton_clicked();
     }
     QMainWindow::keyPressEvent(event);
+}
+void MainWindow::on_actionShowLogs_triggered()
+{
+    if (m_logWidget) {
+        m_logWidget->show();
+        m_logWidget->raise();
+        m_logWidget->activateWindow();
+    }
 }

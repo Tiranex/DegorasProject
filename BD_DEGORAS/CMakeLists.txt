@@ -115,6 +115,8 @@ add_executable(App_SpaceObjectManager
     addobjectdialog.h addobjectdialog.cpp addobjectdialog.ui
     loggersetup.h loggersetup.cpp
     qtlogsink.h
+    logwidget.h logwidget.cpp
+    connectiondialog.h connectiondialog.cpp
 )
 
 # Link required libraries.

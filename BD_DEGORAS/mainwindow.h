@@ -19,6 +19,7 @@
 #include "SpaceObjectDBManager.h"
 #include "addobjectdialog.h"
 
+class LogWidget;
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -74,6 +75,7 @@ private slots:
 
     // --- LOGGING ---
     void onLogReceived(const QString& msg, const QString& level);
+    void on_actionShowLogs_triggered();
 
 private slots:
     // Slot para context menu
@@ -122,6 +124,7 @@ private:
 
     // Helper
     void applyTableFilter(QTableWidget* table, const QString& text);
+    LogWidget* m_logWidget = nullptr;
 };
 
 #endif // MAINWINDOW_H
