@@ -32,6 +32,7 @@ set(DP_CORE_HEADERS
     include/Tracking/tracking.h
     include/Tracking/trackingfilemanager.h
     include/datafilter.h
+    include/shortcutmanager.h
 )
 
 # Source files (.cpp)
@@ -47,6 +48,7 @@ set(DP_CORE_SOURCES
     sources/Tracking/tracking.cpp
     sources/Tracking/trackingfilemanager.cpp
     sources/datafilter.cpp
+    sources/shortcutmanager.cpp
 )
 
 # Qt Designer UI files (.ui)
