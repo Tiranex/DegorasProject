@@ -23,6 +23,11 @@
 #include <QDir>
 // <QFileInfo> already present
 
+// Keyboard shortcuts
+#include "shortcutmanager.h"
+// <QLabel> already present
+#include <QKeySequenceEdit>
+
 #include <Tracking/trackingfilemanager.h>
 #include <datafilter.h>
 #include <LibDegorasSLR/ILRS/algorithms/data/statistics_data.h>
@@ -40,6 +45,7 @@ m_isChanged(false)
     // Initial state
     updateUIState(false);
     setupConnections();
+    setupShortcuts();
 
     // Creamos una lista con todos los labels que queremos hacer "interactivos"
     QList<QLabel*> statLabels = {
@@ -130,6 +136,48 @@ void MainWindow::clearStatistics()
     ui->lbl_returns->setText("...");
     ui->lbl_echoes->setText("...");
     ui->lbl_noise->setText("...");
+}
+
+void MainWindow::setupShortcuts()
+{
+    //auto& manager = ShortcutManager::instance();
+
+    // ADD CUSTOM SHORTCUTS HERE
+    ShortcutManager::instance().registerButton("load_dptr_file", ui->pb_load, "Ctrl+L");
+
+
+
+}
+
+void MainWindow::buildShorcutsUI()
+{
+    //auto& manager = ShortcutManager::instance();
+
+    // Loop through all registered IDs
+    for (const QString& id : ShortcutManager::instance().getRegisteredIds()) {
+
+        // 1. Beautify ID
+        QString labelText = id;
+        labelText.replace("_", " ");
+        if (!labelText.isEmpty()) labelText[0] = labelText[0].toUpper();
+
+        // 2. Create UI elements
+        //QLabel* label = new QLabel(labelText, this);
+
+        QAction* act = ShortcutManager::instance().getAction(id);
+        QKeySequence currentSeq = act ? act->shortcut() : QKeySequence();
+        QKeySequenceEdit* editor = new QKeySequenceEdit(currentSeq, this);
+
+        // 3. Connect: When user changes key, update Manager + .ini file
+        connect(editor, &QKeySequenceEdit::editingFinished, [=](){
+            ShortcutManager::instance().setShortcut(id, editor->keySequence());
+            // Optional: Set focus back to main window so shortcuts work immediately
+            this->setFocus();
+        });
+
+        // 4. Add to the layout defined in your .ui file
+        //ui->shortcutsLayout->addRow(label, editor);
+    }
 }
 
 void MainWindow::on_pb_load_clicked()

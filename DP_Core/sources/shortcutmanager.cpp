@@ -3,12 +3,31 @@
 #include <QKeySequence>
 #include <QDebug>
 
-ShortcutManager& ShortcutManager::instance() {
+ShortcutManager& ShortcutManager::instance()
+{
     static ShortcutManager inst;
     return inst;
 }
 
-void ShortcutManager::registerAction(const QString& id, QAction* action, const QString& defaultKey) {
+void ShortcutManager::applyKey(const QString& id, QAction* action, const QString& defaultKey)
+{
+    // 1. Get the settings instance
+    QSettings* cfg = DegorasSettings::instance().config();
+
+    // 2. Look for a saved shortcut. If not found, use defaultKey
+    QString savedSeq = cfg->value("Shortcuts/" + id, defaultKey).toString();
+
+    // 3. Apply it to the Qt Action
+    action->setShortcut(QKeySequence(savedSeq));
+
+    // Update tooltip to show the user the shortcut
+    if (!action->text().isEmpty()) {
+        action->setToolTip(action->text() + " (" + savedSeq + ")");
+    }
+}
+
+void ShortcutManager::registerAction(const QString& id, QAction* action, const QString& defaultKey)
+{
     if (!action) return;
 
     // Store it in our map
@@ -18,35 +37,40 @@ void ShortcutManager::registerAction(const QString& id, QAction* action, const Q
     applyKey(id, action, defaultKey);
 }
 
-void ShortcutManager::registerButton(const QString& id, QPushButton* button, const QString& defaultKey) {
+void ShortcutManager::registerButton(const QString& id, QPushButton* button, const QString& defaultKey)
+{
     if (!button) return;
 
-    // TRICK: Create a hidden action that lives inside the button
+    // Workaround: Create a hidden action that lives inside the button
     QAction* proxyAction = new QAction(button);
-
-    // When the hidden action is triggered (by key), click the button
     connect(proxyAction, &QAction::triggered, button, &QPushButton::animateClick);
 
-    // Now register this proxy action just like a normal one
+    // Call registerAction() with proxyAction, who represents the QPushButton
     registerAction(id, proxyAction, defaultKey);
 
     // Add the action to the button so it listens to the window context
+    // "While this button (or its parent) is active, listen to the specific key associated with 'proxyAction'
     button->addAction(proxyAction);
+
+    // Chain Reaction: keyboard shortcut -> button object notifies action -> action triggered -> button clicked (via connect)
 }
 
-void ShortcutManager::applyKey(const QString& id, QAction* action, const QString& defaultKey) {
-    // 1. Get the settings instance
-    QSettings* cfg = DegorasSettings::instance().config();
+void ShortcutManager::setShortcut(const QString& id, const QKeySequence& newSeq)
+{
+    // 1. Update map
+    if (m_registeredActions.contains(id)) {
+        QAction* act = m_registeredActions[id];
+        act->setShortcut(newSeq);
 
-    // 2. Look for a saved shortcut. If not found, use defaultKey.
-    // We prefix keys with "Shortcuts/" to keep the INI file clean
-    QString savedSeq = cfg->value("Shortcuts/" + id, defaultKey).toString();
-
-    // 3. Apply it to the Qt Action
-    action->setShortcut(QKeySequence(savedSeq));
-
-    // Optional: Update tooltip to show the user the shortcut (e.g., "Filter [Ctrl+F]")
-    if (!action->text().isEmpty()) {
-        action->setToolTip(action->text() + " (" + savedSeq + ")");
+        // Update tooltip
+        QString cleanName = act->text();
+        cleanName.remove('&');
+        act->setToolTip(cleanName + " (" + newSeq.toString() + ")");
     }
+
+    // 2. Save the change to the .ini file via DegorasSettings
+    QSettings* config = DegorasSettings::instance().config();
+
+    config->setValue("Shortcuts/" + id, newSeq.toString());
+    config->sync();
 }
