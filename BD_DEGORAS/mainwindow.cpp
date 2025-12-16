@@ -3,7 +3,7 @@
 #include "SpaceObjectDBManager.h"
 #include "json_helpers.h"
 #include "addobjectdialog.h"
-
+#include "connectiondialog.h"
 #include "QtLogSink.h"
 
 // QT INCLUDES
@@ -28,6 +28,7 @@
 #include <QFormLayout>
 #include <QPlainTextEdit>
 #include <vector>
+#include <QTimer>
 // LOGGING
 #include <spdlog/spdlog.h>
 #include <QCoreApplication>
@@ -101,17 +102,52 @@ MainWindow::MainWindow(QWidget *parent)
     if (logger) logger->sinks().push_back(std::shared_ptr<QtLogSinkMt>(&sink, [](void*){}));
 
     // --- 3. CONNECT TO DB ---
-    const std::string URI = "mongodb://localhost:27017";
-    const std::string DB_NAME = "DegorasDB";
+    //const std::string URI = "mongodb://localhost:27017";
+   // const std::string DB_NAME = "DegorasDB";
+    //const std::string COLLECTION_NAME = "space_objects";
+
+
+    // 1. Mostrar diálogo de conexión (Bloqueante)
+    ConnectionDialog connDlg(this);
+    if (connDlg.exec() != QDialog::Accepted) {
+        // Si el usuario cancela o cierra la ventana, cerramos la app limpiamente
+        // Usamos un timer para cerrar después del constructor
+        QTimer::singleShot(0, qApp, &QCoreApplication::quit);
+        return; // Salimos del constructor para evitar crashes
+    }
+
+    auto params = connDlg.getParams();
+
+    // 2. Construir la URI profesional
+    // Formato: mongodb://user:pass@host:port/?tls=true
+    QString uriStr = "mongodb://";
+
+    if (!params.user.isEmpty()) {
+        uriStr += params.user;
+        if (!params.password.isEmpty()) {
+            uriStr += ":" + params.password;
+        }
+        uriStr += "@";
+    }
+
+    uriStr += QString("%1:%2").arg(params.host).arg(params.port);
+
+    // Añadir opciones extra
+    // IMPORTANTE: Aquí metemos lo del SSL que quiere tu jefe
+    if (params.useSSL) {
+        uriStr += "/?tls=true";
+    }
+
+    const std::string URI = uriStr.toStdString();
+    const std::string DB_NAME = params.dbName.toStdString();
     const std::string COLLECTION_NAME = "space_objects";
+
+
 
     try {
         dbManager = std::make_unique<SpaceObjectDBManager>(URI, DB_NAME, COLLECTION_NAME);
 
-        // A) CARGA MASIVA DE OBJETOS
-        m_localCache = dbManager->getAllSpaceObjects();
 
-        // ... dentro del constructor ...
 
         // A) CARGA MASIVA DE OBJETOS
         m_localCache = dbManager->getAllSpaceObjects();
@@ -125,9 +161,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 
 
-        logMessage("[Memory] Loaded DB into local cache. Objects: " + QString::number(m_localCache.size()));
-
-        // ... resto del constructor ...
 
         logMessage("[Memory] Loaded DB into local cache. Objects: " + QString::number(m_localCache.size()));
 
@@ -325,24 +358,43 @@ void MainWindow::on_saveChangesToDbButton_clicked()
     createDatabaseVersion();
 }
 
+// Asegúrate de tener este include arriba del todo:
+#include <QDateTime>
+
 void MainWindow::createDatabaseVersion()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle("Commit Changes");
+    dlg.setWindowTitle("Commit Database Version (Standardized)");
     dlg.setMinimumWidth(500);
 
     QVBoxLayout* l = new QVBoxLayout(&dlg);
     QFormLayout* f = new QFormLayout();
-    QLineEdit* nameEd = new QLineEdit(&dlg);
-    QPlainTextEdit* commEd = new QPlainTextEdit(&dlg);
 
-    f->addRow("Version Name:", nameEd);
-    f->addRow("Comment:", commEd);
+    // 1. TIMESTAMP (Automático, solo lectura)
+    QString timeStamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmm");
+    QLabel* lblTime = new QLabel(timeStamp, &dlg);
+    lblTime->setStyleSheet("font-weight: bold; color: gray;");
+
+    // 2. ALIAS / TAG (Ej: v1.0)
+    QLineEdit* aliasEd = new QLineEdit("v1.0", &dlg);
+
+    // 3. DESCRIPTOR (Opcional, Ej: Ajuste_RCS)
+    QLineEdit* descEd = new QLineEdit(&dlg);
+    descEd->setPlaceholderText("Description (e.g. Initial Import)");
+
+    // 4. COMENTARIO LARGO
+    QPlainTextEdit* commEd = new QPlainTextEdit(&dlg);
+    commEd->setPlaceholderText("Detailed notes about this commit...");
+
+    f->addRow("Timestamp:", lblTime);
+    f->addRow("Version Tag:", aliasEd);
+    f->addRow("Short Desc:", descEd);
+    f->addRow("Comments:", commEd);
     l->addLayout(f);
 
     QCheckBox* chkIncremental = new QCheckBox("Save as Incremental (Changes Only)", &dlg);
     chkIncremental->setChecked(true);
-    chkIncremental->setToolTip("If checked, only modified objects are saved in history.\nUncheck to save a full backup copy.");
+    chkIncremental->setToolTip("Checked: Only modified objects saved.\nUnchecked: Full snapshot.");
 
     QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
@@ -358,16 +410,31 @@ void MainWindow::createDatabaseVersion()
 
     if (dlg.exec() == QDialog::Accepted)
     {
-        if (nameEd->text().isEmpty()) {
-            QMessageBox::warning(this, "Error", "Name required.");
+        // VALIDACIÓN
+        if (aliasEd->text().isEmpty()) {
+            QMessageBox::warning(this, "Error", "Version Tag is required (e.g. v1.0).");
             return;
         }
+
+        // --- CONSTRUCCIÓN DEL NOMBRE ESTÁNDAR ---
+        // Formato: YYYYMMDD_HHmm_TAG_DESCRIPTOR
+        QString stdName = QString("%1_%2").arg(timeStamp, aliasEd->text().trimmed());
+
+        if (!descEd->text().isEmpty()) {
+            stdName += "_" + descEd->text().trimmed();
+        }
+
+        // Limpieza: Reemplazar espacios por guiones bajos para evitar problemas en DB
+        stdName = stdName.replace(" ", "_");
+        stdName = stdName.replace("/", "-");
+        // ----------------------------------------
 
         std::string err;
         bool ok = false;
 
         QApplication::setOverrideCursor(Qt::WaitCursor);
 
+        // --- LÓGICA DE SUBIDA DE IMÁGENES (Se mantiene igual que antes) ---
         bool imagesOk = true;
         for(auto& obj : m_localCache) {
             if (obj.contains("_tempLocalImgPath")) {
@@ -389,13 +456,15 @@ void MainWindow::createDatabaseVersion()
         if(imagesOk) {
             SaveMode mode = chkIncremental->isChecked() ? SaveMode::INCREMENTAL : SaveMode::FULL_SNAPSHOT;
 
+            // LLAMADA A LA DB CON EL NOMBRE ESTÁNDAR
             ok = dbManager->saveAllAndVersion(m_localCache, m_localSets, m_localGroups,
-                                              nameEd->text().toStdString(),
+                                              stdName.toStdString(), // <--- AQUÍ VA EL NOMBRE AUTOMÁTICO
                                               commEd->toPlainText().toStdString(),
                                               mode,
                                               err);
         }
 
+        // --- LIMPIEZA DE IMÁGENES HUÉRFANAS (GC) ---
         if (ok) {
             std::vector<std::string> allDbImages = dbManager->getImageManager().getAllImageNames();
             std::set<std::string> usedImages;
@@ -408,7 +477,7 @@ void MainWindow::createDatabaseVersion()
             for(const auto& dbImg : allDbImages) {
                 if (usedImages.find(dbImg) == usedImages.end()) {
                     dbManager->getImageManager().deleteImageByName(dbImg);
-                    spdlog::info("[GC] Deleted orphaned image: {}", dbImg);
+                    logMessage("[GC] Deleted orphaned image: " + QString::fromStdString(dbImg));
                 }
             }
         }
@@ -417,7 +486,9 @@ void MainWindow::createDatabaseVersion()
 
         if (ok) {
             setUnsavedChanges(false);
-            QMessageBox::information(this, "Success", "Database updated and versioned.");
+            QString successMsg = "Version created successfully:\n" + stdName;
+            logMessage("[DB] " + successMsg);
+            QMessageBox::information(this, "Success", successMsg);
         } else {
             QMessageBox::critical(this, "Error", QString::fromStdString(err));
         }
