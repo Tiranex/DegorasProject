@@ -17,6 +17,9 @@
 #include <QDoubleSpinBox>
 #include <QClipboard>
 #include <QToolTip>
+#include <QTemporaryFile>
+#include <QTextStream>
+#include <QFile>
 
 // Last Save/Load Directory Settings
 #include "degoras_settings.h"
@@ -722,16 +725,17 @@ void MainWindow::on_pb_recalculate_clicked()
 {
     if (!m_trackingData) return;
 
-    // Cargar el Motor
+    // 1. Cargar el Motor CPF (usando nuestro Wrapper con parche DGF)
     CPFPredictor predictor;
-
-
     if (!predictor.load(m_cpfPath)) {
         QMessageBox::critical(this, "Error", "Failed to initialize CPF Predictor with file:\n" + m_cpfPath);
         return;
     }
 
-    // Recalcular cada punto
+    // 2. OBTENER CALIBRACIÓN (Corregido: usamos meanCal)
+    long long calibration_ps = static_cast<long long>(m_trackingData->meanCal());
+
+    // 3. Barra de Progreso
     QProgressDialog progress("Recalculating Orbit...", "Abort", 0, m_trackingData->listAll().size(), this);
     progress.setWindowModality(Qt::WindowModal);
 
@@ -739,18 +743,16 @@ void MainWindow::on_pb_recalculate_clicked()
     for (auto* echo : m_trackingData->listAll()) {
         if (progress.wasCanceled()) break;
 
-        // Conversión de tiempo: echo->time suele ser ns del día o del pase
-        // Asumimos acceso al "seconds of day" (SoD).
-        // Si echo->time son nanosegundos del día:
+        // Convertir tiempo a segundos del día (SoD)
         double sod = static_cast<double>(echo->time) * 1.0e-9;
 
-        // LLAMADA AL MOTOR
-        long long predicted_tof_ps = predictor.calculateTwoWayTOF(echo->mjd, sod);
+        // 4. LLAMADA AL MOTOR (Geometría + Troposfera)
+        long long predicted_total_ps = predictor.calculateTwoWayTOF(echo->mjd, sod);
 
-        if (predicted_tof_ps > 0) {
-            // Actualizamos el RESIDUO (Observed - Calculated)
-            // echo->flight_time es el observado en ps
-            echo->difference = echo->flight_time - predicted_tof_ps;
+        if (predicted_total_ps > 0) {
+            // 5. FÓRMULA FINAL (Del Encargado)
+            // Residuo = Observado - (Predicho + Tropo) - Calibración
+            echo->difference = echo->flight_time - predicted_total_ps - calibration_ps;
         }
 
         count++;
@@ -758,71 +760,63 @@ void MainWindow::on_pb_recalculate_clicked()
     }
     progress.setValue(m_trackingData->listAll().size());
 
-    // 3. Refrescar todo
+    // 6. Refrescar Gráficas
     updatePlots();
-    onFilterChanged(); // Para recalcular estadísticas con los nuevos residuos
+    onFilterChanged(); // Recalcula estadísticas
 
     ui->lbl_sessionID->setText("Recalculated: " + QFileInfo(m_cpfPath).fileName());
-    DegorasInformation::showInfo("Recalculation", "Residuals updated using new CPF.", "", this);
+    DegorasInformation::showInfo("Recalculation", "Residuals updated.\n(New CPF + Tropo - Calibration)", "", this);
 }
-
 //adición MARIO: cargar CPF
 void MainWindow::on_pb_loadCPF_clicked()
 {
-
-    // 1. Get Last loaded CPF file path
+    // 1. Gestión de Settings (Ruta anterior)
     QSettings* settings = DegorasSettings::instance().config();
     const QString settingKey = "Paths/LastLoadCPFDir";
-
     QString storedDir;
 
-    // Only read if settings initilized correctly
-    if(settings)
-    {
-        storedDir = settings->value(settingKey).toString();
+    if(settings) storedDir = settings->value(settingKey).toString();
+
+    if(storedDir.isEmpty() || !QDir(storedDir).exists()) {
+        storedDir = QCoreApplication::applicationDirPath();
     }
 
-    // 2. If setting directory is not empty and what's inside exists (it's not a deleted folder or a path in your system):
-    if(storedDir.isEmpty() || !QDir(storedDir).exists())
-    {   // Default path
-        storedDir = QCoreApplication::applicationDirPath(); // Returns 'build' directory instead of 'workspace/DegorasProject/...'.
-    }
-
-    //QString storedDir = QDir::fromNativeSeparators("T:/builds/DegorasProjectLite-main/DeployData/data/SP_DataFiles/SP_CPF");
-
-    QString filter = "CPF Files (*.cpf *.sgf *dgf *.npt *.tjr);;All Files (*)";
+    // 2. Filtro por defecto (Añadido *.sgf *.dgf)
+    QString filter = "CPF Files (*.cpf *.sgf *.dgf *.npt *.tjr);;All Files (*)";
     QString dialogTitle = "Select CPF File";
 
-
+    // 3. Filtro Inteligente (si hay satélite)
     if (m_trackingData) {
         QString currentFileName = QFileInfo(m_trackingData->file_name).fileName();
         QStringList parts = currentFileName.split('_');
 
-
         if (parts.size() >= 4) {
             QString satID = parts[3];
-            filter = QString("Satellite %1 (*%1*.cpf *%1*.npt *%1*.tjr);;All Files (*)").arg(satID);
+
+            // --- CORRECCIÓN ---
+            // Los *.sgf y *.dgf se añaden SIN el ID (%1) porque a veces no lo llevan en el nombre.
+            // Los *.cpf, *.npt, *.tjr SÍ llevan el ID para filtrar mejor.
+            filter = QString("Satellite %1 Data (*%1*.cpf *%1*.npt *%1*.tjr *.sgf *.dgf);;All Files (*)").arg(satID);
+
             dialogTitle = "Select CPF for Satellite " + satID;
             qDebug() << "Auto-filter for Satellite ID:" << satID;
         }
     }
 
-    QString path = QFileDialog::getOpenFileName(this,
-                                                dialogTitle,
-                                                storedDir,
-                                                filter);
+    // 4. Abrir Diálogo
+    QString path = QFileDialog::getOpenFileName(this, dialogTitle, storedDir, filter);
 
-    // 3. Load Data
+    // 5. Guardar Ruta y Activar Botón
     if (!path.isEmpty()) {
         m_cpfPath = path;
         ui->le_cpfPath->setText(path);
         ui->pb_recalculate->setEnabled(true);
 
-        // --- 5. Save path for next use ---
         QString newDir = QFileInfo(path).absolutePath();
-        settings->setValue(settingKey, newDir);
-        settings->sync();
-        // ---------------------------------
+        if(settings) {
+            settings->setValue(settingKey, newDir);
+            settings->sync();
+        }
     }
 }
 
