@@ -99,6 +99,32 @@ public:
     }
 };
 
+class QwtSLRPlotMagnifier : public QwtPlotMagnifier
+{
+    Q_OBJECT
+
+public:
+    explicit QwtSLRPlotMagnifier(QWidget *canvas);
+
+    // Method to turn sync on/off
+    void setSynchronizationEnabled(bool enable);
+
+public slots:
+    // Slot to receive zoom from other graphs
+    void applySharedZoom(double factor);
+
+signals:
+    // Signal to tell other graphs to zoom
+    void zoomed(double factor);
+
+protected:
+    void rescale(double factor);
+
+private:
+    bool m_syncEnabled = false; // Default off
+    bool m_isInternalRescale = false; // Recursion guard
+};
+
 
 /**
  * @class QwtSLRArraySeriesData
@@ -231,23 +257,11 @@ class Plot : public QwtPlot
         bool notation; ///< @brief Flag to control scientific vs. fixed notation.
     };
 
-    class QwtSLRPlotMagnifier:public QwtPlotMagnifier
-    {
-    public:
-        QwtSLRPlotMagnifier(QWidget* p): QwtPlotMagnifier(p){}
-
-        /**
-         * @brief Overridden rescale function to control zoom behavior.
-         * @param factor The scaling factor.
-         */
-        void rescale(double factor);
-
-        ~QwtSLRPlotMagnifier(){}
-    };
-
     Q_OBJECT
 
 public:
+    QwtSLRPlotMagnifier *magnifier; ///< @brief Tool for zooming.
+
     /**
      * @brief Constructor for the base Plot class.
      *
@@ -398,7 +412,6 @@ signals:
      */
     void finishedPicking();
 
-
 protected:
     /** @name Internal Plot State and Data Containers */
     ///@{
@@ -419,7 +432,6 @@ protected:
     /** @name Interaction Tools */
     ///@{
     QwtPlotPanner* panner; ///< @brief Tool for panning (moving the view).
-    QwtSLRPlotMagnifier *magnifier; ///< @brief Tool for zooming.
     QwtSLRPlotPicker *picker; ///< @brief Custom tool for selection/picking operations.
     ///@}
 

@@ -70,6 +70,12 @@ HistogramPlot::HistogramPlot(QWidget *parent) : QwtPlot(parent)
     this->setAxisTitle(QwtPlot::Axis::xBottom, xt);
 
     setAutoReplot(false);
+
+    this->magnifier = new QwtSLRPlotMagnifier(canvas());
+    magnifier->setMouseButton(Qt::NoButton);
+    magnifier->setAxisEnabled(QwtPlot::Axis::xBottom, false);
+    magnifier->setAxisEnabled(QwtPlot::Axis::xTop, false);
+    magnifier->setEnabled(true);
 }
 
 

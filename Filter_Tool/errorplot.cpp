@@ -10,10 +10,10 @@ ErrorPlot::ErrorPlot(QWidget *parent, QString title):
     // Labels.
     QwtText yt("Deviation from polynomial fit (ps)");
     QwtText y2t("Deviation from polynomial fit (m)");
-    this->enableAxis(QwtPlot::Axis::xTop, true);
+    //this->enableAxis(QwtPlot::Axis::xTop, true);
     this->enableAxis(QwtPlot::Axis::xBottom, false);
-    this->setAxisScaleDraw(QwtPlot::Axis::xTop, new QwtNanoseconds2TimeScaleDraw);
-    this->setAxisTitle(QwtPlot::Axis::xTop, "");
+    //this->setAxisScaleDraw(QwtPlot::Axis::xTop, new QwtNanoseconds2TimeScaleDraw);
+    //this->setAxisTitle(QwtPlot::Axis::xTop, "");
 
 
     QPen pen_mark_yellow(Qt::SolidPattern, 1, Qt::DashLine);
