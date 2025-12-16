@@ -327,7 +327,9 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
     j["Alias"] = ui->aliasEdit->text().trimmed().toStdString();
     j["COSPAR"] = ui->cosparEdit->text().trimmed().toStdString();
 
+    // Classification (Mapped to classEdit QLineEdit)
     setStringOrNull("Classification", ui->classEdit->text());
+
     setStringOrNull("ILRSID", ui->ilrsEdit->text());
     setStringOrNull("SIC", ui->sicEdit->text());
 
@@ -347,27 +349,29 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
     setStringOrNull("Config", ui->configEdit->text());
     setStringOrNull("Picture", ui->imagePathEdit->text());
 
-    // ARRAYS
+    // ARRAYS - Sets
     std::vector<std::string> selectedSets;
-    for(auto item : ui->setsListWidget->selectedItems()) selectedSets.push_back(item->text().toStdString());
+    for(auto item : ui->setsListWidget->selectedItems()) {
+        selectedSets.push_back(item->text().toStdString());
+    }
     j["Sets"] = selectedSets;
 
+    // ARRAYS - Groups (Mapped to groupsListWidget)
     std::vector<std::string> selectedGroups;
-    for(auto item : ui->groupsListWidget->selectedItems()) selectedGroups.push_back(item->text().toStdString());
+    for(auto item : ui->groupsListWidget->selectedItems()) {
+        selectedGroups.push_back(item->text().toStdString());
+    }
     j["Groups"] = selectedGroups;
 
-    // --- CORRECCIÓN AQUÍ ---
+    // Enablement Logic
     if (!m_isEditMode) {
-        // Si es NUEVO, habilitado por defecto
         j["EnablementPolicy"] = 1;
     } else {
-        // Si es EDICIÓN, mantenemos el valor que tenía antes
         j["EnablementPolicy"] = m_storedEnablement;
     }
 
     return j;
 }
-
 // --- CARGAR DATOS ---
 void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
 {
@@ -379,10 +383,12 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         if(obj.contains(key) && !obj[key].is_null()) return obj[key];
         return 0.0;
     };
+
+    // Store Enablement Policy
     if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null()) {
         m_storedEnablement = obj["EnablementPolicy"].get<int>();
     } else {
-        m_storedEnablement = 1; // Default si no existe
+        m_storedEnablement = 1;
     }
 
     ui->noradEdit->setText(QString::number(obj.value("_id", 0LL)));
@@ -391,6 +397,8 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
     ui->cosparEdit->setText(getString("COSPAR"));
     ui->ilrsEdit->setText(getString("ILRSID"));
     ui->sicEdit->setText(getString("SIC"));
+
+    // Classification (Load into classEdit)
     ui->classEdit->setText(getString("Classification"));
 
     ui->commentsEdit->setPlainText(getString("Comments"));
@@ -417,23 +425,32 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         ui->highPowerCheck->setChecked(obj["TrackHighPower"] == 1);
     }
 
+    // Load Sets Selection
     ui->setsListWidget->clearSelection();
     if(obj.contains("Sets") && obj["Sets"].is_array()) {
         std::vector<std::string> sets = obj["Sets"];
         for(int i=0; i < ui->setsListWidget->count(); ++i) {
-            for(const auto& s : sets) if(ui->setsListWidget->item(i)->text().toStdString() == s) ui->setsListWidget->item(i)->setSelected(true);
+            for(const auto& s : sets) {
+                if(ui->setsListWidget->item(i)->text().toStdString() == s) {
+                    ui->setsListWidget->item(i)->setSelected(true);
+                }
+            }
         }
     }
 
+    // Load Groups Selection
     ui->groupsListWidget->clearSelection();
     if(obj.contains("Groups") && obj["Groups"].is_array()) {
         std::vector<std::string> groups = obj["Groups"];
         for(int i=0; i < ui->groupsListWidget->count(); ++i) {
-            for(const auto& g : groups) if(ui->groupsListWidget->item(i)->text().toStdString() == g) ui->groupsListWidget->item(i)->setSelected(true);
+            for(const auto& g : groups) {
+                if(ui->groupsListWidget->item(i)->text().toStdString() == g) {
+                    ui->groupsListWidget->item(i)->setSelected(true);
+                }
+            }
         }
     }
 }
-
 void AddObjectDialog::setEditMode(bool enable)
 {
     m_isEditMode = enable;
