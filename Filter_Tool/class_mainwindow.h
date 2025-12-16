@@ -249,6 +249,16 @@ private:
      */
     int threshFilter();
 
+    /**
+     * @brief Sets up default key sequences for specific keyboard shortcuts for QActions and QPushButtons in UI.
+     */
+    void setupShortcuts();
+
+    /**
+     * @brief Gets current stored actions with keyboard shortcuts and puts them in UI toolbar list.
+     */
+    void buildShorcutsUI();
+
     // --- Private Members ---
     Ui::MainWindow *ui;                 ///< @brief Pointer to the Qt Designer generated UI object.
     TrackingData* m_trackingData;       ///< @brief Holds the current set of tracking data (raw and processed).

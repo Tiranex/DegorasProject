@@ -1,3 +1,6 @@
+#ifndef DEGORAS_SETTINGS_H
+#define DEGORAS_SETTINGS_H
+
 #pragma once
 
 #include <QSettings>
@@ -26,3 +29,5 @@ private:
     DegorasSettings(const DegorasSettings&&) = delete;
     DegorasSettings& operator =(const DegorasSettings&&) = delete;
 };
+
+#endif // DEGORAS_SETTINGS_H
