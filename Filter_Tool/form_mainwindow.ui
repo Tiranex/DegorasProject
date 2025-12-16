@@ -39,7 +39,7 @@
      <x>0</x>
      <y>0</y>
      <width>1400</width>
-     <height>25</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -69,9 +69,16 @@
     <addaction name="actionView_Filter_Plot"/>
     <addaction name="actionView_Histogram"/>
    </widget>
+   <widget class="QMenu" name="menuShortcuts">
+    <property name="title">
+     <string>Shortcuts</string>
+    </property>
+    <addaction name="actionConfigure_Keyboard_Shortcuts"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuAlgorithms"/>
    <addaction name="menuView"/>
+   <addaction name="menuShortcuts"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="dockWidget_Controls">
@@ -478,6 +485,39 @@
     </layout>
    </widget>
   </widget>
+  <widget class="QDockWidget" name="dockShortcuts">
+   <property name="floating">
+    <bool>true</bool>
+   </property>
+   <property name="windowTitle">
+    <string>Shortcut Settings</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>8</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_2">
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QScrollArea" name="scrollAreaShortcuts">
+       <property name="widgetResizable">
+        <bool>true</bool>
+       </property>
+       <widget class="QWidget" name="scrollAreaWidgetContents">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>0</y>
+          <width>230</width>
+          <height>604</height>
+         </rect>
+        </property>
+        <layout class="QFormLayout" name="shortcutsLayout"/>
+       </widget>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
   <action name="actionLoad">
    <property name="text">
     <string>Load Tracking File...</string>
@@ -549,6 +589,11 @@
    </property>
    <property name="text">
     <string>Control Panel</string>
+   </property>
+  </action>
+  <action name="actionConfigure_Keyboard_Shortcuts">
+   <property name="text">
+    <string>Configure Keyboard Shortcuts</string>
    </property>
   </action>
  </widget>

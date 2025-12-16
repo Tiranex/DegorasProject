@@ -257,7 +257,7 @@ private:
     /**
      * @brief Gets current stored actions with keyboard shortcuts and puts them in UI toolbar list.
      */
-    void buildShorcutsUI();
+    void buildShortcutsUI();
 
     // --- Private Members ---
     Ui::MainWindow *ui;                 ///< @brief Pointer to the Qt Designer generated UI object.

@@ -45,6 +45,9 @@ m_isChanged(false)
     // Initial state
     updateUIState(false);
     setupConnections();
+
+    // Keyboard shortcuts
+    ui->dockShortcuts->hide();
     setupShortcuts();
 
     // Creamos una lista con todos los labels que queremos hacer "interactivos"
@@ -110,6 +113,13 @@ void MainWindow::setupConnections()
 
         applyFilter(FilterOptions::MovingAverage);
     });
+
+    // Keyboard Shortcuts Layout Panel
+    connect(ui->actionConfigure_Keyboard_Shortcuts, &QAction::triggered, this, [=](){
+        buildShortcutsUI();
+        ui->dockShortcuts->show();
+        ui->dockShortcuts->raise();
+    });
 }
 
 void MainWindow::updateUIState(bool hasData)
@@ -149,9 +159,20 @@ void MainWindow::setupShortcuts()
 
 }
 
-void MainWindow::buildShorcutsUI()
+void MainWindow::buildShortcutsUI()
 {
     //auto& manager = ShortcutManager::instance();
+
+    // --- CLEANUP STEP ---
+        // Remove existing rows so we don't stack duplicates if clicked twice.
+        // ui->shortcutsLayout must be the QFormLayout, not the QScrollArea.
+        while (ui->shortcutsLayout->count() > 0) {
+        QLayoutItem* item = ui->shortcutsLayout->takeAt(0);
+        if (QWidget* w = item->widget()) {
+            delete w; // Delete the label/editor
+        }
+        delete item;
+    }
 
     // Loop through all registered IDs
     for (const QString& id : ShortcutManager::instance().getRegisteredIds()) {
@@ -162,7 +183,7 @@ void MainWindow::buildShorcutsUI()
         if (!labelText.isEmpty()) labelText[0] = labelText[0].toUpper();
 
         // 2. Create UI elements
-        //QLabel* label = new QLabel(labelText, this);
+        QLabel* label = new QLabel(labelText, this);
 
         QAction* act = ShortcutManager::instance().getAction(id);
         QKeySequence currentSeq = act ? act->shortcut() : QKeySequence();
@@ -176,7 +197,7 @@ void MainWindow::buildShorcutsUI()
         });
 
         // 4. Add to the layout defined in your .ui file
-        //ui->shortcutsLayout->addRow(label, editor);
+        ui->shortcutsLayout->addRow(label, editor);
     }
 }
 
