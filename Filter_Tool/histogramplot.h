@@ -6,6 +6,7 @@
 
 #include <qwt/qwt_plot.h>
 #include <qwt/qwt_plot_histogram.h>
+#include "plot.h"
 #include <qwt/qwt_plot_grid.h>
 #include <qwt/qwt_plot_marker.h>
 #include <qwt/qwt_plot_canvas.h>
@@ -56,6 +57,8 @@ public:
      * @param numBins The desired number of bins (must be greater than 0).
      */
     void setNumBins(int numBins);
+
+    QwtSLRPlotMagnifier *magnifier;
 
 private:
     /** @name Plot Components */

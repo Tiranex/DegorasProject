@@ -123,6 +123,39 @@ void MainWindow::setupConnections()
         ui->dockShortcuts->show();
         ui->dockShortcuts->raise();
     });
+
+    QwtSLRPlotMagnifier* magFilter = ui->filterPlot->magnifier;
+    QwtSLRPlotMagnifier* magErrorFilter = ui->realHistogramPlot->magnifier;
+    QwtSLRPlotMagnifier* magHistogramPlot = ui->histogramPlot->magnifier;
+
+    // 2. Enable sync
+    magFilter->setSynchronizationEnabled(true);
+    magErrorFilter->setSynchronizationEnabled(true);
+    magHistogramPlot->setSynchronizationEnabled(true);
+    // 3. Connect A to B
+    QObject::connect(magFilter, &QwtSLRPlotMagnifier::zoomed,
+                     magErrorFilter, &QwtSLRPlotMagnifier::applySharedZoom);
+
+    // 4. Connect B to A
+    QObject::connect(magErrorFilter, &QwtSLRPlotMagnifier::zoomed,
+                     magFilter, &QwtSLRPlotMagnifier::applySharedZoom);
+
+    QObject::connect(magFilter, &QwtSLRPlotMagnifier::zoomed,
+                     magHistogramPlot, &QwtSLRPlotMagnifier::applySharedZoom);
+    QObject::connect(magHistogramPlot, &QwtSLRPlotMagnifier::zoomed,
+                     magFilter, &QwtSLRPlotMagnifier::applySharedZoom);
+    QObject::connect(magHistogramPlot, &QwtSLRPlotMagnifier::zoomed,
+                     magErrorFilter, &QwtSLRPlotMagnifier::applySharedZoom);
+    QObject::connect(magErrorFilter, &QwtSLRPlotMagnifier::zoomed,
+                     magHistogramPlot, &QwtSLRPlotMagnifier::applySharedZoom);
+
+}
+
+QwtSLRPlotMagnifier::QwtSLRPlotMagnifier(QWidget *canvas)
+    : QwtPlotMagnifier(canvas),
+    m_syncEnabled(false),       // Default to false or true based on preference
+    m_isInternalRescale(false)  // Initialize guard to false
+{
 }
 
 void MainWindow::updateUIState(bool hasData)
@@ -280,7 +313,7 @@ void MainWindow::updatePlots()
         selected_samples += QPointF(aux->time, aux->difference);
     }
 
-    ui->filterPlot->setTitle("Tracking: "+ m_trackingData->satel_name);
+    //ui->filterPlot->setTitle("Tracking: "+ m_trackingData->satel_name);
     ui->filterPlot->setSamples(all_samples);
     ui->filterPlot->setBinSize(m_trackingData->data.obj_bs);
     ui->histogramPlot->setBinSize(m_trackingData->data.obj_bs);

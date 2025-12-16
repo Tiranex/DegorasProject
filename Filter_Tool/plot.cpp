@@ -74,23 +74,40 @@ bool Plot::redo()
     return true;
 }
 
-void Plot::QwtSLRPlotMagnifier::rescale( double factor )
+void QwtSLRPlotMagnifier::setSynchronizationEnabled(bool enable)
+{
+    m_syncEnabled = enable;
+}
+
+void QwtSLRPlotMagnifier::applySharedZoom(double factor)
+{
+    if (!m_syncEnabled) return;
+
+    m_isInternalRescale = true;
+
+    rescale(factor);
+
+    m_isInternalRescale = false;
+}
+
+void QwtSLRPlotMagnifier::rescale(double factor)
 {
     QwtPlot* plt = plot();
-
-    if (!plt)
-        return;
+    if (!plt) return;
 
     factor = qAbs(factor);
-    if (qFuzzyCompare(factor, 1.0) || qFuzzyCompare(factor, 0.0) )
+    if (qFuzzyCompare(factor, 1.0) || qFuzzyCompare(factor, 0.0))
         return;
 
+    if (m_syncEnabled && !m_isInternalRescale) {
+        emit zoomed(factor);
+    }
+
     bool doReplot = false;
-
     const bool autoReplot = plt->autoReplot();
-    plt->setAutoReplot( false );
+    plt->setAutoReplot(false);
 
-    for ( int axisId = 0; axisId < QwtPlot::axisCnt; axisId++ )
+    for (int axisId = 0; axisId < QwtPlot::axisCnt; axisId++)
     {
         if (isAxisEnabled(axisId))
         {
@@ -99,7 +116,7 @@ void Plot::QwtSLRPlotMagnifier::rescale( double factor )
             double v1 = scaleMap.s1();
             double v2 = scaleMap.s2();
 
-            if ( scaleMap.transformation() )
+            if (scaleMap.transformation())
             {
                 v1 = scaleMap.transform(v1);
                 v2 = scaleMap.transform(v2);
@@ -111,10 +128,10 @@ void Plot::QwtSLRPlotMagnifier::rescale( double factor )
             v1 = center - width_2;
             v2 = center + width_2;
 
-            if ( scaleMap.transformation() )
+            if (scaleMap.transformation())
             {
-                v1 = scaleMap.invTransform( v1 );
-                v2 = scaleMap.invTransform( v2 );
+                v1 = scaleMap.invTransform(v1);
+                v2 = scaleMap.invTransform(v2);
             }
 
             plt->setAxisScale(axisId, v1, v2);
@@ -122,9 +139,9 @@ void Plot::QwtSLRPlotMagnifier::rescale( double factor )
         }
     }
 
-    plt->setAutoReplot( autoReplot );
+    plt->setAutoReplot(autoReplot);
 
-    if ( doReplot )
+    if (doReplot)
         plt->replot();
 }
 
