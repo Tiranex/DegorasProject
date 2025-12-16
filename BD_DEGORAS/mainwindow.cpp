@@ -1322,34 +1322,122 @@ void MainWindow::exportToCSV() {
 void MainWindow::importFromJSON() {
     QString fn = QFileDialog::getOpenFileName(this, "Import", QDir::homePath(), "JSON (*.json)");
     if(fn.isEmpty()) return;
-    QFile f(fn); if(!f.open(QIODevice::ReadOnly)) return;
+
+    QFile f(fn);
+    if(!f.open(QIODevice::ReadOnly)) return;
+
     try {
         auto j = nlohmann::json::parse(f.readAll());
         std::vector<nlohmann::json> list;
-        if(j.is_array()) for(const auto& o : j) list.push_back(o); else list.push_back(j);
+
+        // Manejar si el JSON es un objeto único o un array de objetos
+        if(j.is_array()) {
+            for(const auto& o : j) list.push_back(o);
+        } else {
+            list.push_back(j);
+        }
 
         QDir dir = QFileInfo(fn).absoluteDir();
-        int ok=0;
-        for(auto& obj : list) {
-            // Check dup in memory
-            int64_t id = obj.value("_id", -1LL);
-            auto it = std::find_if(m_localCache.begin(), m_localCache.end(), [&](const auto& o){ return o["_id"] == id; });
-            if(it != m_localCache.end()) continue;
+        int ok = 0;
+        int skipped = 0;
 
-            // Temp image path
-            if(obj.contains("Picture") && !obj["Picture"].is_null()) {
+        for(auto& obj : list) {
+
+            // ---------------------------------------------------------
+            // 1. SANITIZAR ID (NORAD)
+            // ---------------------------------------------------------
+            if (!obj.contains("_id") || !obj["_id"].is_number_integer()) {
+                // Opción A: Asignar un ID temporal negativo si falta
+                // obj["_id"] = -1;
+
+                // Opción B: Saltar el objeto si no tiene ID (Recomendado para evitar caos)
+                spdlog::warn("Skipping imported object without valid _id.");
+                skipped++;
+                continue;
+            }
+
+            int64_t id = obj["_id"];
+
+            // Chequear duplicados en memoria
+            auto it = std::find_if(m_localCache.begin(), m_localCache.end(),
+                                   [&](const auto& o){ return o["_id"] == id; });
+            if(it != m_localCache.end()) {
+                skipped++;
+                continue;
+            }
+
+            // ---------------------------------------------------------
+            // 2. SANITIZAR ARRAYS (Sets y Groups) - Evitar NULLs
+            // ---------------------------------------------------------
+            auto sanitizeArray = [&](const std::string& key) {
+                if (obj.contains(key)) {
+                    if (obj[key].is_array()) {
+                        nlohmann::json cleanArray = nlohmann::json::array();
+                        for (const auto& item : obj[key]) {
+                            // SOLO aceptamos Strings. Nulls y números fuera.
+                            if (item.is_string()) {
+                                cleanArray.push_back(item);
+                            }
+                        }
+                        obj[key] = cleanArray;
+                    } else {
+                        // Si no es array (ej: null o string suelto), lo forzamos a array vacio
+                        obj[key] = nlohmann::json::array();
+                    }
+                }
+            };
+
+            sanitizeArray("Sets");
+            sanitizeArray("Groups");
+
+            // ---------------------------------------------------------
+            // 3. SANITIZAR NÚMEROS (Altitude, Inclination, etc.)
+            // Evita crash si viene un string "Too High" en un double
+            // ---------------------------------------------------------
+            auto ensureDouble = [&](const std::string& key) {
+                if (obj.contains(key)) {
+                    if (!obj[key].is_number()) {
+                        // Si no es número, lo ponemos a 0.0 o null
+                        obj[key] = 0.0;
+                    }
+                }
+            };
+
+            ensureDouble("Altitude");
+            ensureDouble("Inclination");
+            ensureDouble("RadarCrossSection");
+            ensureDouble("BinSize");
+            ensureDouble("CoM");
+
+            // ---------------------------------------------------------
+            // 4. GESTIÓN DE IMÁGENES
+            // ---------------------------------------------------------
+            if(obj.contains("Picture") && obj["Picture"].is_string()) {
                 QString p = dir.filePath(QString::fromStdString(obj["Picture"]));
                 if(QFile::exists(p)) obj["_tempLocalImgPath"] = p.toStdString();
             }
+
+            // AÑADIR A MEMORIA
             m_localCache.push_back(obj);
             ok++;
         }
-        setUnsavedChanges(true);
-        refreshMainTable();
-        logMessage("Imported " + QString::number(ok) + " objects to memory.");
-    } catch (...) {}
-}
 
+        if (ok > 0) {
+            setUnsavedChanges(true);
+            refreshMainTable();
+            QString msg = "Imported " + QString::number(ok) + " objects.";
+            if (skipped > 0) msg += " (Skipped " + QString::number(skipped) + " duplicates/invalid).";
+            QMessageBox::information(this, "Import Result", msg);
+            logMessage("[Import] " + msg);
+        } else {
+            QMessageBox::warning(this, "Import Result", "No valid objects imported.\n(Check if IDs already exist or format is invalid).");
+        }
+
+    } catch (const std::exception& e) {
+        QMessageBox::critical(this, "Import Error", "Failed to parse JSON file:\n" + QString(e.what()));
+        spdlog::error("JSON Import crash prevented: {}", e.what());
+    }
+}
 void MainWindow::keyPressEvent(QKeyEvent *event) {
     if(ui->mainObjectTable->hasFocus()) {
         if(event->key() == Qt::Key_Delete) on_deleteObjectSetButton_clicked();
