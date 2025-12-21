@@ -5,8 +5,8 @@
 #include <QTextStream>
 #include <QDir>
 #include <QFileInfo>
-#include <QTemporaryFile>
-#include <QRegularExpression> // <--- AÑADE ESTO O NO FUNCIONARÁ
+#include <QRegularExpression>
+#include <QUuid> // Necesario para generar nombres aleatorios
 
 // --- NAMESPACES ---
 using namespace dpbase::timing::dates;
@@ -53,122 +53,132 @@ void CPFPredictor::setStationCoordinates(double lat_deg, double lon_deg, double 
     m_stationGeodetic.alt = alt_m;
 }
 
-// --- LOAD CON RECONSTRUCCIÓN DE CABECERA (FIXED-WIDTH FIX) ---
+// --- VERSIÓN: WRITE-CLOSE-LOAD (Solución al Bloqueo de Windows) ---
 bool CPFPredictor::load(const QString& filePath) {
+    // Variable para guardar la ruta del archivo temporal y borrarlo luego
+    QString tempFilePath;
+
     try {
-        qDebug() << "--------------------------------------------------";
-        qDebug() << "Procesando CPF (Modo Uppercase + Strict Align):" << filePath;
+        qDebug() << "==================================================";
+        qDebug() << "PROCESANDO CPF (Modo Safe-File-Lock):" << filePath;
 
         QFile file(filePath);
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            qDebug() << "Error: No se puede abrir el archivo original.";
+            return false;
+        }
+
+        // 1. GENERAR NOMBRE TEMPORAL ÚNICO
+        // No usamos QTemporaryFile para evitar que mantenga el archivo abierto.
+        tempFilePath = QDir::tempPath() + "/cpf_clean_" + QUuid::createUuid().toString(QUuid::Id128) + ".cpf";
+
+        QFile outFile(tempFilePath);
+        if (!outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            qDebug() << "Error: No se puede escribir en temporales.";
             return false;
         }
 
         QTextStream in(&file);
-        QString content = in.readAll();
-        file.close();
+        QTextStream out(&outFile);
 
-        bool modified = false;
+        // Evitar BOM (Byte Order Mark) que a veces confunde a librerías C++
+        out.setGenerateByteOrderMark(false);
 
-        // --- 1. RECONSTRUCCIÓN H1 (AÑADIDO UPPERCASE) ---
-        // Regex para capturar datos
-        QRegularExpression h1Regex("^H1\\s+\\w+\\s+\\d+\\s+\\w+\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+([A-Za-z0-9]+).*$", QRegularExpression::MultilineOption);
+        bool h1Found = false;
+        bool h2Found = false;
 
-        QRegularExpressionMatch matchH1 = h1Regex.match(content);
-        if (matchH1.hasMatch()) {
-            int year = matchH1.captured(1).toInt();
-            int mon  = matchH1.captured(2).toInt();
-            int day  = matchH1.captured(3).toInt();
-            int hour = matchH1.captured(4).toInt();
-            int seq  = matchH1.captured(6).toInt();
-            QString name = matchH1.captured(7);
+        // 2. BARRIDO LÍNEA A LÍNEA
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
 
-            // *** CAMBIO CLAVE: .toUpper() ***
-            // lageos1 -> LAGEOS1
-            name = name.toUpper();
+            // --- FIX H1 ---
+            if (line.startsWith("H1")) {
+                QRegularExpression h1Regex("^H1\\s+\\w+\\s+\\d+\\s+\\w+\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+([A-Za-z0-9]+).*$", QRegularExpression::MultilineOption);
+                QRegularExpressionMatch match = h1Regex.match(line);
+                if (match.hasMatch()) {
+                    int year = match.captured(1).toInt();
+                    int mon  = match.captured(2).toInt();
+                    int day  = match.captured(3).toInt();
+                    int hour = match.captured(4).toInt();
+                    int seq  = match.captured(6).toInt();
+                    QString name = match.captured(7).toUpper(); // LAGEOS1
 
-            // Reconstrucción H1 alineada CPF v1
-            // Usamos %-10s para alinear a la izquierda
-            QString cleanHeader = QString::asprintf("H1 CPF  1 SPC %4d %02d %02d %02d 00 00 %3d %-10s",
-                                                    year, mon, day, hour, seq, name.toLatin1().constData());
-
-            content.replace(matchH1.captured(0), cleanHeader);
-            modified = true;
-            qDebug() << "--> FIX H1: Nombre Satélite convertido a MAYÚSCULAS (" << name << ")";
-        }
-
-        // --- 2. RECONSTRUCCIÓN H2 ---
-        QRegularExpression h2Regex("^H2\\s+\\d+\\s+\\d+\\s+(\\d+)\\s+(.*)$", QRegularExpression::MultilineOption);
-
-        QRegularExpressionMatch matchH2 = h2Regex.match(content);
-        if (matchH2.hasMatch()) {
-            QString satID = matchH2.captured(1);
-            QString rest  = matchH2.captured(2).trimmed(); // Trim para quitar espacios raros al inicio
-
-            int idNum = satID.toInt();
-
-            // H2 Estándar: ID(8) + SIC(10) + Resto
-            // El espacio entre %10d y %s asegura que el año empiece en col 23 (1+2+8+1+10+1 = 23)
-            QString newH2 = QString::asprintf("H2 %8d %10d %s",
-                                              idNum, idNum, rest.toLatin1().constData());
-
-            content.replace(matchH2.captured(0), newH2);
-            modified = true;
-            qDebug() << "--> FIX H2: Columnas extra eliminadas.";
-        }
-
-        // --- 3. LIMPIEZA GENERAL ---
-        if (content.contains("DGF", Qt::CaseInsensitive)) {
-            content.replace("DGF", "SPC", Qt::CaseInsensitive);
-            modified = true;
-        }
-
-        // --- GUARDAR Y CARGAR ---
-        QString pathLoading = filePath;
-        std::unique_ptr<QTemporaryFile> tempFile;
-
-        if (modified) {
-            tempFile = std::make_unique<QTemporaryFile>();
-            if (tempFile->open()) {
-                QTextStream out(tempFile.get());
-                out << content;
-                tempFile->flush();
-                pathLoading = tempFile->fileName();
-
-                // Debug visual
-                tempFile->seek(0);
-                qDebug() << "--> H1 FINAL:" << tempFile->readLine();
-                qDebug() << "--> H2 FINAL:" << tempFile->readLine();
-            } else {
-                return false;
+                    out << QString::asprintf("H1 CPF  1 SPC %4d %02d %02d %02d 00 00 %3d %-10s",
+                                             year, mon, day, hour, seq, name.toLatin1().constData()) << "\n";
+                    h1Found = true;
+                }
             }
+            // --- FIX H2 ---
+            else if (line.startsWith("H2")) {
+                QRegularExpression h2Regex("^H2\\s+\\d+\\s+\\d+\\s+(\\d+)\\s+(.*)$");
+                QRegularExpressionMatch match = h2Regex.match(line);
+                if (match.hasMatch()) {
+                    int idNum = match.captured(1).toInt();
+                    QString rest = match.captured(2).trimmed();
+                    out << QString::asprintf("H2 %8d %10d %s", idNum, idNum, rest.toLatin1().constData()) << "\n";
+                    h2Found = true;
+                }
+            }
+            // --- FIX H9 ---
+            else if (line.startsWith("H9")) {
+                out << "H9\n";
+            }
+            // --- FIX DATOS (10) ---
+            else if (line.startsWith("10") || line.trimmed().startsWith("10")) {
+                out << line.simplified() << "\n";
+            }
+            // Cualquier otra H (H3, H4...) se ignora deliberadamente.
         }
 
+        // 3. CERRAR ARCHIVOS (CRÍTICO)
+        file.close();
+        outFile.flush();
+        outFile.close(); // ¡AQUÍ LIBERAMOS EL BLOQUEO DE WINDOWS!
+
+        if (!h1Found || !h2Found) {
+            qDebug() << "ERROR: No se encontraron cabeceras válidas.";
+            QFile::remove(tempFilePath); // Limpieza
+            return false;
+        }
+
+        // 4. CALCULAR COORDENADAS
         toGeocentricWGS84(m_stationGeodetic, m_stationGeocentric);
 
+        qDebug() << "Cargando archivo liberado:" << tempFilePath;
+
+        // 5. CARGAR MOTOR
+        // Ahora la librería puede abrir el archivo porque nosotros lo hemos cerrado
         m_engine = std::make_unique<PredictorSlrCPF>(
-            pathLoading.toStdString(),
+            tempFilePath.toStdString(),
             m_stationGeodetic,
             m_stationGeocentric
             );
 
-        if (!m_engine || !m_engine->isReady()) {
-            qDebug() << "--> FALLO: Motor no listo.";
-            return false;
+        bool ready = false;
+        if (m_engine) {
+            ready = m_engine->isReady();
         }
 
-        m_engine->setPredictionMode(PredictorSlrBase::PredictionMode::INSTANT_VECTOR);
-        m_engine->enableCorrections(true);
-        m_engine->setTropoCorrParams(1013.0, 293.0, 0.50, 0.532, WtrVapPressModel::GIACOMO_DAVIS);
+        // 6. LIMPIEZA FINAL
+        // Borramos el archivo temporal para no llenar el disco de basura
+        QFile::remove(tempFilePath);
 
-        qDebug() << "--> ÉXITO ABSOLUTO: Archivo cargado.";
-        return true;
+        if (ready) {
+            qDebug() << "--> EXITO: Archivo procesado correctamente.";
+        } else {
+            qDebug() << "--> ERROR: El motor no aceptó el archivo.";
+        }
+
+        return ready;
 
     } catch (const std::exception& e) {
         qDebug() << "CRITICAL ERROR:" << e.what();
+        // Intentar borrar el temporal si existe
+        if (!tempFilePath.isEmpty()) QFile::remove(tempFilePath);
         return false;
     }
 }
+
 long long CPFPredictor::calculateTwoWayTOF(int mjd, double seconds_of_day) {
     if (!m_engine || !m_engine->isReady()) return 0;
 
@@ -176,7 +186,7 @@ long long CPFPredictor::calculateTwoWayTOF(int mjd, double seconds_of_day) {
     SoD sod(seconds_of_day);
     MJDateTime time(date, sod);
 
-    PredictionSLR result;
+    dpslr::slr::predictors::PredictionSLR result;
     auto error = m_engine->predict(time, result);
 
     if (error != static_cast<unsigned int>(PredictorSlrCPF::PredictionError::NOT_ERROR)) {
