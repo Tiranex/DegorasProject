@@ -16,7 +16,7 @@ using bsoncxx::builder::basic::kvp;
 using bsoncxx::builder::basic::make_document;
 using bsoncxx::builder::basic::make_array;
 
-
+// Constructor initializes the Mongo client and collections
 SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std::string& db_name, const std::string& col_name)
     : _client(mongocxx::uri{uri_str}),
     _db(_client[db_name]),
@@ -27,6 +27,7 @@ SpaceObjectDBManager::SpaceObjectDBManager(const std::string& uri_str, const std
     _imageManager(_db)
 {
     try {
+        // Ping command to verify connectivity immediately
         _db.run_command(make_document(kvp("ping", 1)));
         spdlog::info("SpaceObjectDBManager connected. Sets, Groups and Versions collections initialized.");
     } catch (const mongocxx::exception& ex) {
@@ -39,7 +40,7 @@ SpaceObjectDBManager::~SpaceObjectDBManager() {
     spdlog::info("SpaceObjectDBManager disconnected.");
 }
 
-
+// Fetch a single document by its NORAD ID (_id field)
 nlohmann::json SpaceObjectDBManager::getSpaceObjectById(int64_t id) {
     try {
         auto res = _collection.find_one(make_document(kvp("_id", bsoncxx::types::b_int64{id})));
@@ -47,7 +48,7 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectById(int64_t id) {
     } catch (...) { return nlohmann::json{}; }
 }
 
-
+// Fetch a single document by its "Name" field
 nlohmann::json SpaceObjectDBManager::getSpaceObjectByName(const std::string& name)
 {
     try {
@@ -61,20 +62,7 @@ nlohmann::json SpaceObjectDBManager::getSpaceObjectByName(const std::string& nam
     }
 }
 
-nlohmann::json SpaceObjectDBManager::getSpaceObjectByPicture(const std::string& picName)
-{
-    try {
-        bsoncxx::builder::basic::document filter{};
-        filter.append(bsoncxx::builder::basic::kvp("Picture", picName));
-        auto result = _collection.find_one(filter.view());
-        return result ? bsoncxxToNjson(result->view()) : nlohmann::json{};
-    } catch (const mongocxx::exception& ex) {
-        spdlog::error("Failed in getSpaceObjectByPicture: {}", ex.what());
-        return nlohmann::json{};
-    }
-}
-
-
+// Create a new Space Object with extensive validation and optional image upload
 bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg)
 {
     try {
@@ -83,6 +71,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
 
         errorMsg = "";
 
+        // --- VALIDATION BLOCK START ---
         if (!objectData.contains("_id") || objectData["_id"].is_null()) {
             errorMsg = "Error: Field '_id' (NORAD) is required and cannot be null.";
             return false;
@@ -111,6 +100,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             return false;
         }
 
+        // Validate Alias Uniqueness if present
         if (objectData.contains("Alias") && !objectData["Alias"].is_null()) {
             std::string val = objectData["Alias"];
             auto filter = make_document(kvp("Alias", val));
@@ -135,6 +125,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             return false;
         }
 
+        // Validate Optional Unique Fields
         if (objectData.contains("ILRSID") && !objectData["ILRSID"].is_null()) {
             std::string val = objectData["ILRSID"];
             if (!val.empty()) {
@@ -156,7 +147,9 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
                 }
             }
         }
+        // --- VALIDATION BLOCK END ---
 
+        // Image Handling
         std::string picName = "";
         if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
             picName = objectData["Picture"];
@@ -164,7 +157,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
 
         if (!picName.empty()) {
             if (!localPicturePath.empty()) {
-
+                // Upload new image from local disk
                 std::ifstream file(localPicturePath, std::ios::binary);
                 if (!file.is_open()) {
                     errorMsg = "Could not read local image file.";
@@ -178,6 +171,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
                 }
             }
             else {
+                // Verify existing image reference
                 if (!_imageManager.exists(picName)) {
                     errorMsg = "Image '" + picName + "' does not exist in Database and no local file was provided.";
                     return false;
@@ -185,6 +179,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
+        // Handle Sets (Upsert new set names)
         if (objectData.contains("Sets") && !objectData["Sets"].is_null() && objectData["Sets"].is_array())
         {
             mongocxx::options::update upsert_opt;
@@ -203,6 +198,8 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
                 }
             }
         }
+
+        // Handle Groups (Upsert new group names)
         if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array())
         {
             mongocxx::options::update upsert_opt;
@@ -222,6 +219,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
+        // Finally, insert the document
         bsoncxx::document::value bdoc = njsonToBsoncxx(objectData);
         auto result = _collection.insert_one(bdoc.view());
         return result.has_value();
@@ -244,7 +242,7 @@ bool SpaceObjectDBManager::createSpaceObject(const nlohmann::json& objectData, c
     }
 }
 
-
+// Update existing object with validations
 bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, const std::string& localPicturePath, std::string& errorMsg)
 {
     try {
@@ -265,6 +263,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             return false;
         }
 
+        // Helper Lambda to check uniqueness excluding the current document ID
         auto checkUniqueExceptSelf = [&](const std::string& field, const std::string& value, const std::string& fieldNameErr) -> bool {
             auto filter = make_document(
                 kvp(field, value),
@@ -294,6 +293,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             if(!val.empty()) if(!checkUniqueExceptSelf("SIC", val, "SIC")) return false;
         }
 
+        // Image Handling
         std::string picName = "";
         if (objectData.contains("Picture") && !objectData["Picture"].is_null()) {
             picName = objectData["Picture"];
@@ -301,7 +301,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
 
         if (!picName.empty()) {
             if (!localPicturePath.empty()) {
-
+                // Upload new image
                 std::ifstream file(localPicturePath, std::ios::binary);
                 if (!file.is_open()) {
                     errorMsg = "Could not read local image file.";
@@ -314,8 +314,8 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
                     return false;
                 }
             }
-
             else {
+                // Check if existing image is valid
                 if (!_imageManager.exists(picName)) {
                     errorMsg = "Image '" + picName + "' does not exist in Database and no local file was provided.";
                     return false;
@@ -323,6 +323,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
             }
         }
 
+        // Update Set collection references
         if (objectData.contains("Sets") && !objectData["Sets"].is_null() && objectData["Sets"].is_array())
         {
             mongocxx::options::update upsert_opt;
@@ -339,6 +340,8 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
                 }
             }
         }
+
+        // Update Group collection references
         if (objectData.contains("Groups") && !objectData["Groups"].is_null() && objectData["Groups"].is_array())
         {
             mongocxx::options::update upsert_opt;
@@ -357,6 +360,8 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
                 }
             }
         }
+
+        // Replace existing document
         bsoncxx::document::value bdoc = njsonToBsoncxx(objectData);
         auto filter = make_document(kvp("_id", bsoncxx::types::b_int64{id}));
         auto result = _collection.replace_one(filter.view(), bdoc.view());
@@ -364,7 +369,7 @@ bool SpaceObjectDBManager::updateSpaceObject(const nlohmann::json& objectData, c
         if(result && result->modified_count() >= 0) return true;
         else {
             errorMsg = "Document was not modified (data might be identical).";
-            return true;
+            return true; // Technically a success if data matches
         }
 
     } catch (const std::exception& ex) {
@@ -387,7 +392,6 @@ bool SpaceObjectDBManager::deleteSpaceObjectById(int64_t id)
     }
 }
 
-int64_t SpaceObjectDBManager::getSpaceObjectsCount() { return _collection.count_documents({}); }
 std::vector<nlohmann::json> SpaceObjectDBManager::getAllSpaceObjects() {
     std::vector<nlohmann::json> all;
     auto cursor = _collection.find({});
@@ -433,12 +437,14 @@ bool SpaceObjectDBManager::addObjectToSet(int64_t objectId, const std::string& s
 {
     if (setName.empty()) return false;
     try {
+        // Upsert set definition
         mongocxx::options::update upsert_opt;
         upsert_opt.upsert(true);
         _setsCollection.update_one(make_document(kvp("name", setName)),
                                    make_document(kvp("$setOnInsert", make_document(kvp("name", setName)))),
                                    upsert_opt);
 
+        // Add set tag to object using $addToSet (avoids duplicates)
         auto result = _collection.update_one(
             make_document(kvp("_id", bsoncxx::types::b_int64{objectId})),
             make_document(kvp("$addToSet", make_document(kvp("Sets", setName))))
@@ -472,6 +478,7 @@ bool SpaceObjectDBManager::deleteSet(const std::string& setName)
 {
     try {
         _setsCollection.delete_one(make_document(kvp("name", setName)));
+        // Cascading delete: Remove this tag from all objects
         _collection.update_many(
             make_document(kvp("Sets", setName)),
             make_document(kvp("$pull", make_document(kvp("Sets", setName))))
@@ -527,6 +534,7 @@ bool SpaceObjectDBManager::deleteGroup(const std::string& groupName)
             spdlog::warn("Group '{}' not found for deletion.", groupName);
         }
 
+        // Cascading delete: Remove this group from all objects
         _collection.update_many(
             make_document(kvp("Groups", groupName)),
             make_document(kvp("$pull", make_document(kvp("Groups", groupName))))
@@ -666,6 +674,7 @@ bool SpaceObjectDBManager::createVersionSnapshot(const std::string& versionName,
     }
 }
 
+// Main function to handle bulk saving and version control
 bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& allObjects,
                                              const std::set<std::string>& allSets,
                                              const std::set<std::string>& allGroups,
@@ -675,10 +684,12 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
                                              std::string& errorMsg)
 {
     try {
+        // --- DIFF CALCULATION PHASE ---
         std::vector<nlohmann::json> diffAdded;
         std::vector<nlohmann::json> diffModified;
         std::vector<int64_t> diffDeleted;
 
+        // Load current state from DB to compare
         std::map<int64_t, nlohmann::json> oldDbState;
         auto currentDbObjects = getAllSpaceObjects();
         for(const auto& obj : currentDbObjects) {
@@ -687,9 +698,9 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
             }
         }
 
+        // Calculate differences for Sets
         std::vector<std::string> setsAdded, setsDeleted;
         std::set<std::string> oldSets = getAllUniqueSetNames();
-
 
         for(const auto& s : allSets) {
             if(oldSets.find(s) == oldSets.end()) setsAdded.push_back(s);
@@ -698,6 +709,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
             if(allSets.find(s) == allSets.end()) setsDeleted.push_back(s);
         }
 
+        // Calculate differences for Groups
         std::vector<std::string> groupsAdded, groupsDeleted;
         std::set<std::string> oldGroups = getAllUniqueGroupNames();
 
@@ -715,7 +727,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
                      oldGroups.size(), allGroups.size());
 
 
-
+        // --- INTEGRITY CHECK PHASE ---
         std::set<int64_t> checkIds;
         std::set<std::string> checkNames;
         std::set<std::string> checkAliases;
@@ -723,18 +735,21 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
 
         for(const auto& newObj : allObjects) {
 
+            // Validate ID existence
             if(!newObj.contains("_id") || newObj["_id"].is_null()) {
                 errorMsg = "Critical: Object without _id found in save list.";
                 return false;
             }
-            int64_t id = newObj["_id"].get<int64_t>(); // Asegurar tipo
+            int64_t id = newObj["_id"].get<int64_t>(); // Ensure type safety
 
+            // Check for Duplicate IDs
             if(checkIds.count(id)) {
                 errorMsg = "Critical: Duplicate NORAD ID in save list: " + std::to_string(id);
                 return false;
             }
             checkIds.insert(id);
 
+            // Check for Duplicate Names
             if(newObj.contains("Name") && newObj["Name"].is_string()) {
                 std::string n = newObj["Name"];
                 if(!n.empty()) {
@@ -746,6 +761,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
                 }
             }
 
+            // Check for Duplicate Aliases
             if(newObj.contains("Alias") && newObj["Alias"].is_string()) {
                 std::string a = newObj["Alias"];
                 if(!a.empty()) {
@@ -757,6 +773,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
                 }
             }
 
+            // Check for Duplicate COSPAR
             if(newObj.contains("COSPAR") && newObj["COSPAR"].is_string()) {
                 std::string c = newObj["COSPAR"];
                 if(!c.empty()) {
@@ -768,17 +785,21 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
                 }
             }
 
+            // Populate Diff vectors
             if (oldDbState.find(id) == oldDbState.end()) {
                 diffAdded.push_back(newObj);
             } else {
                 if (oldDbState[id] != newObj) diffModified.push_back(newObj);
-                oldDbState.erase(id);
+                oldDbState.erase(id); // Remove matched IDs
             }
         }
 
+        // Remaining IDs in oldDbState are effectively deleted
         for(const auto& kv : oldDbState) diffDeleted.push_back(kv.first);
 
 
+        // --- DATABASE UPDATE PHASE (BULK REPLACE) ---
+        // 1. Rebuild Objects Collection
         _collection.drop();
         if (!allObjects.empty()) {
             std::vector<bsoncxx::document::value> docs;
@@ -787,7 +808,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
             _collection.insert_many(docs);
         }
 
-
+        // 2. Rebuild Sets Collection
         _setsCollection.drop();
         if (!allSets.empty()) {
             std::vector<bsoncxx::document::value> setDocs;
@@ -796,7 +817,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
             _setsCollection.insert_many(setDocs);
         }
 
-
+        // 3. Rebuild Groups Collection
         _groupsCollection.drop();
         if (!allGroups.empty()) {
             std::vector<bsoncxx::document::value> groupDocs;
@@ -805,7 +826,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
             _groupsCollection.insert_many(groupDocs);
         }
 
-
+        // --- VERSION CONTROL PHASE ---
         if (mode == SaveMode::FULL_SNAPSHOT) {
             return createVersionSnapshotInternal(allObjects, versionName, comment, errorMsg);
         }
@@ -823,7 +844,7 @@ bool SpaceObjectDBManager::saveAllAndVersion(const std::vector<nlohmann::json>& 
     }
 }
 
-
+// Helper to create an Incremental Version document in MongoDB
 bool SpaceObjectDBManager::createIncrementalVersion(const std::vector<nlohmann::json>& added,
                                                     const std::vector<nlohmann::json>& modified,
                                                     const std::vector<int64_t>& deletedIds,
@@ -841,11 +862,13 @@ bool SpaceObjectDBManager::createIncrementalVersion(const std::vector<nlohmann::
         using bsoncxx::builder::basic::kvp;
         using bsoncxx::builder::basic::make_array;
 
+        // Generate ISO 8601 Timestamp
         auto now = std::chrono::system_clock::now();
         std::time_t now_c = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
         ss << std::put_time(std::localtime(&now_c), "%Y-%m-%dT%H:%M:%S");
 
+        // Build BSON Arrays for the diff
         bsoncxx::builder::basic::array arrAdded;
         for(const auto& j : added) arrAdded.append(njsonToBsoncxx(j));
 
@@ -863,6 +886,7 @@ bool SpaceObjectDBManager::createIncrementalVersion(const std::vector<nlohmann::
         for(const auto& g : groupsAdded) arrGroupsAdded.append(g);
         for(const auto& g : groupsDeleted) arrGroupsDeleted.append(g);
 
+        // Construct the final Version Document
         auto versionDoc = make_document(
             kvp("versionName", versionName),
             kvp("comment", comment),
@@ -898,6 +922,8 @@ bool SpaceObjectDBManager::createIncrementalVersion(const std::vector<nlohmann::
         return false;
     }
 }
+
+// Internal helper for Full Snapshot creation used by saveAllAndVersion
 bool SpaceObjectDBManager::createVersionSnapshotInternal(const std::vector<nlohmann::json>& data,
                                                          const std::string& versionName,
                                                          const std::string& comment,
@@ -912,6 +938,7 @@ bool SpaceObjectDBManager::createVersionSnapshotInternal(const std::vector<nlohm
         std::time_t now_c = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
         ss << std::put_time(std::localtime(&now_c), "%Y-%m-%dT%H:%M:%S");
+
         bsoncxx::builder::basic::array objectsArray;
         for (const auto& obj : data) {
             objectsArray.append(njsonToBsoncxx(obj));

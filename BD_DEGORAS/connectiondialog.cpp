@@ -18,14 +18,20 @@ ConnectionDialog::ConnectionDialog(QWidget *parent) : QDialog(parent)
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
+    // History Combo Box
     historyCombo = new QComboBox(this);
+    // Index 0 is reserved for "New Connection" to clear fields
     historyCombo->addItem("New Connection...");
     mainLayout->addWidget(new QLabel("Saved Connections:"));
     mainLayout->addWidget(historyCombo);
 
-    QFrame* line = new QFrame(); line->setFrameShape(QFrame::HLine); line->setFrameShadow(QFrame::Sunken);
+    // Separator Line
+    QFrame* line = new QFrame();
+    line->setFrameShape(QFrame::HLine);
+    line->setFrameShadow(QFrame::Sunken);
     mainLayout->addWidget(line);
 
+    // Form Layout for Inputs
     QFormLayout* form = new QFormLayout();
     hostEd = new QLineEdit(this); hostEd->setPlaceholderText("127.0.0.1");
     portEd = new QLineEdit(this); portEd->setText("27017");
@@ -44,12 +50,15 @@ ConnectionDialog::ConnectionDialog(QWidget *parent) : QDialog(parent)
     form->addRow("", sslCheck);
     mainLayout->addLayout(form);
 
+    // Standard Dialog Buttons (Connect / Cancel)
     QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     bb->button(QDialogButtonBox::Ok)->setText("Connect");
     mainLayout->addWidget(bb);
 
+    // Signal Connections
     connect(bb, &QDialogButtonBox::accepted, this, &ConnectionDialog::on_connectBtn_clicked);
     connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    // QOverload is needed because currentIndexChanged has int and QString signatures
     connect(historyCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ConnectionDialog::on_historyCombo_currentIndexChanged);
 
     loadHistory();
@@ -68,8 +77,10 @@ void ConnectionDialog::on_connectBtn_clicked()
     m_params.password = passEd->text();
     m_params.useSSL = sslCheck->isChecked();
 
+    // Set defaults if empty
     if(m_params.host.isEmpty()) m_params.host = "localhost";
     if(m_params.port <= 0) m_params.port = 27017;
+
     if(m_params.dbName.isEmpty()) {
         QMessageBox::warning(this, "Error", "Database name is required.");
         return;
@@ -84,12 +95,14 @@ void ConnectionDialog::loadHistory()
     QSettings settings("DegorasProject", "DBConnections");
     QStringList history = settings.value("historyList").toStringList();
 
+    // Clear dynamic items but keep the first one ("New Connection...")
     while(historyCombo->count() > 1) historyCombo->removeItem(1);
 
     for(const QString& entry : history) {
         historyCombo->addItem(entry);
     }
 
+    // Restore last used selection
     QString last = settings.value("lastUsed").toString();
     int idx = historyCombo->findText(last);
     if(idx != -1) historyCombo->setCurrentIndex(idx);
@@ -97,6 +110,7 @@ void ConnectionDialog::loadHistory()
 
 void ConnectionDialog::saveHistory()
 {
+    // Create a unique identifier string: user@host
     QString id = QString("%1@%2").arg(m_params.user.isEmpty() ? "anon" : m_params.user, m_params.host);
 
     QSettings settings("DegorasProject", "DBConnections");
@@ -104,7 +118,8 @@ void ConnectionDialog::saveHistory()
 
     if(!history.contains(id)) {
         history.prepend(id);
-        if(history.size() > 5) history.removeLast(); // Guardar solo las últimas 5
+        // Limit history size to keep UI clean
+        if(history.size() > 5) history.removeLast();
         settings.setValue("historyList", history);
     }
 
@@ -120,6 +135,7 @@ void ConnectionDialog::saveHistory()
 
 void ConnectionDialog::on_historyCombo_currentIndexChanged(int index)
 {
+    // Index 0 is "New Connection...", just ignore or could implement clear logic
     if (index <= 0) return;
 
     QString id = historyCombo->currentText();
@@ -131,6 +147,6 @@ void ConnectionDialog::on_historyCombo_currentIndexChanged(int index)
     dbEd->setText(settings.value("db").toString());
     userEd->setText(settings.value("user").toString());
     sslCheck->setChecked(settings.value("ssl").toBool());
-    passEd->clear();
+    passEd->clear(); // Never store/load passwords for security reasons
     settings.endGroup();
 }

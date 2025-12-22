@@ -5,8 +5,6 @@
 #include <QDir>
 #include <QIntValidator>
 #include <QDoubleValidator>
-
-
 #include <spdlog/spdlog.h>
 
 AddObjectDialog::AddObjectDialog(QWidget *parent) :
@@ -14,6 +12,8 @@ AddObjectDialog::AddObjectDialog(QWidget *parent) :
     ui(new Ui::AddObjectDialog)
 {
     ui->setupUi(this);
+
+    // Styling for validation feedback using dynamic properties
     this->setStyleSheet(
         "QLineEdit[state='warning'] { border: 2px solid #FBC02D; }"
         "QLineEdit[state='error'] { border: 2px solid #D32F2F; }"
@@ -21,6 +21,7 @@ AddObjectDialog::AddObjectDialog(QWidget *parent) :
         "QLineEdit:read-only { color: #A0A0A0; border: 1px solid #404040; }"
         );
 
+    // Connect text change signals to live validation
     connect(ui->noradEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
     connect(ui->nameEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
     connect(ui->aliasEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
@@ -30,22 +31,25 @@ AddObjectDialog::AddObjectDialog(QWidget *parent) :
     connect(ui->bsEdit, &QLineEdit::textChanged, this, &AddObjectDialog::validateFormLive);
 
     connect(ui->selectDBImageBtn, &QPushButton::clicked, this, &AddObjectDialog::on_selectDBImageBtn_clicked);
-    validateFormLive();
+
+    // Initialize validators
     ui->noradEdit->setValidator(new QIntValidator(0, 999999999, this));
     ui->npiEdit->setValidator(new QIntValidator(0, 999, this));
-
     ui->altitudeEdit->setValidator(new QDoubleValidator(0.0, 100000.0, 4, this));
     ui->rcsEdit->setValidator(new QDoubleValidator(0.0, 10000.0, 4, this));
     ui->bsEdit->setValidator(new QDoubleValidator(0.0, 10000.0, 4, this));
     ui->incEdit->setValidator(new QDoubleValidator(0.0, 360.0, 4, this));
     ui->comEdit->setValidator(new QDoubleValidator(-1000.0, 1000.0, 4, this));
 
+    // Populate Combo Boxes if empty
     if(ui->lrrCombo->count() == 0) ui->lrrCombo->addItems({"Unknown", "True", "False"});
     if(ui->debrisCombo->count() == 0) ui->debrisCombo->addItems({"Unknown", "True", "False"});
 
+    // Enable multi-selection for Sets and Groups
     ui->setsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
     ui->groupsListWidget->setSelectionMode(QAbstractItemView::MultiSelection);
 
+    validateFormLive(); // Initial validation state
     spdlog::debug("AddObjectDialog initialized.");
 }
 
@@ -56,6 +60,7 @@ AddObjectDialog::~AddObjectDialog()
 
 void AddObjectDialog::setFieldState(QWidget* widget, const QString& state)
 {
+    // Uses Qt property system to trigger stylesheet update
     widget->setProperty("state", state);
     widget->style()->unpolish(widget);
     widget->style()->polish(widget);
@@ -69,6 +74,7 @@ void AddObjectDialog::setDbManager(SpaceObjectDBManager* dbManager)
 void AddObjectDialog::on_saveButton_clicked()
 {
     QString errors;
+    // Reset all fields to clean state before validation
     setFieldState(ui->noradEdit, "");
     setFieldState(ui->nameEdit, "");
     setFieldState(ui->aliasEdit, "");
@@ -78,9 +84,11 @@ void AddObjectDialog::on_saveButton_clicked()
     setFieldState(ui->altitudeEdit, "");
     setFieldState(ui->npiEdit, "");
     setFieldState(ui->bsEdit, "");
+
     int64_t currentId = -1;
     if (!ui->noradEdit->text().isEmpty()) currentId = ui->noradEdit->text().toLongLong();
 
+    // Lambda to check if a field value already exists in the cache (duplicates)
     auto checkDuplicate = [&](const std::string& fieldName, const QString& uiValue, QLineEdit* widget) -> bool {
         if (uiValue.trimmed().isEmpty()) return false;
         if (!m_existingObjects) return false;
@@ -88,11 +96,13 @@ void AddObjectDialog::on_saveButton_clicked()
         std::string valToCheck = uiValue.trimmed().toStdString();
 
         for (const auto& obj : *m_existingObjects) {
+            // In Edit Mode, ignore self-match by ID
             if (m_isEditMode) {
                 if (obj.contains("_id") && obj["_id"] == currentId) continue;
             }
             if (obj.contains(fieldName) && !obj[fieldName].is_null()) {
                 std::string objVal;
+                // Handle both string and number types in JSON for robust comparison
                 if (obj[fieldName].is_string()) objVal = obj[fieldName].get<std::string>();
                 else if (obj[fieldName].is_number()) objVal = std::to_string(obj[fieldName].get<int64_t>());
 
@@ -105,6 +115,7 @@ void AddObjectDialog::on_saveButton_clicked()
         return false;
     };
 
+    // Validation Logic
     if (ui->noradEdit->text().isEmpty()) {
         errors += "- Field 'Norad' is required.\n";
         setFieldState(ui->noradEdit, "error");
@@ -112,30 +123,35 @@ void AddObjectDialog::on_saveButton_clicked()
     else if (!m_isEditMode && checkDuplicate("_id", ui->noradEdit->text(), ui->noradEdit)) {
         errors += "- NORAD ID already exists in memory.\n";
     }
+
     if (ui->nameEdit->text().isEmpty()) {
         errors += "- Field 'Name' is required.\n";
         setFieldState(ui->nameEdit, "error");
     } else if (checkDuplicate("Name", ui->nameEdit->text(), ui->nameEdit)) {
         errors += "- Name already exists in memory.\n";
     }
+
     if (ui->aliasEdit->text().isEmpty()) {
         errors += "- Field 'Alias' is required.\n";
         setFieldState(ui->aliasEdit, "error");
     } else if (checkDuplicate("Alias", ui->aliasEdit->text(), ui->aliasEdit)) {
         errors += "- Alias already exists in memory.\n";
     }
+
     if (ui->cosparEdit->text().isEmpty()) {
         errors += "- Field 'COSPAR' is required.\n";
         setFieldState(ui->cosparEdit, "error");
     } else if (checkDuplicate("COSPAR", ui->cosparEdit->text(), ui->cosparEdit)) {
         errors += "- COSPAR already exists in memory.\n";
     }
+
     if (checkDuplicate("ILRSID", ui->ilrsEdit->text(), ui->ilrsEdit)) {
         errors += "- ILRS ID already exists in memory.\n";
     }
     if (checkDuplicate("SIC", ui->sicEdit->text(), ui->sicEdit)) {
         errors += "- SIC already exists in memory.\n";
     }
+
     if(ui->altitudeEdit->text().toDouble() <= 0) {
         errors += "- Altitude > 0 required.\n";
         setFieldState(ui->altitudeEdit, "error");
@@ -148,11 +164,13 @@ void AddObjectDialog::on_saveButton_clicked()
         errors += "- BinSize > 0 required.\n";
         setFieldState(ui->bsEdit, "error");
     }
+
     if(!errors.isEmpty()) {
         spdlog::warn("Validation failed in Dialog: {}", errors.toStdString());
         QMessageBox::warning(this, "Invalid Data", "Please correct the fields marked in RED:\n\n" + errors);
         return;
     }
+
     spdlog::info("Object data validated successfully.");
     accept();
 }
@@ -181,6 +199,8 @@ void AddObjectDialog::on_browseImageBtn_clicked()
     QFileInfo fi(filePath);
     QString fileName = fi.fileName();
     std::string nameStd = fileName.toStdString();
+
+    // Check if image already exists in DB to warn user
     if (m_dbManager && m_dbManager->getImageManager().exists(nameStd)) {
         QMessageBox::StandardButton reply;
         reply = QMessageBox::question(this, "Image Exists",
@@ -192,7 +212,7 @@ void AddObjectDialog::on_browseImageBtn_clicked()
             return;
         }
         else {
-            m_selectedImagePath = "";
+            m_selectedImagePath = ""; // Empty implies "use existing in DB"
             ui->imagePathEdit->setText(fileName);
             return;
         }
@@ -228,6 +248,7 @@ void AddObjectDialog::on_selectDBImageBtn_clicked()
     }
     layout->addWidget(listWidget);
 
+    // Live search filtering
     QObject::connect(searchBox, &QLineEdit::textChanged, listWidget, [listWidget](const QString &text){
         for(int i = 0; i < listWidget->count(); ++i) {
             QListWidgetItem *item = listWidget->item(i);
@@ -246,7 +267,7 @@ void AddObjectDialog::on_selectDBImageBtn_clicked()
         if (!listWidget->selectedItems().isEmpty()) {
             QString selectedName = listWidget->selectedItems().first()->text();
             ui->imagePathEdit->setText(selectedName);
-            m_selectedImagePath.clear(); // Reutilización
+            m_selectedImagePath.clear(); // Clear path to indicate existing DB image
         }
     }
 }
@@ -259,10 +280,12 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
 {
     nlohmann::json j;
 
+    // Helper to set null for empty strings
     auto setStringOrNull = [&](const std::string& key, const QString& value) {
         if (value.trimmed().isEmpty()) j[key] = nullptr;
         else j[key] = value.trimmed().toStdString();
     };
+    // Helper for Tristate combos
     auto setTristate = [&](const std::string& key, const QString& value) {
         if (value == "True") j[key] = 1; else if (value == "False") j[key] = 0; else j[key] = nullptr;
     };
@@ -297,22 +320,27 @@ nlohmann::json AddObjectDialog::getNewObjectData() const
     setStringOrNull("Config", ui->configEdit->text());
     setStringOrNull("Picture", ui->imagePathEdit->text());
 
+    // Collect Sets
     std::vector<std::string> selectedSets;
     for(auto item : ui->setsListWidget->selectedItems()) {
         selectedSets.push_back(item->text().toStdString());
     }
     j["Sets"] = selectedSets;
+
+    // Collect Groups
     std::vector<std::string> selectedGroups;
     for(auto item : ui->groupsListWidget->selectedItems()) {
         selectedGroups.push_back(item->text().toStdString());
     }
     j["Groups"] = selectedGroups;
+
     j["EnablementPolicy"] = ui->policyCombo->currentIndex();
     return j;
 }
 
 void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
 {
+    // Helpers to safely extract data from JSON
     auto getString = [&](const std::string& key) -> QString {
         if(obj.contains(key) && !obj[key].is_null()) return QString::fromStdString(obj[key].get<std::string>());
         return "";
@@ -361,6 +389,8 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
             ui->policyCombo->setCurrentIndex(val);
         }
     }
+
+    // Select Sets in List
     ui->setsListWidget->clearSelection();
     if(obj.contains("Sets") && obj["Sets"].is_array()) {
         std::vector<std::string> sets = obj["Sets"];
@@ -373,6 +403,7 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         }
     }
 
+    // Select Groups in List
     ui->groupsListWidget->clearSelection();
     if(obj.contains("Groups") && obj["Groups"].is_array()) {
         std::vector<std::string> groups = obj["Groups"];
@@ -385,12 +416,13 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         }
     }
 }
+
 void AddObjectDialog::setEditMode(bool enable)
 {
     m_isEditMode = enable;
     if(enable) {
         this->setWindowTitle("Edit Object");
-        ui->noradEdit->setEnabled(false);
+        ui->noradEdit->setEnabled(false); // ID cannot be changed in edit mode
         ui->saveButton->setText("Update Object");
     } else {
         this->setWindowTitle("Create New Object");
@@ -401,11 +433,13 @@ void AddObjectDialog::setEditMode(bool enable)
 
 void AddObjectDialog::validateFormLive()
 {
+    // Helper lambda to mark required text fields
     auto checkRequired = [&](QLineEdit* widget) {
         if (widget->text().trimmed().isEmpty()) setFieldState(widget, "warning");
         else setFieldState(widget, "");
     };
 
+    // Helper lambda to mark required numeric fields > 0
     auto checkNumeric = [&](QLineEdit* widget) {
         if (widget->text().isEmpty() || widget->text().toDouble() <= 0) setFieldState(widget, "warning");
         else setFieldState(widget, "");
@@ -435,9 +469,13 @@ void AddObjectDialog::on_searchPluginBtn_clicked()
     int64_t noradId = noradStr.toLongLong();
     this->setCursor(Qt::WaitCursor);
     ui->searchPluginBtn->setEnabled(false);
+
+    // Call Plugin Manager to find object
     nlohmann::json result = PluginManager::instance().searchSpaceObject(noradId);
+
     this->setCursor(Qt::ArrowCursor);
     ui->searchPluginBtn->setEnabled(true);
+
     if (result.empty()) {
         QMessageBox::information(this, "Not Found",
                                  "Object not found in any loaded plugin.\n\n"

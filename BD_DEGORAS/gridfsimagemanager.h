@@ -1,93 +1,87 @@
-/// @file gridfs_image_manager.h
-/// @brief Defines the **GridFSImageManager** class for handling file operations (upload, download, delete, list)
-/// using MongoDB's GridFS feature.
+/// @file gridfsimagemanager.h
+/// @brief Defines the GridFSImageManager class for handling MongoDB GridFS file operations.
 
 #ifndef GRIDFS_IMAGE_MANAGER_H
 #define GRIDFS_IMAGE_MANAGER_H
 
 #include <string>
+#include <vector>
 #include <mongocxx/database.hpp>
 #include <mongocxx/gridfs/bucket.hpp>
 #include <mongocxx/collection.hpp>
 
 /**
  * @class GridFSImageManager
- * @brief Manages storage and retrieval of binary data (like images) using MongoDB's GridFS.
+ * @brief Manages storage, retrieval, deletion, and listing of binary image data using MongoDB's GridFS.
  *
- * This class abstracts the complexities of the mongocxx GridFS API, providing simple methods
- * to handle files based on their names. It utilizes a mongocxx::gridfs::bucket
- * for all file operations.
+ * This class provides a high-level abstraction over the mongocxx GridFS API.
+ * It simplifies operations by using filenames as the primary key for interaction,
+ * although internally it handles the necessary GridFS file IDs.
  *
- * @note This class assumes the required MongoDB connection and database initialization
- * have been handled externally.
+ * @note This class assumes the passed `mongocxx::database` object is already initialized and connected.
  */
 class GridFSImageManager {
 public:
     /**
-     * @brief Constructor that initializes the GridFS bucket.
+     * @brief Constructs the manager and initializes the GridFS bucket.
      *
-     * The bucket is instantiated using the provided mongocxx::database object,
-     * which handles the connection to the 'fs' collection namespace by default.
+     * The bucket is created using the provided database connection.
+     * By default, it operates on the 'fs' bucket namespace.
      *
-     * @param db A reference to the initialized MongoDB database object.
+     * @param db A reference to an active MongoDB database object.
      */
     explicit GridFSImageManager(mongocxx::database& db);
 
     /**
-     * @brief Uploads image data to GridFS.
+     * @brief Uploads an image (or any binary data) to GridFS.
      *
-     * Stores the raw image data as a file in the GridFS bucket under the given name.
+     * This method opens an upload stream and writes the data to a new file in GridFS.
      *
-     * @param nameInDB The name under which the file will be stored in GridFS (e.g., "satellite_image_01").
-     * @param imageData The raw binary data of the image (as a string or binary buffer).
-     * @return **true** if the upload was successful; **false** otherwise.
+     * @param nameInDB The unique filename to assign in GridFS (e.g., "satellite_01.jpg").
+     * @param imageData The raw binary content of the file.
+     * @return true if the upload completes successfully, false otherwise.
      */
     bool uploadImage(const std::string& nameInDB, const std::string& imageData);
 
     /**
-     * @brief Downloads image data from GridFS by its filename.
+     * @brief Downloads an image's data from GridFS given its filename.
      *
-     * Retrieves the stored binary data associated with the given filename.
-     *
-     * @param nameInDB The name of the file to retrieve from GridFS.
-     * @return The raw binary data of the image as a std::string; returns an empty string if the file is not found or if an error occurs.
+     * @param nameInDB The filename of the image to retrieve.
+     * @return A std::string containing the binary data of the file. Returns an empty string on failure.
      */
     std::string downloadImageByName(const std::string& nameInDB);
 
     /**
-     * @brief Deletes a file from GridFS by its filename.
+     * @brief Deletes a file from GridFS using its filename.
      *
-     * Locates and deletes both the file chunks and the file entry from the GridFS collections.
+     * This operation removes both the file metadata (from `fs.files`) and its chunks (from `fs.chunks`).
      *
-     * @param nameInDB The name of the file to delete from GridFS.
-     * @return **true** if the deletion was successful; **false** otherwise (e.g., file not found).
+     * @param nameInDB The filename of the file to delete.
+     * @return true if the file was found and deleted, false otherwise.
      */
     bool deleteImageByName(const std::string& nameInDB);
 
     /**
-     * @brief Checks if a file with the given name exists in GridFS.
+     * @brief Checks if a file with the specified name exists in the GridFS bucket.
      *
-     * @param filename The name of the file to check for existence.
-     * @return **true** if the file exists; **false** otherwise.
+     * @param filename The name of the file to query.
+     * @return true if the file exists, false otherwise.
      */
     bool exists(const std::string& filename);
 
     /**
-     * @brief Retrieves a list of all filenames stored in GridFS.
+     * @brief Retrieves a list of all filenames currently stored in the GridFS bucket.
      *
-     * This operation typically queries the 'fs.files' collection in MongoDB.
-     *
-     * @return std::vector<std::string> A vector containing the names of all files/images stored.
+     * @return A vector of strings containing all filenames found in `fs.files`.
      */
     std::vector<std::string> getAllImageNames();
 
 private:
-    /** @name GridFS Components */
+    /** @name MongoDB Components */
     ///@{
-    mongocxx::gridfs::bucket _gridfsBucket; ///< The primary GridFS interface for I/O operations.
-    mongocxx::collection _gridfsFilesCollection; ///< A handle to the underlying 'fs.files' collection for custom queries (e.g., exists, listing).
+    mongocxx::gridfs::bucket _gridfsBucket;         ///< The GridFS bucket interface for stream operations.
+    mongocxx::collection _gridfsFilesCollection;    ///< Direct handle to 'fs.files' for metadata queries.
     ///@}
 };
-
 
 #endif // GRIDFS_IMAGE_MANAGER_H

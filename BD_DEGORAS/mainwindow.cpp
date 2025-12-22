@@ -6,6 +6,7 @@
 #include "connectiondialog.h"
 #include "QtLogSink.h"
 
+// Qt Core & GUI Includes
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QDir>
@@ -26,21 +27,23 @@
 #include <QHeaderView>
 #include <QFormLayout>
 #include <QPlainTextEdit>
-#include <vector>
 #include <QTimer>
-#include <spdlog/spdlog.h>
 #include <QCoreApplication>
 #include <QThread>
-#include "logwidget.h"
 
+// Third-party & Std Includes
+#include <spdlog/spdlog.h>
+#include "logwidget.h"
+#include <vector>
 #include <string>
 #include <memory>
-#include <vector>
 #include <set>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
 
+// Global definition of table headers.
+// These strings correspond to the keys used in the JSON objects and the columns in the UI.
 const QStringList g_tableHeaders = {
     "EnablementPolicy", "NORAD", "Alias", "Name",
     "COSPAR", "Classification", "ILRSID", "Inclination",
@@ -49,56 +52,89 @@ const QStringList g_tableHeaders = {
     "Sets", "Groups"
 };
 
+// ------------------------------------------------------------------------------------------------
+// Constructor & Destructor
+// ------------------------------------------------------------------------------------------------
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
+    // Setup the UI defined in the .ui file
     ui->setupUi(this);
+
+    // Initialize the LogWidget (hidden by default) to display application logs
     m_logWidget = new LogWidget(nullptr);
+
+    // Initialize visual elements and table structures
     setupTables();
     setupLogTable();
-    initIcons();
+    initIcons(); // Renders the Green/Red/Gray status icons
 
+    // --- Main Table Signal Connections ---
+    // Trigger edit mode when a user double-clicks a cell
     connect(ui->mainObjectTable, &QTableWidget::cellDoubleClicked, this, &MainWindow::on_editObjectButton_clicked);
+    // Show the context menu (Right-click)
     connect(ui->mainObjectTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
         handleUniversalContextMenu(pos, ui->mainObjectTable);
     });
+    // Update the Detail View sidebar when the selection changes
     connect(ui->mainObjectTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::on_mainObjectTable_selectionChanged);
 
+    // --- Filter Controls ---
+    // Re-apply filters whenever the radio button selection changes
     connect(ui->filterAllRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
     connect(ui->filterEnabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
     connect(ui->filterDisabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
+
+    // --- Search Inputs ---
+    // Apply regex filtering as the user types in the search bars
     connect(ui->LineEditSpaceObjects, &QLineEdit::textChanged, this, &MainWindow::on_LineEditSpaceObjects_textChanged);
     connect(ui->searchLineEditSet, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditSet_textChanged);
     connect(ui->searchLineEditGroups, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditGroups_textChanged);
+
+    // --- Global Actions ---
+    // Button to commit local changes to the MongoDB database
     connect(ui->GlobalSaveButton, &QPushButton::clicked, this, &MainWindow::on_saveChangesToDbButton_clicked);
+
+    // --- Sets & Groups Tab Interactions ---
+    // Filter the view table when a Set or Group is selected in the list
     connect(ui->setsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_setsListWidget_itemSelectionChanged);
+    connect(ui->groupsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_groupsListWidget_itemSelectionChanged);
+
+    // Enable context menus for the Sets and Groups tables
     connect(ui->setsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
         handleUniversalContextMenu(pos, ui->setsViewTable);
     });
-
-    connect(ui->groupsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_groupsListWidget_itemSelectionChanged);
     connect(ui->groupsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
         handleUniversalContextMenu(pos, ui->groupsViewTable);
     });
 
+    // Detect tab changes to perform lazy updates (refresh tables only when visible)
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::on_tabWidget_currentChanged);
+
+    // --- Logging System Configuration ---
+    // Connect the custom spdlog sink to the Qt slot to display logs in the GUI
     auto& sink = QtLogSinkMt::instance();
     connect(&sink, &QtLogSinkMt::logReceived, this, &MainWindow::onLogReceived);
+
+    // Register the sink with the default spdlog logger
     auto logger = spdlog::default_logger();
     if (logger) logger->sinks().push_back(std::shared_ptr<QtLogSinkMt>(&sink, [](void*){}));
 
-
+    // --- Database Connection Sequence ---
+    // Prompt the user for connection details on startup
     ConnectionDialog connDlg(nullptr);
     if (connDlg.exec() != QDialog::Accepted) {
+        // Close the app gracefully if the user cancels the connection dialog
         QTimer::singleShot(0, qApp, &QCoreApplication::quit);
         return;
     }
 
     auto params = connDlg.getParams();
 
+    // Construct the MongoDB Connection URI
     QString uriStr = "mongodb://";
-
     if (!params.user.isEmpty()) {
         uriStr += params.user;
         if (!params.password.isEmpty()) {
@@ -106,9 +142,7 @@ MainWindow::MainWindow(QWidget *parent)
         }
         uriStr += "@";
     }
-
     uriStr += QString("%1:%2").arg(params.host).arg(params.port);
-
     if (params.useSSL) {
         uriStr += "/?tls=true";
     }
@@ -117,33 +151,42 @@ MainWindow::MainWindow(QWidget *parent)
     const std::string DB_NAME = params.dbName.toStdString();
     const std::string COLLECTION_NAME = "space_objects";
 
-
-
     try {
+        // Initialize the Database Manager
         dbManager = std::make_unique<SpaceObjectDBManager>(URI, DB_NAME, COLLECTION_NAME);
+
+        // Load ALL data into local memory (RAM) for fast access
         m_localCache = dbManager->getAllSpaceObjects();
         m_localSets = dbManager->getAllUniqueSetNames();
         m_localGroups = dbManager->getAllUniqueGroupNames();
 
         logMessage("[Memory] Loaded DB into local cache. Objects: " + QString::number(m_localCache.size()));
 
+        // Populate the initial UI views
         refreshMainTable();
         refreshSetListWidget();
         refreshGroupListWidget();
 
     } catch (const std::exception& e) {
+        // If connection fails, log error and disable the UI
         logMessage("[Fatal] " + QString(e.what()));
         ui->centralwidget->setEnabled(false);
     }
+
+    // --- Menu Bar Setup ---
     QMenu *menuData = menuBar()->addMenu("Data");
 
+    // Add Export Action (Ctrl+E)
     QAction *actExport = menuData->addAction("Export to CSV");
     actExport->setShortcut(QKeySequence("Ctrl+E"));
     connect(actExport, &QAction::triggered, this, &MainWindow::exportToCSV);
 
+    // Add Import Action (Ctrl+I)
     QAction *actImport = menuData->addAction("Import from JSON");
     actImport->setShortcut(QKeySequence("Ctrl+I"));
     connect(actImport, &QAction::triggered, this, &MainWindow::importFromJSON);
+
+    // Add Save Action (Ctrl+S)
     QAction *actSave = menuData->addAction("Save Changes to DB");
     actSave->setShortcut(QKeySequence("Ctrl+S"));
     connect(actSave, &QAction::triggered, this, &MainWindow::on_saveChangesToDbButton_clicked);
@@ -151,19 +194,28 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() { delete ui; }
 
+// ------------------------------------------------------------------------------------------------
+// Data Refresh & Population Logic
+// ------------------------------------------------------------------------------------------------
 
+// Filters the local cache based on the "EnablementPolicy" status and repopulates the table.
 void MainWindow::refreshMainTable()
 {
     std::vector<nlohmann::json> filtered;
 
+    // Check the state of the filter radio buttons
     bool showAll = ui->filterAllRadio->isChecked();
     bool showEnabled = ui->filterEnabledRadio->isChecked();
     bool showDisabled = ui->filterDisabledRadio->isChecked();
 
     for (const auto& obj : m_localCache) {
-        if (showAll) { filtered.push_back(obj); continue; }
+        if (showAll) {
+            filtered.push_back(obj);
+            continue;
+        }
 
         int status = -1;
+        // Safely extract the status integer (1 = Enabled, 2 = Disabled)
         if (obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null() && obj["EnablementPolicy"].is_number())
             status = obj["EnablementPolicy"].get<int>();
 
@@ -171,56 +223,77 @@ void MainWindow::refreshMainTable()
         else if (showDisabled && status == 2) filtered.push_back(obj);
     }
 
+    // Render the table with the filtered data
     populateMainTable(filtered);
-    m_dirtyMain = false;
+    m_dirtyMain = false; // The main table is now up-to-date
 }
 
+// ------------------------------------------------------------------------------------------------
+// CRUD Operations (Add, Edit, Delete)
+// ------------------------------------------------------------------------------------------------
+
+// Opens the dialog to create a new space object
 void MainWindow::on_addNewObjectSetButton_clicked()
 {
+    // Prevent opening multiple dialogs
     if (m_addDialog) { m_addDialog->activateWindow(); return; }
 
     m_addDialog = std::make_unique<AddObjectDialog>(nullptr);
+
+    // Prepare data for the dialog (dropdowns, validation lists)
     std::vector<std::string> availableSets(m_localSets.begin(), m_localSets.end());
     std::vector<std::string> availableGroups(m_localGroups.begin(), m_localGroups.end());
 
     m_addDialog->setAvailableSets(availableSets);
     m_addDialog->setAvailableGroups(availableGroups);
     m_addDialog->setDbManager(dbManager.get());
-    m_addDialog->setExistingObjects(&m_localCache);
+    m_addDialog->setExistingObjects(&m_localCache); // Passed for ID uniqueness check
 
+    // Handle the dialog result
     connect(m_addDialog.get(), &QDialog::finished, this, [this](int r){
         if (r == QDialog::Accepted) {
             nlohmann::json newObj = m_addDialog->getNewObjectData();
             int64_t id = newObj["_id"];
+
+            // Verify ID uniqueness in the local cache before adding
             auto it = std::find_if(m_localCache.begin(), m_localCache.end(),
                                    [id](const nlohmann::json& j){ return j["_id"] == id; });
 
             if (it != m_localCache.end()) {
                 QMessageBox::warning(this, "Error", "ID already exists in local cache.");
             } else {
+                // If an image was selected, store the local path temporarily.
+                // The image file will be uploaded to MongoDB only when the user Saves to DB.
                 QString imgPath = m_addDialog->getSelectedImagePath();
                 if(!imgPath.isEmpty()) {
                     newObj["_tempLocalImgPath"] = imgPath.toStdString();
                 }
+
+                // Update local memory
                 m_localCache.push_back(newObj);
-                setUnsavedChanges(true);
+
+                setUnsavedChanges(true); // Mark as dirty
                 refreshMainTable();
                 logMessage("[Memory] Object added: " + QString::number(id));
             }
         }
+        // Cleanup the dialog
         m_addDialog.reset();
     });
     m_addDialog->show();
 }
 
+// Opens the dialog to edit the selected object
 void MainWindow::on_editObjectButton_clicked()
 {
     auto sel = ui->mainObjectTable->selectionModel()->selectedRows();
     if (sel.size() != 1) { QMessageBox::warning(this, "Warning", "Select exactly one object."); return; }
 
+    // Get ID from the selected row (Column "NORAD")
     int idCol = g_tableHeaders.indexOf("NORAD");
     int64_t id = ui->mainObjectTable->item(sel.first().row(), idCol)->text().toLongLong();
 
+    // Find the object in memory
     nlohmann::json obj;
     bool found = false;
     for(const auto& o : m_localCache) {
@@ -232,15 +305,17 @@ void MainWindow::on_editObjectButton_clicked()
     if (m_editDialog) { m_editDialog->activateWindow(); return; }
     m_editDialog = std::make_unique<AddObjectDialog>(nullptr);
 
+    // Prepare dialog with existing data
     std::vector<std::string> availableSets(m_localSets.begin(), m_localSets.end());
     std::vector<std::string> availableGroups(m_localGroups.begin(), m_localGroups.end());
 
     m_editDialog->setAvailableSets(availableSets);
     m_editDialog->setAvailableGroups(availableGroups);
     m_editDialog->setDbManager(dbManager.get());
-    m_editDialog->loadObjectData(obj);
-    m_editDialog->setEditMode(true);
+    m_editDialog->loadObjectData(obj); // Pre-fill fields
+    m_editDialog->setEditMode(true);   // Lock ID field
     m_editDialog->setExistingObjects(&m_localCache);
+
     connect(m_editDialog.get(), &QDialog::finished, this, [this, id](int r){
         if (r == QDialog::Accepted) {
             nlohmann::json edited = m_editDialog->getNewObjectData();
@@ -248,8 +323,10 @@ void MainWindow::on_editObjectButton_clicked()
             QString imgPath = m_editDialog->getSelectedImagePath();
             if(!imgPath.isEmpty()) edited["_tempLocalImgPath"] = imgPath.toStdString();
 
+            // Find and replace the object in memory
             for(auto& o : m_localCache) {
                 if(o["_id"] == id) {
+                    // Important: If the user didn't change the image, keep the pending upload path if it exists
                     if(o.contains("_tempLocalImgPath") && !edited.contains("_tempLocalImgPath"))
                         edited["_tempLocalImgPath"] = o["_tempLocalImgPath"];
                     o = edited;
@@ -259,6 +336,7 @@ void MainWindow::on_editObjectButton_clicked()
 
             setUnsavedChanges(true);
             refreshMainTable();
+            // Refresh specific views in case names/tags changed
             on_setsListWidget_itemSelectionChanged();
             on_groupsListWidget_itemSelectionChanged();
             logMessage("[Memory] Object updated: " + QString::number(id));
@@ -269,16 +347,20 @@ void MainWindow::on_editObjectButton_clicked()
     m_dirtySets = false;
 }
 
+// Deletes the selected objects from the local memory
 void MainWindow::on_deleteObjectSetButton_clicked()
 {
     auto sel = ui->mainObjectTable->selectionModel()->selectedRows();
     if (sel.empty()) return;
+
     if (QMessageBox::Yes != QMessageBox::question(this, "Delete", "Delete locally? (Changes lost on Save)")) return;
 
     int idCol = g_tableHeaders.indexOf("NORAD");
+    // Iterate over selection and remove from vector
     for (const auto& idx : sel) {
         int64_t id = ui->mainObjectTable->item(idx.row(), idCol)->text().toLongLong();
 
+        // Standard remove_if idiom for C++ vectors
         m_localCache.erase(std::remove_if(m_localCache.begin(), m_localCache.end(),
                                           [id](const nlohmann::json& j){ return j["_id"] == id; }), m_localCache.end());
     }
@@ -287,6 +369,9 @@ void MainWindow::on_deleteObjectSetButton_clicked()
     logMessage("[Memory] Objects deleted.");
 }
 
+// ------------------------------------------------------------------------------------------------
+// Database Persistence (Versioning)
+// ------------------------------------------------------------------------------------------------
 
 void MainWindow::on_saveChangesToDbButton_clicked()
 {
@@ -294,23 +379,25 @@ void MainWindow::on_saveChangesToDbButton_clicked()
         QMessageBox::information(this, "Info", "No changes to save.");
         return;
     }
+    // Launch the versioning dialog
     createDatabaseVersion();
 }
 
-#include <QDateTime>
-
+// Handles the logic for creating a new database version (Snapshot or Incremental)
 void MainWindow::createDatabaseVersion()
 {
     QDialog dlg(this);
     dlg.setWindowTitle("Commit Database Version (Standardized)");
     dlg.setMinimumWidth(500);
 
+    // Build the Dialog UI programmatically
     QVBoxLayout* l = new QVBoxLayout(&dlg);
     QFormLayout* f = new QFormLayout();
 
     QString timeStamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmm");
     QLabel* lblTime = new QLabel(timeStamp, &dlg);
     lblTime->setStyleSheet("font-weight: bold; color: gray;");
+
     QLineEdit* aliasEd = new QLineEdit("v1.0", &dlg);
     QLineEdit* descEd = new QLineEdit(&dlg);
     descEd->setPlaceholderText("Description (e.g. Initial Import)");
@@ -323,6 +410,7 @@ void MainWindow::createDatabaseVersion()
     f->addRow("Comments:", commEd);
     l->addLayout(f);
 
+    // Checkbox for Incremental (Diff) vs Full Snapshot
     QCheckBox* chkIncremental = new QCheckBox("Save as Incremental (Changes Only)", &dlg);
     chkIncremental->setChecked(true);
     chkIncremental->setToolTip("Checked: Only modified objects saved.\nUnchecked: Full snapshot.");
@@ -341,16 +429,18 @@ void MainWindow::createDatabaseVersion()
 
     if (dlg.exec() == QDialog::Accepted)
     {
+        // Validation
         if (aliasEd->text().isEmpty()) {
             QMessageBox::warning(this, "Error", "Version Tag is required (e.g. v1.0).");
             return;
         }
-        QString stdName = QString("%1_%2").arg(timeStamp, aliasEd->text().trimmed());
 
+        // Create standard version name string
+        QString stdName = QString("%1_%2").arg(timeStamp, aliasEd->text().trimmed());
         if (!descEd->text().isEmpty()) {
             stdName += "_" + descEd->text().trimmed();
         }
-
+        // Sanitize string
         stdName = stdName.replace(" ", "_");
         stdName = stdName.replace("/", "-");
 
@@ -359,24 +449,29 @@ void MainWindow::createDatabaseVersion()
 
         QApplication::setOverrideCursor(Qt::WaitCursor);
 
+        // --- Step 1: Upload Pending Local Images ---
         bool imagesOk = true;
         for(auto& obj : m_localCache) {
             if (obj.contains("_tempLocalImgPath")) {
                 std::string localPath = obj["_tempLocalImgPath"];
                 std::string picName = obj.value("Picture", "");
+
                 if (!localPath.empty() && !picName.empty()) {
                     std::ifstream file(localPath, std::ios::binary);
                     if(file.is_open()) {
                         std::stringstream buffer; buffer << file.rdbuf();
+                        // Upload to GridFS
                         if (!dbManager->getImageManager().uploadImage(picName, buffer.str())) {
                             imagesOk = false; err = "Failed upload: " + picName; break;
                         }
                     } else { imagesOk = false; err = "File error: " + localPath; break; }
                 }
+                // Remove the temp path once handled
                 obj.erase("_tempLocalImgPath");
             }
         }
 
+        // --- Step 2: Commit Data to DB ---
         if(imagesOk) {
             SaveMode mode = chkIncremental->isChecked() ? SaveMode::INCREMENTAL : SaveMode::FULL_SNAPSHOT;
             ok = dbManager->saveAllAndVersion(m_localCache, m_localSets, m_localGroups,
@@ -386,15 +481,20 @@ void MainWindow::createDatabaseVersion()
                                               err);
         }
 
+        // --- Step 3: Garbage Collection (Clean orphaned images) ---
         if (ok) {
             std::vector<std::string> allDbImages = dbManager->getImageManager().getAllImageNames();
             std::set<std::string> usedImages;
+
+            // Collect all images currently referenced
             for(const auto& obj : m_localCache) {
                 if(obj.contains("Picture") && !obj["Picture"].is_null()) {
                     std::string p = obj["Picture"];
                     if(!p.empty()) usedImages.insert(p);
                 }
             }
+
+            // Delete images not in the used set
             for(const auto& dbImg : allDbImages) {
                 if (usedImages.find(dbImg) == usedImages.end()) {
                     dbManager->getImageManager().deleteImageByName(dbImg);
@@ -415,6 +515,12 @@ void MainWindow::createDatabaseVersion()
         }
     }
 }
+
+// ------------------------------------------------------------------------------------------------
+// Helper Utilities & UI Updates
+// ------------------------------------------------------------------------------------------------
+
+// Updates the UI title and internal flags when data changes
 void MainWindow::setUnsavedChanges(bool changed)
 {
     m_hasUnsavedChanges = changed;
@@ -423,12 +529,14 @@ void MainWindow::setUnsavedChanges(bool changed)
     this->setWindowTitle(t);
 
     if (changed) {
+        // Mark cache flags as dirty so tabs refresh when clicked
         m_dirtyMain = true;
         m_dirtySets = true;
         m_dirtyGroups = true;
     }
 }
 
+// Intercept window close to warn about unsaved changes
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     if (m_hasUnsavedChanges) {
@@ -439,7 +547,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
     event->accept();
 }
 
-
+// Assigns the selected Set(s) to the selected Object(s)
 void MainWindow::on_assignToSetButton_clicked() {
 
     QTableWidget* activeTable = ui->setsViewTable;
@@ -457,28 +565,37 @@ void MainWindow::on_assignToSetButton_clicked() {
     }
 
     int idCol = g_tableHeaders.indexOf("NORAD");
+    int setCol = g_tableHeaders.indexOf("Sets");
     int count = 0;
+
     for(const auto& idx : selectedRows) {
         int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
 
+        // Update memory
         for(auto& o : m_localCache) {
             if(o["_id"] == id) {
-                // Get current sets vector
                 std::vector<std::string> curSets = o.value("Sets", std::vector<std::string>());
 
                 bool modified = false;
                 for(auto s : selectedSets) {
                     std::string setName = s->text().toStdString();
-                    // Avoid duplicates: only add if not present
+
+                    // Only add if not present
                     if(std::find(curSets.begin(), curSets.end(), setName) == curSets.end()) {
                         curSets.push_back(setName);
                         modified = true;
+                        logMessage("[Action] Assigned Object " + QString::number(id) +
+                                   " to Set '" + QString::fromStdString(setName) + "'");
                     }
                 }
 
                 if(modified) {
                     o["Sets"] = curSets;
                     count++;
+                    // Optimistic update of UI
+                    if (setCol >= 0 && activeTable->item(idx.row(), setCol)) {
+                        activeTable->item(idx.row(), setCol)->setText(jsonValueToQString(o["Sets"]));
+                    }
                 }
                 break;
             }
@@ -488,47 +605,87 @@ void MainWindow::on_assignToSetButton_clicked() {
     if (count > 0) {
         setUnsavedChanges(true);
         refreshMainTable();
+
         if (!ui->CheckBoxSets->isChecked()) {
             on_setsListWidget_itemSelectionChanged();
         }
+        ui->statusbar->showMessage("Assignments completed.", 3000);
 
-        QString msg = "Assigned " + QString::number(count) + " object(s) to selected Set(s).";
-        logMessage("[Action] " + msg);
-        ui->statusbar->showMessage(msg, 3000);
     } else {
         QMessageBox::information(this, "Info", "The object is already assigned to the selected Set(s).");
     }
 }
 
+// Removes the selected Set(s) from the selected Object(s)
 void MainWindow::on_removeFromSetButton_clicked() {
-    QList<QModelIndex> sel;
-    bool fromView = false;
-    if(ui->setsViewTable->selectionModel()->hasSelection()) { sel = ui->setsViewTable->selectionModel()->selectedRows(); fromView = true; }
-    else { sel = ui->mainObjectTable->selectionModel()->selectedRows(); }
 
-    auto sets = ui->setsListWidget->selectedItems();
-    if(sel.empty() || sets.empty()) return;
+    QTableWidget* activeTable = ui->setsViewTable;
+
+    auto selectedRows = activeTable->selectionModel()->selectedRows();
+    auto selectedSets = ui->setsListWidget->selectedItems();
+
+    if(selectedRows.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select an Object in the table to remove.");
+        return;
+    }
+    if(selectedSets.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select the Set(s) to remove from the list.");
+        return;
+    }
+
+    if (QMessageBox::Yes != QMessageBox::question(this, "Confirm Remove",
+                                                  "Are you sure you want to remove the selected objects from the selected sets?")) {
+        return;
+    }
 
     int idCol = g_tableHeaders.indexOf("NORAD");
-    QTableWidget* table = fromView ? ui->setsViewTable : ui->mainObjectTable;
+    int setCol = g_tableHeaders.indexOf("Sets");
+    int count = 0;
 
-    for(const auto& idx : sel) {
-        int64_t id = table->item(idx.row(), idCol)->text().toLongLong();
+    for(const auto& idx : selectedRows) {
+        int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
+
         for(auto& o : m_localCache) {
             if(o["_id"] == id && o.contains("Sets")) {
-                std::vector<std::string> cur = o["Sets"];
-                for(auto s : sets) {
-                    std::string n = s->text().toStdString();
-                    cur.erase(std::remove(cur.begin(), cur.end(), n), cur.end());
+                std::vector<std::string> curSets = o["Sets"];
+                bool modified = false;
+
+                for(auto s : selectedSets) {
+                    std::string setName = s->text().toStdString();
+
+                    auto it = std::remove(curSets.begin(), curSets.end(), setName);
+                    if (it != curSets.end()) {
+                        curSets.erase(it, curSets.end());
+                        modified = true;
+                        logMessage("[Action] Removed Object " + QString::number(id) +
+                                   " from Set '" + QString::fromStdString(setName) + "'");
+                    }
                 }
-                o["Sets"] = cur;
+
+                if(modified) {
+                    o["Sets"] = curSets;
+                    count++;
+                    if (setCol >= 0 && activeTable->item(idx.row(), setCol)) {
+                        activeTable->item(idx.row(), setCol)->setText(jsonValueToQString(o["Sets"]));
+                    }
+                }
+                break;
             }
         }
     }
-    setUnsavedChanges(true);
-    on_setsListWidget_itemSelectionChanged();
+
+    if (count > 0) {
+        setUnsavedChanges(true);
+        refreshMainTable();
+
+        if (!ui->CheckBoxSets->isChecked()) {
+            on_setsListWidget_itemSelectionChanged();
+        }
+        ui->statusbar->showMessage("Removed set assignments.", 3000);
+    }
 }
 
+// Assigns the selected Group(s) to the selected Object(s)
 void MainWindow::on_assignToGroupButton_clicked() {
 
     QTableWidget* activeTable = ui->groupsViewTable;
@@ -546,7 +703,9 @@ void MainWindow::on_assignToGroupButton_clicked() {
     }
 
     int idCol = g_tableHeaders.indexOf("NORAD");
+    int groupCol = g_tableHeaders.indexOf("Groups");
     int count = 0;
+
     for(const auto& idx : selectedRows) {
         int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
 
@@ -557,15 +716,21 @@ void MainWindow::on_assignToGroupButton_clicked() {
                 bool modified = false;
                 for(auto g : selectedGroups) {
                     std::string groupName = g->text().toStdString();
+
                     if(std::find(curGroups.begin(), curGroups.end(), groupName) == curGroups.end()) {
                         curGroups.push_back(groupName);
                         modified = true;
+                        logMessage("[Action] Assigned Object " + QString::number(id) +
+                                   " to Group '" + QString::fromStdString(groupName) + "'");
                     }
                 }
 
                 if(modified) {
                     o["Groups"] = curGroups;
                     count++;
+                    if (groupCol >= 0 && activeTable->item(idx.row(), groupCol)) {
+                        activeTable->item(idx.row(), groupCol)->setText(jsonValueToQString(o["Groups"]));
+                    }
                 }
                 break;
             }
@@ -575,70 +740,117 @@ void MainWindow::on_assignToGroupButton_clicked() {
     if (count > 0) {
         setUnsavedChanges(true);
         refreshMainTable();
+
         if (!ui->CheckBoxGroups->isChecked()) {
             on_groupsListWidget_itemSelectionChanged();
         }
-
-        QString msg = "Assigned " + QString::number(count) + " object(s) to selected Group(s).";
-        logMessage("[Action] " + msg);
-        ui->statusbar->showMessage(msg, 3000);
+        ui->statusbar->showMessage("Assignments completed.", 3000);
 
     } else {
         QMessageBox::information(this, "Info", "The object is already assigned to the selected Group(s).");
     }
 }
+
+// Removes the selected Group(s) from the selected Object(s)
 void MainWindow::on_removeFromGroupButton_clicked() {
-    QList<QModelIndex> sel;
-    bool fromView = false;
-    if(ui->groupsViewTable->selectionModel()->hasSelection()) { sel = ui->groupsViewTable->selectionModel()->selectedRows(); fromView = true; }
-    else { sel = ui->mainObjectTable->selectionModel()->selectedRows(); }
-    auto groups = ui->groupsListWidget->selectedItems();
-    if(sel.empty() || groups.empty()) return;
+
+    QTableWidget* activeTable = ui->groupsViewTable;
+
+    auto selectedRows = activeTable->selectionModel()->selectedRows();
+    auto selectedGroups = ui->groupsListWidget->selectedItems();
+
+    if(selectedRows.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select an Object in the table to remove.");
+        return;
+    }
+    if(selectedGroups.empty()) {
+        QMessageBox::warning(this, "Warning", "Please select the Group(s) to remove from the list.");
+        return;
+    }
+
+    if (QMessageBox::Yes != QMessageBox::question(this, "Confirm Remove",
+                                                  "Are you sure you want to remove the selected objects from the selected groups?")) {
+        return;
+    }
 
     int idCol = g_tableHeaders.indexOf("NORAD");
-    QTableWidget* table = fromView ? ui->groupsViewTable : ui->mainObjectTable;
+    int groupCol = g_tableHeaders.indexOf("Groups");
+    int count = 0;
 
-    for(const auto& idx : sel) {
-        int64_t id = table->item(idx.row(), idCol)->text().toLongLong();
+    for(const auto& idx : selectedRows) {
+        int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
+
         for(auto& o : m_localCache) {
             if(o["_id"] == id && o.contains("Groups")) {
-                std::vector<std::string> cur = o["Groups"];
-                for(auto g : groups) {
-                    std::string n = g->text().toStdString();
-                    cur.erase(std::remove(cur.begin(), cur.end(), n), cur.end());
+                std::vector<std::string> curGroups = o["Groups"];
+                bool modified = false;
+
+                for(auto g : selectedGroups) {
+                    std::string groupName = g->text().toStdString();
+
+                    auto it = std::remove(curGroups.begin(), curGroups.end(), groupName);
+                    if (it != curGroups.end()) {
+                        curGroups.erase(it, curGroups.end());
+                        modified = true;
+                        logMessage("[Action] Removed Object " + QString::number(id) +
+                                   " from Group '" + QString::fromStdString(groupName) + "'");
+                    }
                 }
-                o["Groups"] = cur;
+
+                if(modified) {
+                    o["Groups"] = curGroups;
+                    count++;
+                    if (groupCol >= 0 && activeTable->item(idx.row(), groupCol)) {
+                        activeTable->item(idx.row(), groupCol)->setText(jsonValueToQString(o["Groups"]));
+                    }
+                }
+                break;
             }
         }
     }
-    setUnsavedChanges(true);
-    on_groupsListWidget_itemSelectionChanged();
+
+    if (count > 0) {
+        setUnsavedChanges(true);
+        refreshMainTable();
+
+        if (!ui->CheckBoxGroups->isChecked()) {
+            on_groupsListWidget_itemSelectionChanged();
+        }
+        ui->statusbar->showMessage("Removed group assignments.", 3000);
+    }
 }
 
-
+// Wrapper to redirect internal messages to Spdlog
 void MainWindow::logMessage(const QString& msg) {
     if(msg.contains("[Error]") || msg.contains("[Fatal]")) spdlog::error(msg.toStdString());
     else if(msg.contains("[Warn]")) spdlog::warn(msg.toStdString());
     else spdlog::info(msg.toStdString());
 }
 
+// Slot connected to the Logger Signal: Updates the Log Table in the UI
 void MainWindow::onLogReceived(const QString& msg, const QString& level)
 {
     if (!ui->logTable) return;
+
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
     QString pid = QString::number(QCoreApplication::applicationPid());
     QString threadId = QString::number((quint64)QThread::currentThreadId());
+
+    // Set color coding
     QColor textColor = QColor(Qt::white);
     if (level == "ERROR") textColor = QColor("#FF5252");
     else if (level == "WARN") textColor = QColor("#FFD740");
 
     int row = ui->logTable->rowCount();
     ui->logTable->insertRow(row);
+
+    // Create items for the row
     auto createItem = [&](const QString& text) {
         QTableWidgetItem* item = new QTableWidgetItem(text);
         item->setForeground(textColor);
         return item;
     };
+
     ui->logTable->setItem(row, 0, createItem(timestamp));
     ui->logTable->setItem(row, 1, createItem(pid));
     ui->logTable->setItem(row, 2, createItem(threadId));
@@ -646,6 +858,7 @@ void MainWindow::onLogReceived(const QString& msg, const QString& level)
     ui->logTable->setItem(row, 4, createItem(msg));
     ui->logTable->scrollToBottom();
 
+    // Send to external LogWidget window
     if (m_logWidget) {
         QString fullMsg = QString("[%1] [%2] %3")
         .arg(QDateTime::currentDateTime().toString("HH:mm:ss"), level, msg);
@@ -656,6 +869,7 @@ void MainWindow::onLogReceived(const QString& msg, const QString& level)
     }
 }
 
+// Creates the colored icons used in the Status column
 void MainWindow::initIcons()
 {
     auto createIcon = [](const QColor& color) -> QIcon {
@@ -669,6 +883,7 @@ void MainWindow::initIcons()
     m_iconGray  = createIcon(Qt::gray);
 }
 
+// Configures headers and selection mode for main tables
 void MainWindow::setupTables()
 {
     auto configTable = [this](QTableWidget* table) {
@@ -686,6 +901,7 @@ void MainWindow::setupTables()
     configTable(ui->groupsViewTable);
 }
 
+// Configures the specific columns for the Log Table
 void MainWindow::setupLogTable()
 {
     QStringList headers = {"Time", "PID", "Thread", "Level", "Message"};
@@ -701,56 +917,55 @@ void MainWindow::setupLogTable()
     ui->logTable->horizontalHeader()->setStretchLastSection(true);
 }
 
-
-
+// Search Listeners
 void MainWindow::on_LineEditSpaceObjects_textChanged(const QString &arg1) {
     applyTableFilter(ui->mainObjectTable, arg1);
 }
-
 
 void MainWindow::on_searchLineEditSet_textChanged(const QString &arg1) {
     applyTableFilter(ui->setsViewTable, arg1);
 }
 
-
 void MainWindow::on_searchLineEditGroups_textChanged(const QString &arg1) {
     applyTableFilter(ui->groupsViewTable, arg1);
 }
+
+// Lazy loading logic when switching tabs
 void MainWindow::on_tabWidget_currentChanged(int index)
 {
     if (!dbManager) return;
 
-    if (index == 0) {
+    if (index == 0) { // Main Table
         if (m_dirtyMain) {
-        refreshMainTable();
-        if (ui->LineEditSpaceObjects && !ui->LineEditSpaceObjects->text().isEmpty()) {
-            applyTableFilter(ui->mainObjectTable, ui->LineEditSpaceObjects->text());
-        }
-        m_dirtyMain = false;
+            refreshMainTable();
+            if (ui->LineEditSpaceObjects && !ui->LineEditSpaceObjects->text().isEmpty()) {
+                applyTableFilter(ui->mainObjectTable, ui->LineEditSpaceObjects->text());
+            }
+            m_dirtyMain = false;
         }
     }
-    else if (index == 1) {
+    else if (index == 1) { // Sets
         if (m_dirtySets) {
-        on_setsListWidget_itemSelectionChanged();
+            on_setsListWidget_itemSelectionChanged();
 
-        if (ui->searchLineEditSet && !ui->searchLineEditSet->text().isEmpty()) {
-            applyTableFilter(ui->setsViewTable, ui->searchLineEditSet->text());
-        }
-        m_dirtySets = false;
+            if (ui->searchLineEditSet && !ui->searchLineEditSet->text().isEmpty()) {
+                applyTableFilter(ui->setsViewTable, ui->searchLineEditSet->text());
+            }
+            m_dirtySets = false;
         }
     }
-    else if (index == 2) {
+    else if (index == 2) { // Groups
         if (m_dirtyGroups) {
-        on_groupsListWidget_itemSelectionChanged();
-        if (ui->searchLineEditGroups && !ui->searchLineEditGroups->text().isEmpty()) {
-            applyTableFilter(ui->groupsViewTable, ui->searchLineEditGroups->text());
-        }
+            on_groupsListWidget_itemSelectionChanged();
+            if (ui->searchLineEditGroups && !ui->searchLineEditGroups->text().isEmpty()) {
+                applyTableFilter(ui->groupsViewTable, ui->searchLineEditGroups->text());
+            }
         }
         m_dirtyGroups = false;
     }
 }
 
-
+// Fills the "Detail View" sidebar when a row is clicked
 void MainWindow::on_mainObjectTable_selectionChanged()
 {
     auto sel = ui->mainObjectTable->selectionModel()->selectedRows();
@@ -769,6 +984,7 @@ void MainWindow::on_mainObjectTable_selectionChanged()
     for(const auto& o : m_localCache) if(o["_id"] == id) { obj = o; break; }
     if(obj.empty()) return;
 
+    // Helper Lambdas for safe JSON access
     auto getStr = [&](const std::string& key) {
         if (obj.contains(key) && !obj[key].is_null() && obj[key].is_string())
             return QString::fromStdString(obj[key].get<std::string>());
@@ -779,6 +995,7 @@ void MainWindow::on_mainObjectTable_selectionChanged()
         return def;
     };
 
+    // Update Text Fields
     ui->setsDetailNorad->setText(QString::number(id));
     ui->setsDetailName->setText(getStr("Name"));
     ui->setsDetailAlias->setText(getStr("Alias"));
@@ -792,11 +1009,14 @@ void MainWindow::on_mainObjectTable_selectionChanged()
     if (lrrVal == 1) ui->setsDetailLrr->setText("Yes");
     else if (lrrVal == 0) ui->setsDetailLrr->setText("No");
     else ui->setsDetailLrr->setText("Unknown");
+
     std::string picName = "";
     if (obj.contains("Picture") && !obj["Picture"].is_null()) picName = obj["Picture"];
 
+    // Update Image Label
     ui->setsDetailImageLabel->clear();
 
+    // Check for temporary local image (pending upload)
     if (obj.contains("_tempLocalImgPath")) {
         QPixmap pix;
         if(pix.load(QString::fromStdString(obj["_tempLocalImgPath"]))) {
@@ -804,6 +1024,7 @@ void MainWindow::on_mainObjectTable_selectionChanged()
             return;
         }
     }
+    // Check DB for image
     if (!picName.empty()) {
         std::string imgData = dbManager->getImageManager().downloadImageByName(picName);
         QPixmap pix;
@@ -815,8 +1036,7 @@ void MainWindow::on_mainObjectTable_selectionChanged()
     }
 }
 
-
-
+// Reloads the Sets list in the side widget
 void MainWindow::refreshSetListWidget()
 {
     ui->setsListWidget->clear();
@@ -825,6 +1045,7 @@ void MainWindow::refreshSetListWidget()
     }
 }
 
+// Reloads the Groups list in the side widget
 void MainWindow::refreshGroupListWidget()
 {
     ui->groupsListWidget->clear();
@@ -833,8 +1054,10 @@ void MainWindow::refreshGroupListWidget()
     }
 }
 
+// Filters the table when a Set is clicked
 void MainWindow::on_setsListWidget_itemSelectionChanged()
 {
+    // Don't filter if the "Filter by Checkbox" mode is active
     if (ui->CheckBoxSets && ui->CheckBoxSets->isChecked()) {
         return;
     }
@@ -857,7 +1080,6 @@ void MainWindow::on_setsListWidget_itemSelectionChanged()
         for(const auto& obj : m_localCache) {
             if(obj.contains("Sets") && obj["Sets"].is_array()) {
                 for(const auto& s : obj["Sets"]) {
-
                     if (s.is_string()) {
                         if(sets.count(s.get<std::string>())) {
                             filtered.push_back(obj);
@@ -873,10 +1095,12 @@ void MainWindow::on_setsListWidget_itemSelectionChanged()
     }
 
     populateReadOnlyTable(ui->setsViewTable, filtered);
+    m_dirtySets = false;
 }
+
+// Filters the table when a Group is clicked
 void MainWindow::on_groupsListWidget_itemSelectionChanged()
 {
-
     if (ui->CheckBoxGroups && ui->CheckBoxGroups->isChecked()) {
         return;
     }
@@ -916,7 +1140,7 @@ void MainWindow::on_groupsListWidget_itemSelectionChanged()
     m_dirtyGroups = false;
 }
 
-
+// Logic to create a new Set name
 void MainWindow::on_createSetButton_clicked() {
     QString name = ui->newSetLineEdit->text().trimmed();
     if(name.isEmpty()) return;
@@ -931,6 +1155,7 @@ void MainWindow::on_createSetButton_clicked() {
     logMessage("[Memory] Set created: " + name);
 }
 
+// Logic to delete a Set and remove it from all objects
 void MainWindow::on_deleteSetButton_clicked() {
     if(ui->setsListWidget->selectedItems().isEmpty()) return;
     QString name = ui->setsListWidget->currentItem()->text();
@@ -938,6 +1163,8 @@ void MainWindow::on_deleteSetButton_clicked() {
     if(QMessageBox::Yes != QMessageBox::question(this, "Delete", "Delete Set '" + name + "' locally?")) return;
 
     m_localSets.erase(name.toStdString());
+
+    // Remove the tag from all objects in memory
     for(auto& obj : m_localCache) {
         if(obj.contains("Sets") && obj["Sets"].is_array()) {
             std::vector<std::string> current = obj["Sets"];
@@ -956,6 +1183,7 @@ void MainWindow::on_deleteSetButton_clicked() {
     logMessage("[Memory] Set deleted: " + name);
 }
 
+// Logic to create a new Group name
 void MainWindow::on_createGroupButton_clicked()
 {
     QString name = ui->newGroupLineEdit->text().trimmed();
@@ -977,6 +1205,7 @@ void MainWindow::on_createGroupButton_clicked()
     logMessage("[Memory] Group created: " + name);
 }
 
+// Logic to delete a Group and remove it from all objects
 void MainWindow::on_deleteGroupButton_clicked()
 {
     if(ui->groupsListWidget->selectedItems().isEmpty()) {
@@ -1017,7 +1246,7 @@ void MainWindow::on_deleteGroupButton_clicked()
     logMessage("[Memory] Group deleted: " + name + " (Removed from " + QString::number(objectsAffected) + " objects)");
 }
 
-
+// Fills the main table widget with data
 void MainWindow::populateMainTable(const std::vector<nlohmann::json>& objects)
 {
     ui->mainObjectTable->setSortingEnabled(false);
@@ -1029,6 +1258,8 @@ void MainWindow::populateMainTable(const std::vector<nlohmann::json>& objects)
 
     for (const auto& obj : objects) {
         if (!obj.contains("_id")) continue;
+
+        // Count enabled items
         if (colEn != -1 && obj.contains("EnablementPolicy") && !obj["EnablementPolicy"].is_null())
             if (obj["EnablementPolicy"].get<int>() == 1) countEnabled++;
 
@@ -1037,6 +1268,8 @@ void MainWindow::populateMainTable(const std::vector<nlohmann::json>& objects)
         for (int col = 0; col < g_tableHeaders.size(); ++col) {
             std::string key = g_tableHeaders[col].toStdString();
             QTableWidgetItem *item = new QTableWidgetItem();
+
+            // Set colored icons for Policy
             if (col == colEn) {
                 int val = -1;
                 if(obj.contains(key) && !obj[key].is_null() && obj[key].is_number()) val = obj[key].get<int>();
@@ -1044,6 +1277,7 @@ void MainWindow::populateMainTable(const std::vector<nlohmann::json>& objects)
                 else if(val==2) { item->setIcon(m_iconRed); item->setText("Disabled"); }
                 else { item->setIcon(m_iconGray); item->setText("Unknown"); }
             }
+            // Format arrays (Sets/Groups) as strings
             else if (key == "Sets" || key == "Groups") {
                 if (obj.contains(key) && obj[key].is_array()) {
                     QStringList l;
@@ -1064,6 +1298,7 @@ void MainWindow::populateMainTable(const std::vector<nlohmann::json>& objects)
     if (ui->lblCountEnabled) ui->lblCountEnabled->setText("Enabled: " + QString::number(countEnabled));
 }
 
+// Fills the read-only tables (Sets/Groups view)
 void MainWindow::populateReadOnlyTable(QTableWidget* table, const std::vector<nlohmann::json>& objects)
 {
     table->setSortingEnabled(false);
@@ -1098,6 +1333,7 @@ void MainWindow::populateReadOnlyTable(QTableWidget* table, const std::vector<nl
     table->setSortingEnabled(true);
 }
 
+// Context Menu handler: Allows Copying JSON and assigning Sets/Groups
 void MainWindow::handleUniversalContextMenu(const QPoint &pos, QTableWidget* table) {
     auto selectedRows = table->selectionModel()->selectedRows();
     if (selectedRows.isEmpty()) return;
@@ -1196,6 +1432,7 @@ void MainWindow::applyTableFilter(QTableWidget* table, const QString& text) {
         if(text.isEmpty()) {
             match = true;
         } else {
+            // Check only first few columns for performance
             for(int j = 1; j < 5 && j < table->columnCount(); ++j) {
                 if(table->item(i, j) && table->item(i, j)->text().contains(regex)) {
                     match = true;
@@ -1211,17 +1448,23 @@ void MainWindow::applyTableFilter(QTableWidget* table, const QString& text) {
         ui->lblCountVisible->setText("Visible: " + QString::number(visibleCount));
     }
 }
+
 void MainWindow::exportToCSV() {
     QString fn = QFileDialog::getSaveFileName(this, "Export", QDir::homePath(), "CSV (*.csv)");
     if(fn.isEmpty()) return;
     QFile f(fn); if(!f.open(QIODevice::WriteOnly)) return;
     QTextStream ts(&f);
+
+    // Write headers
     for(int i=0; i<ui->mainObjectTable->columnCount(); ++i) ts << ui->mainObjectTable->horizontalHeaderItem(i)->text() << ";";
     ts << "\n";
+
+    // Write data rows
     for(int i=0; i<ui->mainObjectTable->rowCount(); ++i) {
         for(int j=0; j<ui->mainObjectTable->columnCount(); ++j) {
             QTableWidgetItem* it = ui->mainObjectTable->item(i,j);
             QString t = it ? it->text() : "";
+            // Sanitize CSV delimiters
             if(t.contains(";") || t.contains("\n")) t = "\"" + t + "\"";
             ts << t << ";";
         }
@@ -1253,12 +1496,14 @@ void MainWindow::importFromJSON() {
 
         for(auto& obj : list) {
 
+            // Validate ID
             if (!obj.contains("_id") || !obj["_id"].is_number_integer()) {
                 spdlog::warn("Skipping imported object without valid _id.");
                 skipped++;
                 continue;
             }
 
+            // Check duplicates
             int64_t id = obj["_id"];
             auto it = std::find_if(m_localCache.begin(), m_localCache.end(),
                                    [&](const auto& o){ return o["_id"] == id; });
@@ -1267,6 +1512,7 @@ void MainWindow::importFromJSON() {
                 continue;
             }
 
+            // Clean array fields
             auto sanitizeArray = [&](const std::string& key) {
                 if (obj.contains(key)) {
                     if (obj[key].is_array()) {
@@ -1278,7 +1524,6 @@ void MainWindow::importFromJSON() {
                         }
                         obj[key] = cleanArray;
                     } else {
-
                         obj[key] = nlohmann::json::array();
                     }
                 }
@@ -1287,6 +1532,7 @@ void MainWindow::importFromJSON() {
             sanitizeArray("Sets");
             sanitizeArray("Groups");
 
+            // Ensure numeric fields exist
             auto ensureDouble = [&](const std::string& key) {
                 if (obj.contains(key)) {
                     if (!obj[key].is_number()) {
@@ -1301,6 +1547,7 @@ void MainWindow::importFromJSON() {
             ensureDouble("BinSize");
             ensureDouble("CoM");
 
+            // Handle local image paths
             if(obj.contains("Picture") && obj["Picture"].is_string()) {
                 QString p = dir.filePath(QString::fromStdString(obj["Picture"]));
                 if(QFile::exists(p)) obj["_tempLocalImgPath"] = p.toStdString();
@@ -1325,6 +1572,8 @@ void MainWindow::importFromJSON() {
         spdlog::error("JSON Import crash prevented: {}", e.what());
     }
 }
+
+// Global hotkeys
 void MainWindow::keyPressEvent(QKeyEvent *event) {
     if(ui->mainObjectTable->hasFocus()) {
         if(event->key() == Qt::Key_Delete) on_deleteObjectSetButton_clicked();
@@ -1332,6 +1581,8 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
     }
     QMainWindow::keyPressEvent(event);
 }
+
+// Show the log window
 void MainWindow::on_actionShowLogs_triggered()
 {
     if (m_logWidget) {
