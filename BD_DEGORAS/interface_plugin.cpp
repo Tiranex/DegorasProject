@@ -1,8 +1,6 @@
 #include "interface_plugin.h"                  // <--- RUTA ARREGLADA
 #include "interface_spaceobjectsearchengine.h" // <--- RUTA ARREGLADA
 
-// HEMOS ELIMINADO LOS INCLUDES DE CPF, TLE, EXTERNALTOOL, ETC.
-// #include <dpslr_math.h> <--- ELIMINADO
 
 SPPlugin::SPPlugin(PluginCategory category) : category_(category) {}
 
@@ -28,8 +26,6 @@ PluginCategory SPPlugin::getPluginCategory() const { return this->category_; }
 const QDir &SPPlugin::getPluginDir() const { return this->filedir; }
 const bool &SPPlugin::isEnabled() const { return this->enabled; }
 
-// --- AQUÍ ESTABA EL ERROR GRANDE ---
-// Hemos quitado los casos de plugins que no tenemos (CPF, TLE, etc)
 bool checkPluginSpecificCast(SPPlugin* plugin)
 {
     bool result = false;
@@ -38,8 +34,6 @@ bool checkPluginSpecificCast(SPPlugin* plugin)
     case PluginCategory::SPACE_OBJECT_SEARCH_ENGINE:
         result = qobject_cast<SpaceObjectSearchEngine*>(plugin);
         break;
-
-    // ELIMINADOS LOS DEMÁS CASOS PARA QUE COMPILE
     default:
         result = false;
         break;
@@ -50,11 +44,9 @@ bool checkPluginSpecificCast(SPPlugin* plugin)
 const QMap<PluginCategory, QString> PluginCategoryEnumMap =
 {
     {PluginCategory::SPACE_OBJECT_SEARCH_ENGINE, "Space Object Search Engine"},
-    // Puedes dejar los strings aquí, no hacen daño, o borrarlos.
     {PluginCategory::CPF_DOWNLOAD_ENGINE, "CPF Download Engine"},
     {PluginCategory::TLE_DOWNLOAD_ENGINE, "TLE Download Engine"},
     {PluginCategory::EXTERNAL_TOOL, "External Tool"},
-    // ... resto ...
 };
 
 QString pluginCategoryString(SPPlugin *plugin)

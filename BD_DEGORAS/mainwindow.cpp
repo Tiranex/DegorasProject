@@ -6,7 +6,6 @@
 #include "connectiondialog.h"
 #include "QtLogSink.h"
 
-// QT INCLUDES
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QDir>
@@ -29,20 +28,18 @@
 #include <QPlainTextEdit>
 #include <vector>
 #include <QTimer>
-// LOGGING
 #include <spdlog/spdlog.h>
 #include <QCoreApplication>
 #include <QThread>
 #include "logwidget.h"
 
-// STD
 #include <string>
 #include <memory>
 #include <vector>
 #include <set>
 #include <algorithm>
 #include <fstream>
-#include <sstream> // Necesario para stringstream
+#include <sstream>
 
 const QStringList g_tableHeaders = {
     "EnablementPolicy", "NORAD", "Alias", "Name",
@@ -52,74 +49,54 @@ const QStringList g_tableHeaders = {
     "Sets", "Groups"
 };
 
-// --- CONSTRUCTOR ---
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
     m_logWidget = new LogWidget(nullptr);
-    // 1. UI Setup
     setupTables();
     setupLogTable();
     initIcons();
 
-    // 2. Connections
     connect(ui->mainObjectTable, &QTableWidget::cellDoubleClicked, this, &MainWindow::on_editObjectButton_clicked);
     connect(ui->mainObjectTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
         handleUniversalContextMenu(pos, ui->mainObjectTable);
     });
     connect(ui->mainObjectTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::on_mainObjectTable_selectionChanged);
 
-    // Filtros
     connect(ui->filterAllRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
     connect(ui->filterEnabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
     connect(ui->filterDisabledRadio, &QRadioButton::toggled, this, &MainWindow::refreshMainTable);
     connect(ui->LineEditSpaceObjects, &QLineEdit::textChanged, this, &MainWindow::on_LineEditSpaceObjects_textChanged);
     connect(ui->searchLineEditSet, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditSet_textChanged);
     connect(ui->searchLineEditGroups, &QLineEdit::textChanged, this, &MainWindow::on_searchLineEditGroups_textChanged);
-    //Save Button
     connect(ui->GlobalSaveButton, &QPushButton::clicked, this, &MainWindow::on_saveChangesToDbButton_clicked);
-    // Tab Sets
     connect(ui->setsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_setsListWidget_itemSelectionChanged);
     connect(ui->setsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
         handleUniversalContextMenu(pos, ui->setsViewTable);
     });
 
-    // Tab Groups
     connect(ui->groupsListWidget, &QListWidget::itemSelectionChanged, this, &MainWindow::on_groupsListWidget_itemSelectionChanged);
     connect(ui->groupsViewTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &pos){
         handleUniversalContextMenu(pos, ui->groupsViewTable);
     });
 
-    // Cambio de Pestaña
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::on_tabWidget_currentChanged);
-
-    // Logs Bridge
     auto& sink = QtLogSinkMt::instance();
     connect(&sink, &QtLogSinkMt::logReceived, this, &MainWindow::onLogReceived);
     auto logger = spdlog::default_logger();
     if (logger) logger->sinks().push_back(std::shared_ptr<QtLogSinkMt>(&sink, [](void*){}));
 
-    // --- 3. CONNECT TO DB ---
-    //const std::string URI = "mongodb://localhost:27017";
-   // const std::string DB_NAME = "DegorasDB";
-    //const std::string COLLECTION_NAME = "space_objects";
 
-
-    // 1. Mostrar diálogo de conexión (Bloqueante)
-    ConnectionDialog connDlg(this);
+    ConnectionDialog connDlg(nullptr);
     if (connDlg.exec() != QDialog::Accepted) {
-        // Si el usuario cancela o cierra la ventana, cerramos la app limpiamente
-        // Usamos un timer para cerrar después del constructor
         QTimer::singleShot(0, qApp, &QCoreApplication::quit);
-        return; // Salimos del constructor para evitar crashes
+        return;
     }
 
     auto params = connDlg.getParams();
 
-    // 2. Construir la URI profesional
-    // Formato: mongodb://user:pass@host:port/?tls=true
     QString uriStr = "mongodb://";
 
     if (!params.user.isEmpty()) {
@@ -132,8 +109,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     uriStr += QString("%1:%2").arg(params.host).arg(params.port);
 
-    // Añadir opciones extra
-    // IMPORTANTE: Aquí metemos lo del SSL que quiere tu jefe
     if (params.useSSL) {
         uriStr += "/?tls=true";
     }
@@ -146,21 +121,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     try {
         dbManager = std::make_unique<SpaceObjectDBManager>(URI, DB_NAME, COLLECTION_NAME);
-
-
-
-        // A) CARGA MASIVA DE OBJETOS
         m_localCache = dbManager->getAllSpaceObjects();
-
-        // B) CARGA DE SETS (Directo Set -> Set)
-        // ELIMINAMOS la conversión a vector
         m_localSets = dbManager->getAllUniqueSetNames();
-
-        // C) CARGA DE GRUPOS (Directo Set -> Set)
         m_localGroups = dbManager->getAllUniqueGroupNames();
-
-
-
 
         logMessage("[Memory] Loaded DB into local cache. Objects: " + QString::number(m_localCache.size()));
 
@@ -172,8 +135,6 @@ MainWindow::MainWindow(QWidget *parent)
         logMessage("[Fatal] " + QString(e.what()));
         ui->centralwidget->setEnabled(false);
     }
-
-    // 4. Menús
     QMenu *menuData = menuBar()->addMenu("Data");
 
     QAction *actExport = menuData->addAction("Export to CSV");
@@ -183,8 +144,6 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *actImport = menuData->addAction("Import from JSON");
     actImport->setShortcut(QKeySequence("Ctrl+I"));
     connect(actImport, &QAction::triggered, this, &MainWindow::importFromJSON);
-
-    // BOTÓN DE COMMIT (Guardar Cambios)
     QAction *actSave = menuData->addAction("Save Changes to DB");
     actSave->setShortcut(QKeySequence("Ctrl+S"));
     connect(actSave, &QAction::triggered, this, &MainWindow::on_saveChangesToDbButton_clicked);
@@ -192,13 +151,9 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() { delete ui; }
 
-// =================================================================
-// MEMORY CRUD (Lógica Local - NO TOCA BBDD)
-// =================================================================
 
 void MainWindow::refreshMainTable()
 {
-    // Filtramos sobre m_localCache
     std::vector<nlohmann::json> filtered;
 
     bool showAll = ui->filterAllRadio->isChecked();
@@ -225,21 +180,17 @@ void MainWindow::on_addNewObjectSetButton_clicked()
     if (m_addDialog) { m_addDialog->activateWindow(); return; }
 
     m_addDialog = std::make_unique<AddObjectDialog>(nullptr);
-
-    // IMPORTANTE: Pasamos los Sets/Groups de MEMORIA, convirtiéndolos a vector para el diálogo
     std::vector<std::string> availableSets(m_localSets.begin(), m_localSets.end());
     std::vector<std::string> availableGroups(m_localGroups.begin(), m_localGroups.end());
 
     m_addDialog->setAvailableSets(availableSets);
     m_addDialog->setAvailableGroups(availableGroups);
-    m_addDialog->setDbManager(dbManager.get()); // Solo para leer lista de imágenes si es necesario
+    m_addDialog->setDbManager(dbManager.get());
     m_addDialog->setExistingObjects(&m_localCache);
 
     connect(m_addDialog.get(), &QDialog::finished, this, [this](int r){
         if (r == QDialog::Accepted) {
             nlohmann::json newObj = m_addDialog->getNewObjectData();
-
-            // 1. Validar duplicado local
             int64_t id = newObj["_id"];
             auto it = std::find_if(m_localCache.begin(), m_localCache.end(),
                                    [id](const nlohmann::json& j){ return j["_id"] == id; });
@@ -247,13 +198,10 @@ void MainWindow::on_addNewObjectSetButton_clicked()
             if (it != m_localCache.end()) {
                 QMessageBox::warning(this, "Error", "ID already exists in local cache.");
             } else {
-                // 2. Guardar ruta de imagen temporalmente (Subida diferida)
                 QString imgPath = m_addDialog->getSelectedImagePath();
                 if(!imgPath.isEmpty()) {
                     newObj["_tempLocalImgPath"] = imgPath.toStdString();
                 }
-
-                // 3. Añadir a Memoria
                 m_localCache.push_back(newObj);
                 setUnsavedChanges(true);
                 refreshMainTable();
@@ -273,7 +221,6 @@ void MainWindow::on_editObjectButton_clicked()
     int idCol = g_tableHeaders.indexOf("NORAD");
     int64_t id = ui->mainObjectTable->item(sel.first().row(), idCol)->text().toLongLong();
 
-    // Buscar en Caché
     nlohmann::json obj;
     bool found = false;
     for(const auto& o : m_localCache) {
@@ -285,7 +232,6 @@ void MainWindow::on_editObjectButton_clicked()
     if (m_editDialog) { m_editDialog->activateWindow(); return; }
     m_editDialog = std::make_unique<AddObjectDialog>(nullptr);
 
-    // USAR DATOS LOCALES
     std::vector<std::string> availableSets(m_localSets.begin(), m_localSets.end());
     std::vector<std::string> availableGroups(m_localGroups.begin(), m_localGroups.end());
 
@@ -299,14 +245,11 @@ void MainWindow::on_editObjectButton_clicked()
         if (r == QDialog::Accepted) {
             nlohmann::json edited = m_editDialog->getNewObjectData();
 
-            // Guardar ruta imagen temporal si cambió
             QString imgPath = m_editDialog->getSelectedImagePath();
             if(!imgPath.isEmpty()) edited["_tempLocalImgPath"] = imgPath.toStdString();
 
-            // Actualizar en Memoria
             for(auto& o : m_localCache) {
                 if(o["_id"] == id) {
-                    // Mantener campos internos temporales si el diálogo no los devuelve
                     if(o.contains("_tempLocalImgPath") && !edited.contains("_tempLocalImgPath"))
                         edited["_tempLocalImgPath"] = o["_tempLocalImgPath"];
                     o = edited;
@@ -316,7 +259,6 @@ void MainWindow::on_editObjectButton_clicked()
 
             setUnsavedChanges(true);
             refreshMainTable();
-            // Refrescar otras pestañas por si el objeto cambió de set/grupo
             on_setsListWidget_itemSelectionChanged();
             on_groupsListWidget_itemSelectionChanged();
             logMessage("[Memory] Object updated: " + QString::number(id));
@@ -337,7 +279,6 @@ void MainWindow::on_deleteObjectSetButton_clicked()
     for (const auto& idx : sel) {
         int64_t id = ui->mainObjectTable->item(idx.row(), idCol)->text().toLongLong();
 
-        // Borrar de Memoria
         m_localCache.erase(std::remove_if(m_localCache.begin(), m_localCache.end(),
                                           [id](const nlohmann::json& j){ return j["_id"] == id; }), m_localCache.end());
     }
@@ -346,8 +287,6 @@ void MainWindow::on_deleteObjectSetButton_clicked()
     logMessage("[Memory] Objects deleted.");
 }
 
-
-// --- SAVE COMMIT ---
 
 void MainWindow::on_saveChangesToDbButton_clicked()
 {
@@ -358,7 +297,6 @@ void MainWindow::on_saveChangesToDbButton_clicked()
     createDatabaseVersion();
 }
 
-// Asegúrate de tener este include arriba del todo:
 #include <QDateTime>
 
 void MainWindow::createDatabaseVersion()
@@ -370,19 +308,12 @@ void MainWindow::createDatabaseVersion()
     QVBoxLayout* l = new QVBoxLayout(&dlg);
     QFormLayout* f = new QFormLayout();
 
-    // 1. TIMESTAMP (Automático, solo lectura)
     QString timeStamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmm");
     QLabel* lblTime = new QLabel(timeStamp, &dlg);
     lblTime->setStyleSheet("font-weight: bold; color: gray;");
-
-    // 2. ALIAS / TAG (Ej: v1.0)
     QLineEdit* aliasEd = new QLineEdit("v1.0", &dlg);
-
-    // 3. DESCRIPTOR (Opcional, Ej: Ajuste_RCS)
     QLineEdit* descEd = new QLineEdit(&dlg);
     descEd->setPlaceholderText("Description (e.g. Initial Import)");
-
-    // 4. COMENTARIO LARGO
     QPlainTextEdit* commEd = new QPlainTextEdit(&dlg);
     commEd->setPlaceholderText("Detailed notes about this commit...");
 
@@ -410,31 +341,24 @@ void MainWindow::createDatabaseVersion()
 
     if (dlg.exec() == QDialog::Accepted)
     {
-        // VALIDACIÓN
         if (aliasEd->text().isEmpty()) {
             QMessageBox::warning(this, "Error", "Version Tag is required (e.g. v1.0).");
             return;
         }
-
-        // --- CONSTRUCCIÓN DEL NOMBRE ESTÁNDAR ---
-        // Formato: YYYYMMDD_HHmm_TAG_DESCRIPTOR
         QString stdName = QString("%1_%2").arg(timeStamp, aliasEd->text().trimmed());
 
         if (!descEd->text().isEmpty()) {
             stdName += "_" + descEd->text().trimmed();
         }
 
-        // Limpieza: Reemplazar espacios por guiones bajos para evitar problemas en DB
         stdName = stdName.replace(" ", "_");
         stdName = stdName.replace("/", "-");
-        // ----------------------------------------
 
         std::string err;
         bool ok = false;
 
         QApplication::setOverrideCursor(Qt::WaitCursor);
 
-        // --- LÓGICA DE SUBIDA DE IMÁGENES (Se mantiene igual que antes) ---
         bool imagesOk = true;
         for(auto& obj : m_localCache) {
             if (obj.contains("_tempLocalImgPath")) {
@@ -455,16 +379,13 @@ void MainWindow::createDatabaseVersion()
 
         if(imagesOk) {
             SaveMode mode = chkIncremental->isChecked() ? SaveMode::INCREMENTAL : SaveMode::FULL_SNAPSHOT;
-
-            // LLAMADA A LA DB CON EL NOMBRE ESTÁNDAR
             ok = dbManager->saveAllAndVersion(m_localCache, m_localSets, m_localGroups,
-                                              stdName.toStdString(), // <--- AQUÍ VA EL NOMBRE AUTOMÁTICO
+                                              stdName.toStdString(),
                                               commEd->toPlainText().toStdString(),
                                               mode,
                                               err);
         }
 
-        // --- LIMPIEZA DE IMÁGENES HUÉRFANAS (GC) ---
         if (ok) {
             std::vector<std::string> allDbImages = dbManager->getImageManager().getAllImageNames();
             std::set<std::string> usedImages;
@@ -518,18 +439,14 @@ void MainWindow::closeEvent(QCloseEvent *event)
     event->accept();
 }
 
-// --- ASIGNACIONES EN MEMORIA (Tab 2/3) ---
 
 void MainWindow::on_assignToSetButton_clicked() {
 
-    // 1. Define active table (Strictly the Sets View Table)
-    // We removed the fallback to ui->mainObjectTable.
     QTableWidget* activeTable = ui->setsViewTable;
 
     auto selectedRows = activeTable->selectionModel()->selectedRows();
     auto selectedSets = ui->setsListWidget->selectedItems();
 
-    // 2. Validation
     if(selectedRows.empty()) {
         QMessageBox::warning(this, "Warning", "Please select an Object in the current table (Sets View).");
         return;
@@ -541,8 +458,6 @@ void MainWindow::on_assignToSetButton_clicked() {
 
     int idCol = g_tableHeaders.indexOf("NORAD");
     int count = 0;
-
-    // 3. Process Assignment in Memory
     for(const auto& idx : selectedRows) {
         int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
 
@@ -570,13 +485,9 @@ void MainWindow::on_assignToSetButton_clicked() {
         }
     }
 
-    // 4. Update UI and State
     if (count > 0) {
         setUnsavedChanges(true);
-        refreshMainTable(); // Refresh main table to keep data consistent
-
-        // Refresh the current view to reflect changes immediately
-        // (Unless locked, but manual refresh is handled by the loop logic usually)
+        refreshMainTable();
         if (!ui->CheckBoxSets->isChecked()) {
             on_setsListWidget_itemSelectionChanged();
         }
@@ -620,14 +531,11 @@ void MainWindow::on_removeFromSetButton_clicked() {
 
 void MainWindow::on_assignToGroupButton_clicked() {
 
-    // 1. Define active table (Strictly the Groups View Table)
-    // Removed fallback to ui->mainObjectTable to prevent cross-tab actions.
     QTableWidget* activeTable = ui->groupsViewTable;
 
     auto selectedRows = activeTable->selectionModel()->selectedRows();
     auto selectedGroups = ui->groupsListWidget->selectedItems();
 
-    // 2. Validation
     if(selectedRows.empty()) {
         QMessageBox::warning(this, "Warning", "Please select an Object in the current table (Groups View).");
         return;
@@ -639,20 +547,16 @@ void MainWindow::on_assignToGroupButton_clicked() {
 
     int idCol = g_tableHeaders.indexOf("NORAD");
     int count = 0;
-
-    // 3. Process Assignment in Memory
     for(const auto& idx : selectedRows) {
         int64_t id = activeTable->item(idx.row(), idCol)->text().toLongLong();
 
         for(auto& o : m_localCache) {
             if(o["_id"] == id) {
-                // Get current Groups vector
                 std::vector<std::string> curGroups = o.value("Groups", std::vector<std::string>());
 
                 bool modified = false;
                 for(auto g : selectedGroups) {
                     std::string groupName = g->text().toStdString();
-                    // Avoid duplicates
                     if(std::find(curGroups.begin(), curGroups.end(), groupName) == curGroups.end()) {
                         curGroups.push_back(groupName);
                         modified = true;
@@ -668,13 +572,9 @@ void MainWindow::on_assignToGroupButton_clicked() {
         }
     }
 
-    // 4. Update UI and State
     if (count > 0) {
         setUnsavedChanges(true);
-        refreshMainTable(); // Refresh main table to show changes
-
-        // Refresh the current view to reflect changes immediately
-        // (Unless locked)
+        refreshMainTable();
         if (!ui->CheckBoxGroups->isChecked()) {
             on_groupsListWidget_itemSelectionChanged();
         }
@@ -715,9 +615,6 @@ void MainWindow::on_removeFromGroupButton_clicked() {
     on_groupsListWidget_itemSelectionChanged();
 }
 
-// =================================================================
-// HELPERS & MENUS
-// =================================================================
 
 void MainWindow::logMessage(const QString& msg) {
     if(msg.contains("[Error]") || msg.contains("[Fatal]")) spdlog::error(msg.toStdString());
@@ -753,7 +650,6 @@ void MainWindow::onLogReceived(const QString& msg, const QString& level)
         QString fullMsg = QString("[%1] [%2] %3")
         .arg(QDateTime::currentDateTime().toString("HH:mm:ss"), level, msg);
 
-        // AHORA PASAMOS DOS ARGUMENTOS: fullMsg y level
         QMetaObject::invokeMethod(m_logWidget, "appendLog", Qt::QueuedConnection,
                                   Q_ARG(QString, fullMsg),
                                   Q_ARG(QString, level));
@@ -806,17 +702,17 @@ void MainWindow::setupLogTable()
 }
 
 
-// Tab 1: Space Objects Search
+
 void MainWindow::on_LineEditSpaceObjects_textChanged(const QString &arg1) {
     applyTableFilter(ui->mainObjectTable, arg1);
 }
 
-// Tab 2: Sets Search
+
 void MainWindow::on_searchLineEditSet_textChanged(const QString &arg1) {
     applyTableFilter(ui->setsViewTable, arg1);
 }
 
-// Tab 3: Groups Search
+
 void MainWindow::on_searchLineEditGroups_textChanged(const QString &arg1) {
     applyTableFilter(ui->groupsViewTable, arg1);
 }
@@ -824,39 +720,28 @@ void MainWindow::on_tabWidget_currentChanged(int index)
 {
     if (!dbManager) return;
 
-    // TAB 0: MAIN SPACE OBJECTS
     if (index == 0) {
         if (m_dirtyMain) {
-        // 1. Load Data (This resets the table showing all rows)
         refreshMainTable();
-
-        // 2. Re-apply Filter immediately if text exists
         if (ui->LineEditSpaceObjects && !ui->LineEditSpaceObjects->text().isEmpty()) {
             applyTableFilter(ui->mainObjectTable, ui->LineEditSpaceObjects->text());
         }
         m_dirtyMain = false;
         }
     }
-    // TAB 1: SETS
     else if (index == 1) {
         if (m_dirtySets) {
-        // 1. Load Data based on selected sets
         on_setsListWidget_itemSelectionChanged();
 
-        // 2. Re-apply Filter immediately
         if (ui->searchLineEditSet && !ui->searchLineEditSet->text().isEmpty()) {
             applyTableFilter(ui->setsViewTable, ui->searchLineEditSet->text());
         }
         m_dirtySets = false;
         }
     }
-    // TAB 2: GROUPS
     else if (index == 2) {
         if (m_dirtyGroups) {
-        // 1. Load Data based on selected groups
         on_groupsListWidget_itemSelectionChanged();
-
-        // 2. Re-apply Filter immediately
         if (ui->searchLineEditGroups && !ui->searchLineEditGroups->text().isEmpty()) {
             applyTableFilter(ui->groupsViewTable, ui->searchLineEditGroups->text());
         }
@@ -865,7 +750,6 @@ void MainWindow::on_tabWidget_currentChanged(int index)
     }
 }
 
-// --- SELECCIONES & PANELES ---
 
 void MainWindow::on_mainObjectTable_selectionChanged()
 {
@@ -881,7 +765,6 @@ void MainWindow::on_mainObjectTable_selectionChanged()
     int idCol = g_tableHeaders.indexOf("NORAD");
     int64_t id = ui->mainObjectTable->item(row, idCol)->text().toLongLong();
 
-    // Buscar en MEMORIA
     nlohmann::json obj;
     for(const auto& o : m_localCache) if(o["_id"] == id) { obj = o; break; }
     if(obj.empty()) return;
@@ -909,8 +792,6 @@ void MainWindow::on_mainObjectTable_selectionChanged()
     if (lrrVal == 1) ui->setsDetailLrr->setText("Yes");
     else if (lrrVal == 0) ui->setsDetailLrr->setText("No");
     else ui->setsDetailLrr->setText("Unknown");
-
-    // Imagen: Prioridad temporal (la que acabamos de cargar pero no guardado)
     std::string picName = "";
     if (obj.contains("Picture") && !obj["Picture"].is_null()) picName = obj["Picture"];
 
@@ -923,8 +804,6 @@ void MainWindow::on_mainObjectTable_selectionChanged()
             return;
         }
     }
-
-    // Si no es temporal, intentamos descargarla de DB
     if (!picName.empty()) {
         std::string imgData = dbManager->getImageManager().downloadImageByName(picName);
         QPixmap pix;
@@ -936,11 +815,10 @@ void MainWindow::on_mainObjectTable_selectionChanged()
     }
 }
 
-// --- REFRESH LISTAS AUXILIARES ---
+
 
 void MainWindow::refreshSetListWidget()
 {
-    // Leer de MEMORIA (std::set m_localSets)
     ui->setsListWidget->clear();
     for(const auto& s : m_localSets) {
         ui->setsListWidget->addItem(QString::fromStdString(s));
@@ -949,7 +827,6 @@ void MainWindow::refreshSetListWidget()
 
 void MainWindow::refreshGroupListWidget()
 {
-    // Leer de MEMORIA (std::set m_localGroups)
     ui->groupsListWidget->clear();
     for(const auto& g : m_localGroups) {
         ui->groupsListWidget->addItem(QString::fromStdString(g));
@@ -958,17 +835,14 @@ void MainWindow::refreshGroupListWidget()
 
 void MainWindow::on_setsListWidget_itemSelectionChanged()
 {
-    // --- LOCK VIEW LOGIC ---
-    // If the checkbox is checked, we do NOT refresh the table.
     if (ui->CheckBoxSets && ui->CheckBoxSets->isChecked()) {
         return;
     }
 
-    // Safety checks
     if (!ui->setsListWidget || !ui->setsViewTable) return;
 
     if (ui->setsListWidget->selectedItems().isEmpty()) {
-        populateReadOnlyTable(ui->setsViewTable, m_localCache); // Show all if empty
+        populateReadOnlyTable(ui->setsViewTable, m_localCache);
         return;
     }
 
@@ -977,7 +851,6 @@ void MainWindow::on_setsListWidget_itemSelectionChanged()
         if (i) sets.insert(i->text().toStdString());
     }
 
-    // Filter in Memory
     std::vector<nlohmann::json> filtered;
 
     try {
@@ -985,9 +858,6 @@ void MainWindow::on_setsListWidget_itemSelectionChanged()
             if(obj.contains("Sets") && obj["Sets"].is_array()) {
                 for(const auto& s : obj["Sets"]) {
 
-                    // --- CRASH FIX ---
-                    // Verify that the element is actually a string before accessing it.
-                    // This prevents crashes if the array contains 'null' or numbers.
                     if (s.is_string()) {
                         if(sets.count(s.get<std::string>())) {
                             filtered.push_back(obj);
@@ -1006,18 +876,14 @@ void MainWindow::on_setsListWidget_itemSelectionChanged()
 }
 void MainWindow::on_groupsListWidget_itemSelectionChanged()
 {
-    // --- LOCK VIEW LOGIC ---
-    // If the checkbox is checked, we do NOT refresh the table.
-    // This allows selecting a target Group in the list without losing the table selection.
+
     if (ui->CheckBoxGroups && ui->CheckBoxGroups->isChecked()) {
         return;
     }
-
-    // Safety checks
     if (!ui->groupsListWidget || !ui->groupsViewTable) return;
 
     if (ui->groupsListWidget->selectedItems().isEmpty()) {
-        populateReadOnlyTable(ui->groupsViewTable, m_localCache); // Show all
+        populateReadOnlyTable(ui->groupsViewTable, m_localCache);
         return;
     }
 
@@ -1026,14 +892,12 @@ void MainWindow::on_groupsListWidget_itemSelectionChanged()
         if(i) groups.insert(i->text().toStdString());
     }
 
-    // Filter MEMORY
     std::vector<nlohmann::json> filtered;
 
     try {
         for(const auto& obj : m_localCache) {
             if(obj.contains("Groups") && obj["Groups"].is_array()) {
                 for(const auto& g : obj["Groups"]) {
-                    // CRASH FIX: Check if string before access
                     if (g.is_string()) {
                         if(groups.count(g.get<std::string>())) {
                             filtered.push_back(obj);
@@ -1053,19 +917,13 @@ void MainWindow::on_groupsListWidget_itemSelectionChanged()
 }
 
 
-// --- CREAR/BORRAR SETS/GRUPOS (Metadata en Memoria) ---
-
 void MainWindow::on_createSetButton_clicked() {
     QString name = ui->newSetLineEdit->text().trimmed();
     if(name.isEmpty()) return;
-
-    // Validar si existe en local
     if (m_localSets.count(name.toStdString())) {
         QMessageBox::warning(this, "Error", "Set already exists locally.");
         return;
     }
-
-    // Añadir a memoria
     m_localSets.insert(name.toStdString());
     refreshSetListWidget();
     ui->newSetLineEdit->clear();
@@ -1079,10 +937,7 @@ void MainWindow::on_deleteSetButton_clicked() {
 
     if(QMessageBox::Yes != QMessageBox::question(this, "Delete", "Delete Set '" + name + "' locally?")) return;
 
-    // 1. Borrar de la lista de Sets
     m_localSets.erase(name.toStdString());
-
-    // 2. Borrar de TODOS los objetos en memoria (Cascada)
     for(auto& obj : m_localCache) {
         if(obj.contains("Sets") && obj["Sets"].is_array()) {
             std::vector<std::string> current = obj["Sets"];
@@ -1096,7 +951,7 @@ void MainWindow::on_deleteSetButton_clicked() {
 
     refreshSetListWidget();
     ui->setsViewTable->setRowCount(0);
-    refreshMainTable(); // Actualizar columna Sets en tabla principal
+    refreshMainTable();
     setUnsavedChanges(true);
     logMessage("[Memory] Set deleted: " + name);
 }
@@ -1110,16 +965,12 @@ void MainWindow::on_createGroupButton_clicked()
         return;
     }
 
-    // 1. Validar si ya existe en memoria
     if (m_localGroups.count(name.toStdString())) {
         QMessageBox::warning(this, "Error", "Group already exists locally.");
         return;
     }
 
-    // 2. Añadir a memoria
     m_localGroups.insert(name.toStdString());
-
-    // 3. Actualizar interfaz y estado
     refreshGroupListWidget();
     ui->newGroupLineEdit->clear();
     setUnsavedChanges(true);
@@ -1143,10 +994,8 @@ void MainWindow::on_deleteGroupButton_clicked()
 
     std::string stdName = name.toStdString();
 
-    // 1. Borrar de la lista de definiciones de Grupos (en Memoria)
     m_localGroups.erase(stdName);
 
-    // 2. Borrado en Cascada: Quitar este grupo de TODOS los objetos en memoria
     int objectsAffected = 0;
     for(auto& obj : m_localCache) {
         if(obj.contains("Groups") && obj["Groups"].is_array()) {
@@ -1168,8 +1017,6 @@ void MainWindow::on_deleteGroupButton_clicked()
     logMessage("[Memory] Group deleted: " + name + " (Removed from " + QString::number(objectsAffected) + " objects)");
 }
 
-
-// --- RESTO DE HELPERS (Log, Setup, InitIcons, Populate) ---
 
 void MainWindow::populateMainTable(const std::vector<nlohmann::json>& objects)
 {
@@ -1272,12 +1119,10 @@ void MainWindow::handleUniversalContextMenu(const QPoint &pos, QTableWidget* tab
         logMessage("JSON copied.");
     }
     else if (act == assignSet) {
-        // Dialogo de selección de Sets (DESDE MEMORIA m_localSets)
         QDialog dlg(this); dlg.setWindowTitle("Select Sets (Memory)");
         QVBoxLayout *l = new QVBoxLayout(&dlg);
         QListWidget *lw = new QListWidget(&dlg); lw->setSelectionMode(QAbstractItemView::MultiSelection);
 
-        // Cargar sets desde memoria
         for(const auto& s : m_localSets) lw->addItem(QString::fromStdString(s));
 
         l->addWidget(lw);
@@ -1306,7 +1151,6 @@ void MainWindow::handleUniversalContextMenu(const QPoint &pos, QTableWidget* tab
         }
     }
     else if (act == assignGroup) {
-        // Dialogo de selección de Groups (DESDE MEMORIA m_localGroups)
         QDialog dlg(this); dlg.setWindowTitle("Select Groups (Memory)");
         QVBoxLayout *l = new QVBoxLayout(&dlg);
         QListWidget *lw = new QListWidget(&dlg); lw->setSelectionMode(QAbstractItemView::MultiSelection);
@@ -1340,7 +1184,6 @@ void MainWindow::handleUniversalContextMenu(const QPoint &pos, QTableWidget* tab
     }
 }
 
-// Helper function to filter rows in any table
 void MainWindow::applyTableFilter(QTableWidget* table, const QString& text) {
     if (!table) return;
 
@@ -1353,7 +1196,6 @@ void MainWindow::applyTableFilter(QTableWidget* table, const QString& text) {
         if(text.isEmpty()) {
             match = true;
         } else {
-            // Search columns 1 to 4 (Avoid column 0 which might be hidden ID)
             for(int j = 1; j < 5 && j < table->columnCount(); ++j) {
                 if(table->item(i, j) && table->item(i, j)->text().contains(regex)) {
                     match = true;
@@ -1365,7 +1207,6 @@ void MainWindow::applyTableFilter(QTableWidget* table, const QString& text) {
         if(match) visibleCount++;
     }
 
-    // Update label only if we are on the main table
     if (table == ui->mainObjectTable && ui->lblCountVisible) {
         ui->lblCountVisible->setText("Visible: " + QString::number(visibleCount));
     }
@@ -1400,8 +1241,6 @@ void MainWindow::importFromJSON() {
     try {
         auto j = nlohmann::json::parse(f.readAll());
         std::vector<nlohmann::json> list;
-
-        // Manejar si el JSON es un objeto único o un array de objetos
         if(j.is_array()) {
             for(const auto& o : j) list.push_back(o);
         } else {
@@ -1414,22 +1253,13 @@ void MainWindow::importFromJSON() {
 
         for(auto& obj : list) {
 
-            // ---------------------------------------------------------
-            // 1. SANITIZAR ID (NORAD)
-            // ---------------------------------------------------------
             if (!obj.contains("_id") || !obj["_id"].is_number_integer()) {
-                // Opción A: Asignar un ID temporal negativo si falta
-                // obj["_id"] = -1;
-
-                // Opción B: Saltar el objeto si no tiene ID (Recomendado para evitar caos)
                 spdlog::warn("Skipping imported object without valid _id.");
                 skipped++;
                 continue;
             }
 
             int64_t id = obj["_id"];
-
-            // Chequear duplicados en memoria
             auto it = std::find_if(m_localCache.begin(), m_localCache.end(),
                                    [&](const auto& o){ return o["_id"] == id; });
             if(it != m_localCache.end()) {
@@ -1437,22 +1267,18 @@ void MainWindow::importFromJSON() {
                 continue;
             }
 
-            // ---------------------------------------------------------
-            // 2. SANITIZAR ARRAYS (Sets y Groups) - Evitar NULLs
-            // ---------------------------------------------------------
             auto sanitizeArray = [&](const std::string& key) {
                 if (obj.contains(key)) {
                     if (obj[key].is_array()) {
                         nlohmann::json cleanArray = nlohmann::json::array();
                         for (const auto& item : obj[key]) {
-                            // SOLO aceptamos Strings. Nulls y números fuera.
                             if (item.is_string()) {
                                 cleanArray.push_back(item);
                             }
                         }
                         obj[key] = cleanArray;
                     } else {
-                        // Si no es array (ej: null o string suelto), lo forzamos a array vacio
+
                         obj[key] = nlohmann::json::array();
                     }
                 }
@@ -1461,14 +1287,9 @@ void MainWindow::importFromJSON() {
             sanitizeArray("Sets");
             sanitizeArray("Groups");
 
-            // ---------------------------------------------------------
-            // 3. SANITIZAR NÚMEROS (Altitude, Inclination, etc.)
-            // Evita crash si viene un string "Too High" en un double
-            // ---------------------------------------------------------
             auto ensureDouble = [&](const std::string& key) {
                 if (obj.contains(key)) {
                     if (!obj[key].is_number()) {
-                        // Si no es número, lo ponemos a 0.0 o null
                         obj[key] = 0.0;
                     }
                 }
@@ -1480,15 +1301,10 @@ void MainWindow::importFromJSON() {
             ensureDouble("BinSize");
             ensureDouble("CoM");
 
-            // ---------------------------------------------------------
-            // 4. GESTIÓN DE IMÁGENES
-            // ---------------------------------------------------------
             if(obj.contains("Picture") && obj["Picture"].is_string()) {
                 QString p = dir.filePath(QString::fromStdString(obj["Picture"]));
                 if(QFile::exists(p)) obj["_tempLocalImgPath"] = p.toStdString();
             }
-
-            // AÑADIR A MEMORIA
             m_localCache.push_back(obj);
             ok++;
         }

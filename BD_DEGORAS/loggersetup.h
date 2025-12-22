@@ -113,4 +113,4 @@ std::shared_ptr<spdlog::logger> registerSpdlogLogger(const SpdlogLogConfig& cfg)
  */
 std::filesystem::path getExecutableDir();
 
-#endif // LOGGER_SETUP_H
+#endif

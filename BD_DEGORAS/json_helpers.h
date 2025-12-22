@@ -20,7 +20,6 @@ static inline nlohmann::json bsoncxxToNjson(const bsoncxx::document::view& view)
     }
     catch (...)
     {
-        // Devuelve un JSON nulo/vacío si hay error de parseo
         return nlohmann::json{};
     }
 }

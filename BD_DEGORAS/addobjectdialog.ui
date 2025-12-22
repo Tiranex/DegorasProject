@@ -227,36 +227,10 @@
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout_3">
-    <item row="6" column="1">
-     <widget class="QPushButton" name="browseImageBtn">
+    <item row="4" column="0">
+     <widget class="QLabel" name="label_16">
       <property name="text">
-       <string>Search Image</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QLineEdit" name="comEdit"/>
-    </item>
-    <item row="5" column="1">
-     <widget class="QLineEdit" name="classEdit"/>
-    </item>
-    <item row="5" column="0">
-     <widget class="QLabel" name="label_22">
-      <property name="text">
-       <string>Classification</string>
-      </property>
-     </widget>
-    </item>
-    <item row="9" column="1">
-     <widget class="QPlainTextEdit" name="commentsEdit"/>
-    </item>
-    <item row="4" column="1">
-     <widget class="QLineEdit" name="configEdit"/>
-    </item>
-    <item row="9" column="0">
-     <widget class="QLabel" name="label_14">
-      <property name="text">
-       <string>Comments</string>
+       <string>Configurations</string>
       </property>
      </widget>
     </item>
@@ -267,23 +241,6 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="1">
-     <widget class="QLineEdit" name="cpfEdit"/>
-    </item>
-    <item row="3" column="0">
-     <widget class="QLabel" name="label_19">
-      <property name="text">
-       <string>Track HP</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="1">
-     <widget class="QCheckBox" name="highPowerCheck">
-      <property name="text">
-       <string>High Power</string>
-      </property>
-     </widget>
-    </item>
     <item row="1" column="0">
      <widget class="QLabel" name="label_17">
       <property name="text">
@@ -291,16 +248,26 @@
       </property>
      </widget>
     </item>
-    <item row="8" column="1">
-     <widget class="QLineEdit" name="imagePathEdit"/>
-    </item>
     <item row="0" column="1">
      <widget class="QLineEdit" name="incEdit"/>
     </item>
-    <item row="4" column="0">
-     <widget class="QLabel" name="label_16">
+    <item row="2" column="1">
+     <widget class="QLineEdit" name="cpfEdit"/>
+    </item>
+    <item row="1" column="1">
+     <widget class="QLineEdit" name="comEdit"/>
+    </item>
+    <item row="6" column="0">
+     <widget class="QLabel" name="label_18">
       <property name="text">
-       <string>Configurations</string>
+       <string>Image</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_22">
+      <property name="text">
+       <string>Classification</string>
       </property>
      </widget>
     </item>
@@ -311,10 +278,10 @@
       </property>
      </widget>
     </item>
-    <item row="6" column="0">
-     <widget class="QLabel" name="label_18">
+    <item row="3" column="1">
+     <widget class="QCheckBox" name="highPowerCheck">
       <property name="text">
-       <string>Image</string>
+       <string>High Power</string>
       </property>
      </widget>
     </item>
@@ -323,6 +290,65 @@
       <property name="text">
        <string>Select existing Image From BD</string>
       </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QLineEdit" name="classEdit"/>
+    </item>
+    <item row="9" column="1">
+     <widget class="QPlainTextEdit" name="commentsEdit"/>
+    </item>
+    <item row="9" column="0">
+     <widget class="QLabel" name="label_14">
+      <property name="text">
+       <string>Comments</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="1">
+     <widget class="QLineEdit" name="configEdit"/>
+    </item>
+    <item row="8" column="1">
+     <widget class="QLineEdit" name="imagePathEdit"/>
+    </item>
+    <item row="6" column="1">
+     <widget class="QPushButton" name="browseImageBtn">
+      <property name="text">
+       <string>Search Image</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_19">
+      <property name="text">
+       <string>Track HP</string>
+      </property>
+     </widget>
+    </item>
+    <item row="10" column="0">
+     <widget class="QLabel" name="label_23">
+      <property name="text">
+       <string>Enablement Policy</string>
+      </property>
+     </widget>
+    </item>
+    <item row="10" column="1">
+     <widget class="QComboBox" name="policyCombo">
+      <item>
+       <property name="text">
+        <string>No Policy</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Enabled</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Disabled</string>
+       </property>
+      </item>
      </widget>
     </item>
    </layout>

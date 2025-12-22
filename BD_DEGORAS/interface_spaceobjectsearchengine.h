@@ -31,7 +31,6 @@ public:
         QString string;
     };
 
-    // Virtual methods.
     virtual SatelliteSearchEngineError searchSpaceObjectByNorad(const QString& norad, SpaceObject&) = 0;
 };
 
