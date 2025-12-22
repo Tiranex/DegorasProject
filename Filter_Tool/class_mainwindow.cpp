@@ -739,17 +739,6 @@ void MainWindow::on_pb_calcStats_clicked()
     ui->lbl_echoes->setText(QString::number(stats.aptn));
     ui->lbl_noise->setText(QString::number(stats.rptn));
 
-    // 9. Gráficas
-    QVector<QPointF> error_points;
-    const auto& mask = resid.total_bin_stats.amask_rfrms;
-    for (int idx = mask.size() - 1; idx >= 0; idx--) {
-        if (!mask[idx]) error_points.push_back(v.takeAt(idx));
-    }
-
-    ui->filterPlot->selected_curve->setSamples(v);
-    ui->filterPlot->error_curve->setSamples(error_points);
-    ui->filterPlot->replot();
-
     DegorasInformation::showInfo("Statistics", "Calculated.", "", this);
 }
 
