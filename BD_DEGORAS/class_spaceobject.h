@@ -32,9 +32,6 @@ public:
     static const QMap<EnablementPolicy, QString> EnablementPolicyStringMap;
     static const QMap<QString, SpaceObject::EnablementPolicy> EnablementPolicyEnumMap;
 
-    // --- CONSTRUCTOR MODIFICADO (Respetando estructura) ---
-    // Cambio 1: 'abbreviation' ahora es 'alias'
-    // Cambio 2: Añadido 'comments' después de 'picture'
     SpaceObject(QString name, QString ILRSname, QString alias, QString cospar, QString ILRScospar,
                 QString norad, QString sic, QString classification, QString laserid, QString detectorid,
                 QString counterid, QString cpfprovider, QString picture, QString comments,
@@ -43,18 +40,14 @@ public:
                 double inclination, double rcs, bool llr, bool debris,
                 QMap<QString, QString>& extraparameters);
 
-    SpaceObject(); // Constructor vacío
+    SpaceObject();
 
     SpaceObject(const QJsonValue &json_value, const QStringList &extrakeys);
 
-    // --- GETTERS (Observadores) ---
     inline const QString& getName()           const {return this->name;}
     inline const QString& getILRSname()       const {return this->ILRSname;}
     inline const QString& getPreferredName()  const {return this->ILRSname.isEmpty() ? this->name :  this->ILRSname;}
-
-    // NUEVO: Alias
     inline const QString& getAlias()          const {return this->alias;}
-
     inline const QString& getCospar()         const {return this->cospar;}
     inline const QString& getILRSID()         const {return this->ILRSID;}
     inline const QString& getNorad()          const {return this->norad;}
@@ -65,10 +58,7 @@ public:
     inline const QString& getCounterID()      const {return this->counterid;}
     inline const QString& getCPFProvider()    const {return this->cpfprovider;}
     inline const QString& getPicture()        const {return this->picture;}
-
-    // NUEVO: Comments
     inline const QString& getComments()       const {return this->comments;}
-
     inline TrackPolicy getTrackPolicy()       const {return this->trackpolicy;}
     inline EnablementPolicy getEnablementPolicy() const {return this->enablementpolicy;}
     inline const int& getNormalPointIndicator()   const {return this->npi;}
@@ -84,14 +74,9 @@ public:
     inline const bool& isLaserRetroReflectorChecked()         const {return this->llr_checked;}
     inline const bool& isDebrisChecked()           const {return this->debris_checked;}
     inline const bool& isInitialized()             const {return this->initialized;}
-
-    // --- SETTERS (Modificadores) ---
     inline void setName(QString name)                 {this->name = name;}
     inline void setILRSname(QString ILRSname)         {this->ILRSname = ILRSname;}
-
-    // NUEVO: Setter Alias
     inline void setAlias(QString alias)               {this->alias = alias;}
-
     inline void setCospar(QString cospar)             {this->cospar = cospar;}
     inline void setILRScospar(QString ILRScospar)     {this->ILRSID = ILRScospar;}
     inline void setNorad(QString norad)               {this->norad = norad;}
@@ -102,10 +87,7 @@ public:
     inline void setCounterID(QString counterid)       {this->counterid = counterid;}
     inline void setCPFProvider(QString cpf)           {this->cpfprovider = cpf;}
     inline void setPicture(QString picture)           {this->picture = picture;}
-
-    // NUEVO: Setter Comments
     inline void setComments(QString comments)         {this->comments = comments;}
-
     inline void setTrackPolicy(TrackPolicy policy)          {this->trackpolicy = policy;}
     inline void setEnablementPolicy(EnablementPolicy policy){this->enablementpolicy = policy;}
     inline void setNormalPointIndicator(int npi)      {this->npi = npi;}
@@ -125,10 +107,10 @@ public:
     static QJsonObject generateEmptyJsonobject();
 
 protected:
-    // --- IMPORTANTE: EL ORDEN AQUÍ DEBE SER IDÉNTICO AL DEL CONSTRUCTOR .CPP ---
+
     QString name;
     QString ILRSname;
-    QString alias; // Renombrado de abbreviation
+    QString alias;
     QString cospar;
     QString ILRSID;
     QString norad;
@@ -139,7 +121,7 @@ protected:
     QString counterid;
     QString cpfprovider;
     QString picture;
-    QString comments; // AÑADIDO AQUÍ (Justo después de los Strings)
+    QString comments;
 
     TrackPolicy trackpolicy;
     EnablementPolicy enablementpolicy;

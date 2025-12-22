@@ -18,7 +18,6 @@ ConnectionDialog::ConnectionDialog(QWidget *parent) : QDialog(parent)
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
-    // 1. Selector de historial (Arriba)
     historyCombo = new QComboBox(this);
     historyCombo->addItem("New Connection...");
     mainLayout->addWidget(new QLabel("Saved Connections:"));
@@ -27,7 +26,6 @@ ConnectionDialog::ConnectionDialog(QWidget *parent) : QDialog(parent)
     QFrame* line = new QFrame(); line->setFrameShape(QFrame::HLine); line->setFrameShadow(QFrame::Sunken);
     mainLayout->addWidget(line);
 
-    // 2. Formulario
     QFormLayout* form = new QFormLayout();
     hostEd = new QLineEdit(this); hostEd->setPlaceholderText("127.0.0.1");
     portEd = new QLineEdit(this); portEd->setText("27017");
@@ -35,7 +33,6 @@ ConnectionDialog::ConnectionDialog(QWidget *parent) : QDialog(parent)
     userEd = new QLineEdit(this); userEd->setPlaceholderText("admin");
     passEd = new QLineEdit(this); passEd->setEchoMode(QLineEdit::Password);
 
-    // LO QUE PIDE TU JEFE: SSL
     sslCheck = new QCheckBox("Enable SSL/TLS (OpenSSL)", this);
     sslCheck->setToolTip("Requires OpenSSL libraries installed.\nAdds '?tls=true' to connection string.");
 
@@ -47,7 +44,6 @@ ConnectionDialog::ConnectionDialog(QWidget *parent) : QDialog(parent)
     form->addRow("", sslCheck);
     mainLayout->addLayout(form);
 
-    // 3. Botones
     QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     bb->button(QDialogButtonBox::Ok)->setText("Connect");
     mainLayout->addWidget(bb);
@@ -79,7 +75,7 @@ void ConnectionDialog::on_connectBtn_clicked()
         return;
     }
 
-    saveHistory(); // Guardar para la próxima
+    saveHistory();
     accept();
 }
 
@@ -94,7 +90,6 @@ void ConnectionDialog::loadHistory()
         historyCombo->addItem(entry);
     }
 
-    // Cargar última usada
     QString last = settings.value("lastUsed").toString();
     int idx = historyCombo->findText(last);
     if(idx != -1) historyCombo->setCurrentIndex(idx);
@@ -102,7 +97,6 @@ void ConnectionDialog::loadHistory()
 
 void ConnectionDialog::saveHistory()
 {
-    // ID único para el historial: user@host
     QString id = QString("%1@%2").arg(m_params.user.isEmpty() ? "anon" : m_params.user, m_params.host);
 
     QSettings settings("DegorasProject", "DBConnections");
@@ -115,21 +109,18 @@ void ConnectionDialog::saveHistory()
     }
 
     settings.setValue("lastUsed", id);
-
-    // Guardar detalles
     settings.beginGroup("Details/" + id);
     settings.setValue("host", m_params.host);
     settings.setValue("port", m_params.port);
     settings.setValue("db", m_params.dbName);
     settings.setValue("user", m_params.user);
     settings.setValue("ssl", m_params.useSSL);
-    // NO guardamos contraseña por seguridad básica, o puedes guardarla si es entorno seguro
     settings.endGroup();
 }
 
 void ConnectionDialog::on_historyCombo_currentIndexChanged(int index)
 {
-    if (index <= 0) return; // "New connection..."
+    if (index <= 0) return;
 
     QString id = historyCombo->currentText();
     QSettings settings("DegorasProject", "DBConnections");
@@ -140,6 +131,6 @@ void ConnectionDialog::on_historyCombo_currentIndexChanged(int index)
     dbEd->setText(settings.value("db").toString());
     userEd->setText(settings.value("user").toString());
     sslCheck->setChecked(settings.value("ssl").toBool());
-    passEd->clear(); // Obligar a reintroducir password
+    passEd->clear();
     settings.endGroup();
 }

@@ -2,7 +2,7 @@
 #include <QDialog>
 #include <QSettings>
 
-// Forward declarations
+
 class QComboBox;
 class QLineEdit;
 class QCheckBox;
@@ -12,7 +12,7 @@ class ConnectionDialog : public QDialog
     Q_OBJECT
 
 public:
-    // Estructura para devolver los datos limpios al main
+
     struct ConnectionParams {
         QString host;
         int port;
@@ -35,7 +35,7 @@ private:
     void loadHistory();
     void saveHistory();
 
-    // UI Elements
+
     QComboBox* historyCombo;
     QLineEdit* hostEd;
     QLineEdit* portEd;

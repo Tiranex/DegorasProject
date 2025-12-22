@@ -3,19 +3,15 @@
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
 #include <mongocxx/exception/exception.hpp>
-
-// LOGGING INCLUDE
 #include <spdlog/spdlog.h>
 
-// --- CONSTRUCTOR ---
+
 GridFSImageManager::GridFSImageManager(mongocxx::database& db)
     : _gridfsBucket(db.gridfs_bucket()),
     _gridfsFilesCollection(db["fs.files"])
 {
-    // La inicialización ya se hace en la lista de inicialización
 }
 
-// --- UPLOAD ---
 bool GridFSImageManager::uploadImage(const std::string& nameInDB, const std::string& imageData)
 {
     try {
@@ -34,7 +30,6 @@ bool GridFSImageManager::uploadImage(const std::string& nameInDB, const std::str
     }
 }
 
-// --- DOWNLOAD ---
 std::string GridFSImageManager::downloadImageByName(const std::string& nameInDB)
 {
     try {
@@ -43,7 +38,6 @@ std::string GridFSImageManager::downloadImageByName(const std::string& nameInDB)
         auto result = _gridfsFilesCollection.find_one(filter.view());
 
         if (!result) {
-            // Originalmente usabas cerr con etiqueta [Info], lo paso a warn para que destaque sin ser error crítico
             spdlog::warn("File not found in fs.files: {}", nameInDB);
             return std::string{};
         }
@@ -72,7 +66,6 @@ std::string GridFSImageManager::downloadImageByName(const std::string& nameInDB)
     }
 }
 
-// --- DELETE ---
 bool GridFSImageManager::deleteImageByName(const std::string& nameInDB)
 {
     try {
@@ -101,7 +94,6 @@ bool GridFSImageManager::exists(const std::string& filename)
     try {
         bsoncxx::builder::basic::document filter{};
         filter.append(bsoncxx::builder::basic::kvp("filename", filename));
-        // count_documents es la forma rápida de verificar existencia
         return _gridfsFilesCollection.count_documents(filter.view()) > 0;
     } catch (...) {
         return false;

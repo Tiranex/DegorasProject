@@ -35,7 +35,6 @@ const QMap<SpaceObject::TrackPolicy, QString> SpaceObject::TrackPolicyStringMap 
         {SpaceObject::TrackPolicy::CUSTOM_TRACK_POLICY_2, "Custom Policy 2"}
 };
 
-// --- CONSTRUCTOR PRINCIPAL ---
 SpaceObject::SpaceObject(QString name, QString ILRSname, QString alias, QString cospar, QString ILRScospar,
                          QString norad, QString sic, QString classification, QString laserid, QString detectorid,
                          QString counterid, QString cpfprovider, QString picture, QString comments,
@@ -53,7 +52,6 @@ SpaceObject::SpaceObject(QString name, QString ILRSname, QString alias, QString 
 {
 }
 
-// --- CONSTRUCTOR VACÍO ---
 SpaceObject::SpaceObject()
     : name(""), ILRSname(""), alias(""), cospar(""), ILRSID(""), norad(""), sic(""), classification(""),
     laserid(""), detectorid(""), counterid(""), cpfprovider(""), picture(""), comments(""),
@@ -63,11 +61,9 @@ SpaceObject::SpaceObject()
 {
 }
 
-// --- GUARDAR JSON ---
 const QJsonObject SpaceObject::toJson() const
 {
     QJsonObject object;
-    // Helper para poner NULL si está vacío
     auto insertSafe = [&](const QString& key, const QString& val) {
         if (val.isEmpty()) object.insert(key, QJsonValue::Null);
         else object.insert(key, val);
@@ -121,15 +117,12 @@ QJsonObject SpaceObject::generateEmptyJsonobject()
     return empty.toJson();
 }
 
-// --- CARGAR JSON (CORREGIDO EL ERROR DE SINTAXIS) ---
 SpaceObject::SpaceObject(const QJsonValue &json_value, const QStringList &extrakeys)
     : SpaceObject()
 {
     if(json_value.isObject()){
         QJsonObject obj = json_value.toObject();
 
-        // Helper para leer seguro usando sintaxis correcta de Qt
-        // obj["Key"] devuelve QJsonValue. toString("def") aplica el valor por defecto.
         auto readStr = [&](const QString& key) { return obj[key].toString(""); };
 
         this->name = readStr("Name");
@@ -146,7 +139,6 @@ SpaceObject::SpaceObject(const QJsonValue &json_value, const QStringList &extrak
         this->cpfprovider = readStr("ProviderCPF");
         this->comments = readStr("Comments");
 
-        // CORRECCIÓN AQUÍ: Usamos obj["Key"].toInt(0)
         this->trackpolicy = static_cast<TrackPolicy>(obj["TrackPolicy"].toInt(0));
         this->enablementpolicy = static_cast<EnablementPolicy>(obj["EnablementPolicy"].toInt(0));
 

@@ -1,8 +1,7 @@
 #pragma once
 #include <QWidget>
 
-class QTextEdit; // Forward declaration
-
+class QTextEdit;
 class LogWidget : public QWidget
 {
     Q_OBJECT

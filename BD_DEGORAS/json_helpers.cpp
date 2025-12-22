@@ -1,12 +1,5 @@
-// --- json_helpers.cpp: CÓDIGO CORREGIDO ---
-
 #include "json_helpers.h"
 #include <QStringList> // Necesario para QStringList
-
-
-// !!! ESTOS CUERPOS FUERON ELIMINADOS:
-// static inline nlohmann::json bsoncxxToNjson(...) { ... }
-// static inline bsoncxx::document::value njsonToBsoncxx(...) { ... }
 
 
 /**
@@ -27,8 +20,6 @@ QString jsonValueToQString(const nlohmann::json& value)
     if (value.is_null()) {
         return "null";
     }
-
-    // Manejar Arrays (para el campo "Groups")
     if (value.is_array()) {
         QStringList list;
         for (const auto& item : value) {

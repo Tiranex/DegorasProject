@@ -8,11 +8,8 @@
 #include <QMap>
 #include <QDebug>
 
-// BORRADO: #include "spcore_global.h"
-
 class SPPlugin;
 
-// Enum Categories
 enum class PluginCategory : unsigned int
 {
     SPACE_OBJECT_SEARCH_ENGINE = 1,
@@ -37,17 +34,11 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(PluginCategories)
 
 using PluginsMultiMap = QMultiMap<PluginCategory, SPPlugin*>;
 
-// Map for getting the category strings.
-// BORRADO: SP_CORE_EXPORT
-extern const QMap<PluginCategory, QString> PluginCategoryEnumMap;
-// BORRADO: SP_CORE_EXPORT
-QString pluginCategoryString(SPPlugin*);
-// BORRADO: SP_CORE_EXPORT
-QString pluginCategoryString(PluginCategory);
-// BORRADO: SP_CORE_EXPORT
-bool checkPluginSpecificCast(SPPlugin*);
 
-// BORRADO: SP_CORE_EXPORT
+extern const QMap<PluginCategory, QString> PluginCategoryEnumMap;
+QString pluginCategoryString(SPPlugin*);
+QString pluginCategoryString(PluginCategory);
+bool checkPluginSpecificCast(SPPlugin*);
 class SPPlugin : public QObject
 {
     Q_OBJECT
@@ -55,12 +46,9 @@ public:
 
     SPPlugin(PluginCategory category_);
 
-    // Non virtual methods.
     void setMetaData(const QJsonObject& metadata);
     void setFilePath(const QString& path);
     void setEnabled(bool enabled);
-
-    // About the plugin.
     const QString& getPluginName() const;
     const QString& getPluginShortName() const;
     const QString& getPluginVersion() const;
@@ -69,8 +57,6 @@ public:
 
     const QDir& getPluginDir() const;
     const bool& isEnabled() const;
-
-    // Destructor.
     virtual ~SPPlugin() override = default;
 
 protected:

@@ -8,14 +8,12 @@
 #include <memory>
 #include <QRegularExpression>
 
-// UI Includes
 #include <QInputDialog>
 #include <QTableWidget>
 #include <QListWidget>
 #include <QCheckBox>
 #include <QRadioButton>
 
-// Clases propias
 #include "SpaceObjectDBManager.h"
 #include "addobjectdialog.h"
 
@@ -35,20 +33,15 @@ public:
 protected:
     void keyPressEvent(QKeyEvent *event) override;
 
-    // --- NUEVO: Detectar cierre de la ventana para avisar de cambios no guardados ---
+
     void closeEvent(QCloseEvent *event) override;
 
 private slots:
-    // --- TAB 1: SPACE OBJECTS ---
     void on_addNewObjectSetButton_clicked();
     void on_editObjectButton_clicked();
     void on_deleteObjectSetButton_clicked();
-
-    // Visualización
-    void refreshMainTable(); // Ahora leerá de m_localCache
+    void refreshMainTable();
     void on_mainObjectTable_selectionChanged();
-
-    // --- TAB 2 & 3 (Sets / Groups) ---
     void on_createSetButton_clicked();
     void on_deleteSetButton_clicked();
     void on_setsListWidget_itemSelectionChanged();
@@ -61,26 +54,21 @@ private slots:
     void on_assignToGroupButton_clicked();
     void on_removeFromGroupButton_clicked();
 
-    // --- DATA MENU & SEARCH ---
     void exportToCSV();
     void importFromJSON();
     // Search Slots
-    void on_LineEditSpaceObjects_textChanged(const QString &arg1); // Tab 1
-    void on_searchLineEditSet_textChanged(const QString &arg1);    // Tab 2
-    void on_searchLineEditGroups_textChanged(const QString &arg1); // Tab 3
+    void on_LineEditSpaceObjects_textChanged(const QString &arg1);
+    void on_searchLineEditSet_textChanged(const QString &arg1);
+    void on_searchLineEditGroups_textChanged(const QString &arg1);
 
-    // --- NUEVO: SAVE / VERSIONING ---
-    void on_saveChangesToDbButton_clicked(); // Botón "Commit"
-    void createDatabaseVersion(); // Función auxiliar para crear el snapshot
 
-    // --- LOGGING ---
+    void on_saveChangesToDbButton_clicked();
+    void createDatabaseVersion();
+
     void onLogReceived(const QString& msg, const QString& level);
     void on_actionShowLogs_triggered();
 
 private slots:
-    // Slot para context menu
-    // (Nota: ya estaba declarado como lambda o función en cpp, si lo tienes en .h mantenlo)
-    // void onMainTableContextMenuRequested(const QPoint &pos);
 
 private:
     bool m_dirtyMain = true;
@@ -89,18 +77,16 @@ private:
     Ui::MainWindow *ui;
     std::unique_ptr<SpaceObjectDBManager> dbManager;
 
-    // Ventanas
     std::unique_ptr<AddObjectDialog> m_addDialog;
     std::unique_ptr<AddObjectDialog> m_editDialog;
     std::unique_ptr<QInputDialog> m_searchDialog;
 
-    // --- NUEVO: MEMORIA Y ESTADO ---
     std::vector<nlohmann::json> m_localCache;
-    std::set<std::string> m_localSets;   // <--- NUEVO: Sets en memoria
+    std::set<std::string> m_localSets;
     std::set<std::string> m_localGroups;
-    bool m_hasUnsavedChanges = false;         // ¿Hay cambios sin subir a BBDD?
+    bool m_hasUnsavedChanges = false;
 
-    // Helpers
+
     void handleUniversalContextMenu(const QPoint &pos, QTableWidget* table);
     void setupTables();
     void setupLogTable();
@@ -113,18 +99,18 @@ private:
     void populateReadOnlyTable(QTableWidget* table, const std::vector<nlohmann::json>& objects);
     void on_tabWidget_currentChanged(int index);
 
-    // Iconos
+
     QIcon m_iconGreen;
     QIcon m_iconRed;
     QIcon m_iconGray;
     void initIcons();
 
-    // Helper para marcar la UI como "Sucia" (Cambios pendientes)
+
     void setUnsavedChanges(bool changed);
 
-    // Helper
+
     void applyTableFilter(QTableWidget* table, const QString& text);
     LogWidget* m_logWidget = nullptr;
 };
 
-#endif // MAINWINDOW_H
+#endif

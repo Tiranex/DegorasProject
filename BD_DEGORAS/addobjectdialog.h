@@ -23,30 +23,15 @@ public:
     explicit AddObjectDialog(QWidget *parent = nullptr);
     ~AddObjectDialog();
 
-    // En addobjectdialog.h
     void setAvailableSets(const std::vector<std::string> &sets);
     void setAvailableGroups(const std::vector<std::string> &groups);
-
-    // Pasa el puntero del gestor de base de datos
     void setDbManager(SpaceObjectDBManager* dbManager);
-
-    // Genera el JSON con todos los datos de la interfaz
     nlohmann::json getNewObjectData() const;
-
-    // Devuelve la ruta de la imagen seleccionada
     QString getSelectedImagePath() const;
-
-    // Rellena la interfaz con los datos de un objeto existente
     void loadObjectData(const nlohmann::json& objData);
-
-    // Activa el modo edición (bloquea el ID/NORAD)
     void setEditMode(bool enable);
-
     void on_selectDBImageBtn_clicked();
-
     void setExistingObjects(const std::vector<nlohmann::json>* objects);
-
-
 
 private slots:
     void on_browseImageBtn_clicked();
@@ -66,4 +51,4 @@ private:
     const std::vector<nlohmann::json>* m_existingObjects = nullptr;
 };
 
-#endif // ADDOBJECTDIALOG_H
+#endif

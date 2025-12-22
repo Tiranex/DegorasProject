@@ -50,7 +50,6 @@ void PluginManager::loadPlugins(const QString& directory)
                 loader.unload();
             }
         } else {
-            // ESTE ES EL ERROR QUE NECESITAMOS LEER
             spdlog::error(">>>> ERROR LOADING '{}': {}", fileName.toStdString(), loader.errorString().toStdString());
         }
     }
@@ -70,20 +69,15 @@ nlohmann::json PluginManager::searchSpaceObject(int64_t noradId)
     QString noradStr = QString::number(noradId);
     spdlog::info("Searching via plugins for NORAD: {}", noradId);
 
-    // Iterar sobre todos los motores de búsqueda cargados
     for (auto* engine : m_searchEngines) {
         if (!engine->isEnabled()) continue;
 
-        // Crear objeto legacy vacío para recibir datos
         SpaceObject legacyObj;
 
-        // LLAMADA AL PLUGIN LEGACY
         auto error = engine->searchSpaceObjectByNorad(noradStr, legacyObj);
 
         if (error.id == SpaceObjectSearchEngine::ErrorEnum::NoError) {
             spdlog::info("Object found via plugin: {}", engine->getPluginName().toStdString());
-
-            // CONVERSIÓN: Legacy Object -> QJsonObject -> Texto -> nlohmann::json
             QJsonObject qJson = legacyObj.toJson();
             return qJsonToNlohmann(qJson);
         }
@@ -95,8 +89,7 @@ nlohmann::json PluginManager::searchSpaceObject(int64_t noradId)
 
 nlohmann::json PluginManager::qJsonToNlohmann(const QJsonObject& qObj)
 {
-    // Truco robusto: Serializar a texto con Qt y parsear con nlohmann.
-    // Evita tener que mapear campo a campo manualmente.
+
     QJsonDocument doc(qObj);
     std::string jsonString = doc.toJson(QJsonDocument::Compact).toStdString();
     try {
