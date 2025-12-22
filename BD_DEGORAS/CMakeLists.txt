@@ -14,39 +14,33 @@
 # ----------------------------------------------------------------------------------------------------------------------
 # BASIC PROJECT CONFIGURATION
 
-# Minimum CMake version required.
 cmake_minimum_required(VERSION 3.31)
-
-# Project definition.
 project(SpaceObjectManagerApp LANGUAGES CXX)
 
-# For avoid architecture detection warning.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/Bd_Degoras")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/Bd_Degoras")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/Bd_Degoras")
+
 set(CMAKE_SYSTEM_PROCESSOR x86_64 CACHE STRING "")
 
-# Global configurations.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# ----------------------------------------------------------------------------------------------------------------------
-# QT CONFIGURATION
-# (Necesario para una app gráfica)
 
-set(CMAKE_AUTOMOC ON)    # Ejecuta el "Meta-Object Compiler" automáticamente
-set(CMAKE_AUTOUIC ON)    # Ejecuta el "User Interface Compiler" automáticamente
-set(CMAKE_AUTORCC ON)    # Ejecuta el "Resource Compiler" automáticamente
 
-# Busca las librerías de Qt (versión 6)
-# Añadimos QUIET para que no sea tan ruidoso si lo encuentra rápido
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 find_package(Qt6 REQUIRED COMPONENTS
     Core
     Gui
     Widgets
-    Network  # <--- AÑADIDO: Necesario para que el plugin pueda descargar datos
+    Network
 )
 
-# ----------------------------------------------------------------------------------------------------------------------
-#  ENVIRONMENT SUMMARY
+
 
 message(STATUS "===================================================================")
 message(STATUS " Degoras Project - APP SPACEOBJECT MANAGER (QT)")
@@ -72,33 +66,27 @@ message(STATUS "================================================================
 # ----------------------------------------------------------------------------------------------------------------------
 # DEPENDENCIES
 
-# BSON C++
+
 find_package(bsoncxx CONFIG REQUIRED)
 
-# Mongo C++ driver
 find_package(mongocxx CONFIG REQUIRED)
 
-#Logs
 find_package(spdlog REQUIRED)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# BUILD TARGETS
 
-# Definimos una variable con todos nuestros archivos de código
-# (El .ui se gestiona automáticamente con CMAKE_AUTOUIC ON)
 set(PROJECT_SOURCES
-    main.cpp                # Nuevo main para Qt
-    mainwindow.h            # Cabecera de la ventana
-    mainwindow.cpp          # Lógica de la ventana
+    main.cpp
+    mainwindow.h
+    mainwindow.cpp
     mainwindow.ui
-    SpaceObjectDBManager.h  # Reutilizado
-    SpaceObjectDBManager.cpp  # Reutilizado
-    json_helpers.h          # Reutilizado
+    SpaceObjectDBManager.h
+    SpaceObjectDBManager.cpp
+    json_helpers.h
     json_helpers.cpp
     gridfsimagemanager.h
     gridfsimagemanager.cpp
 
-    # --- ARCHIVOS LEGACY (El Puente) ---
     interface_plugin.h
     interface_plugin.cpp
     interface_spaceobjectsearchengine.h
@@ -109,7 +97,7 @@ set(PROJECT_SOURCES
     pluginmanager.cpp
 )
 
-# Define the main executable target.
+
 add_executable(App_SpaceObjectManager
     ${PROJECT_SOURCES}
     addobjectdialog.h addobjectdialog.cpp addobjectdialog.ui
@@ -119,7 +107,6 @@ add_executable(App_SpaceObjectManager
     connectiondialog.h connectiondialog.cpp
 )
 
-# Link required libraries.
 target_link_libraries(App_SpaceObjectManager PRIVATE
     mongo::mongocxx_static
     mongo::bsoncxx_static
@@ -129,15 +116,14 @@ target_link_libraries(App_SpaceObjectManager PRIVATE
     Qt::Widgets
 )
 
-# Static Mongo and Bson.
+
 target_compile_definitions(App_SpaceObjectManager PRIVATE MONGOCXX_STATIC BSONCXX_STATIC)
-#Logs
 target_compile_definitions(App_SpaceObjectManager PRIVATE SPDLOG_COMPILED_LIB)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # COMPILER CONFIGURATION
 
-# GCC-specific flags.
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wpedantic -Wall -Wextra -O0")
@@ -148,7 +134,7 @@ else()
     message(FATAL_ERROR "Compiler not supported by default.")
 endif()
 
-# Static linking for MinGW runtime libs.
+
 if (MINGW)
         target_link_options(App_SpaceObjectManager PRIVATE -static-libgcc -static-libstdc++)
 endif()
@@ -157,29 +143,34 @@ endif()
 #  AÑADIR PLUGIN: STANDARD SEARCH ENGINE
 # ==============================================================================
 
-# 1. Definimos los archivos que forman el plugin
 set(PLUGIN_FILES
     pluginsource/stdsearchengine/stdsearchengine.h
     pluginsource/stdsearchengine/stdsearchengine.cpp
-    # El plugin necesita estos archivos del núcleo para entender qué es un SpaceObject
     class_spaceobject.cpp
     interface_plugin.cpp
 )
 
-# 2. Creamos una "Librería Compartida" (Shared Library = DLL) llamada 'stdsearchengine'
 add_library(stdsearchengine SHARED ${PLUGIN_FILES})
-
-# 3. Le damos las librerías que necesita (Qt Network para descargar cosas)
 target_link_libraries(stdsearchengine PRIVATE Qt::Core Qt::Network)
-
-# 4. Le decimos dónde buscar los archivos .h (en la carpeta raíz del proyecto)
 target_include_directories(stdsearchengine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-# 5. [TRUCO] Hacemos que la DLL se guarde automáticamente en la carpeta /plugins junto al .exe
 set_target_properties(stdsearchengine PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/Bd_Degoras/plugins"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/Bd_Degoras/plugins"
 )
 
-# 6. Aseguramos que si limpias el proyecto, también se limpie el plugin
 add_dependencies(App_SpaceObjectManager stdsearchengine)
+
+
+if(WIN32)
+    get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
+
+    add_custom_command(TARGET App_SpaceObjectManager POST_BUILD
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                --no-compiler-runtime
+                --dir "${CMAKE_BINARY_DIR}/Bd_Degoras"
+                "$<TARGET_FILE:App_SpaceObjectManager>"
+        COMMENT "Setting the release."
+    )
+endif()

@@ -84,7 +84,7 @@ nlohmann::json PluginManager::searchSpaceObject(int64_t noradId)
     }
 
     spdlog::warn("Object {} not found in any loaded plugin.", noradId);
-    return nlohmann::json{}; // Retorna vacío si falla
+    return nlohmann::json{};
 }
 
 nlohmann::json PluginManager::qJsonToNlohmann(const QJsonObject& qObj)

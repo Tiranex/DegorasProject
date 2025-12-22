@@ -1,5 +1,5 @@
-#include "interface_plugin.h"                  // <--- RUTA ARREGLADA
-#include "interface_spaceobjectsearchengine.h" // <--- RUTA ARREGLADA
+#include "interface_plugin.h"
+#include "interface_spaceobjectsearchengine.h"
 
 
 SPPlugin::SPPlugin(PluginCategory category) : category_(category) {}

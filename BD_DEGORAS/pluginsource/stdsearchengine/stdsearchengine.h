@@ -15,7 +15,6 @@ public:
     StdSearchEngine();
     ~StdSearchEngine() override = default;
 
-    // La función obligatoria de la interfaz antigua
     SatelliteSearchEngineError searchSpaceObjectByNorad(const QString& norad, SpaceObject& resultObject) override;
 
 private:

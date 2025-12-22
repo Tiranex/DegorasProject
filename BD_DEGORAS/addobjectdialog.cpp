@@ -322,7 +322,9 @@ void AddObjectDialog::loadObjectData(const nlohmann::json& obj)
         return 0.0;
     };
 
-    ui->noradEdit->setText(QString::number(obj.value("_id", 0LL)));
+    if (ui->noradEdit->text().isEmpty()) {
+        ui->noradEdit->setText(QString::number(obj.value("_id", 0LL)));
+    }
     ui->nameEdit->setText(getString("Name"));
     ui->aliasEdit->setText(getString("Alias"));
     ui->cosparEdit->setText(getString("COSPAR"));
