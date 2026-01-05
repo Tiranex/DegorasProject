@@ -646,7 +646,7 @@ void MainWindow::on_actionSave_triggered()
 
 void MainWindow::on_pb_calcStats_clicked()
 {
-    // 1. Validaciones
+
     if (!m_trackingData || !m_trackingData->dp_tracking) return;
     QVector<QPointF> v = ui->filterPlot->getSelectedSamples();
     if (v.isEmpty()) {
@@ -654,11 +654,10 @@ void MainWindow::on_pb_calcStats_clicked()
         return;
     }
 
-    // 2. Preparación
     std::set<qulonglong> selected;
     for(const auto& p : v) selected.insert(static_cast<qulonglong>(p.x()));
 
-    // 3. Centrado Manual
+    // Centrado Manual
     double sum_val = 0.0;
     int count_val = 0;
     long double min_time = 1e20, max_time = -1e20;
@@ -676,32 +675,23 @@ void MainWindow::on_pb_calcStats_clicked()
     }
     double manual_mean = (count_val > 0) ? sum_val / count_val : 0.0;
 
-    // 4. RELLENAR DATOS (A PRUEBA DE BALAS)
     dpslr::ilrs::algorithms::RangeDataV rd;
     rd.reserve(count_val);
 
     for (const auto* echo : m_trackingData->listAll()) {
         if (selected.count(echo->time)) {
 
-            // Usamos el tipo exacto que espera el vector para evitar errores
             dpslr::ilrs::algorithms::RangeDataV::value_type item;
 
-            // Asignación por NOMBRE (No por orden)
             item.ts = static_cast<long double>(echo->time) * 1.0e-9;
             item.resid = static_cast<double>(echo->difference) - manual_mean;
-
-            // Rellenar restos con 0 para seguridad
-            // (Si estos campos no existen en tu struct, borra estas líneas, pero resid y ts son seguros)
-            // item.tof = 0; item.pred_dist = 0; item.trop_corr = 0;
-
             rd.push_back(item);
         }
     }
 
-    // 5. BIN SIZE = DURACIÓN TOTAL
     int global_bin_size = static_cast<int>(max_time - min_time) + 100;
 
-    // 6. Calcular
+    // Calcular
     dpslr::ilrs::algorithms::ResidualsStats resid;
     auto res_error = dpslr::ilrs::algorithms::calculateResidualsStats(global_bin_size, rd, resid);
 
@@ -710,7 +700,7 @@ void MainWindow::on_pb_calcStats_clicked()
         return;
     }
 
-    // 7. Resultados
+    // Resultados
     auto stats = resid.total_bin_stats.stats_rfrms;
 
     double val_rms = static_cast<double>(stats.rms);
@@ -721,11 +711,10 @@ void MainWindow::on_pb_calcStats_clicked()
 
     double val_stderr = (stats.aptn > 0) ? (val_rms / std::sqrt(static_cast<double>(stats.aptn))) : 0.0;
 
-    // SNR Simple: Peak / RMS
     double val_snr = (val_rms > 1e-9) ? (10.0 * std::log10(std::abs(val_peak / val_rms))) : 0.0;
     if (std::isnan(val_snr) || std::isinf(val_snr)) val_snr = 0.0;
 
-    // 8. Pantalla
+    // Pantalla
     ui->lbl_rms_ps->setText(QString::number(val_rms, 'f', 1));
     ui->lbl_mean_ps->setText(QString::number(val_mean, 'f', 1));
     ui->lbl_peak_ps->setText(QString::number(val_peak, 'f', 1));
@@ -742,22 +731,19 @@ void MainWindow::on_pb_calcStats_clicked()
     DegorasInformation::showInfo("Statistics", "Calculated.", "", this);
 }
 
-// adición MARIO: funcionamiento botón recalcular una vez cargado el CPF (esta función estaba pero vacía)
+
 void MainWindow::on_pb_recalculate_clicked()
 {
     if (!m_trackingData) return;
 
-    // 1. Cargar el Motor CPF (usando nuestro Wrapper con parche DGF)
     CPFPredictor predictor;
     if (!predictor.load(m_cpfPath)) {
         QMessageBox::critical(this, "Error", "Failed to initialize CPF Predictor with file:\n" + m_cpfPath);
         return;
     }
 
-    // 2. OBTENER CALIBRACIÓN (Corregido: usamos meanCal)
     long long calibration_ps = static_cast<long long>(m_trackingData->meanCal());
 
-    // 3. Barra de Progreso
     QProgressDialog progress("Recalculating Orbit...", "Abort", 0, m_trackingData->listAll().size(), this);
     progress.setWindowModality(Qt::WindowModal);
 
@@ -768,12 +754,10 @@ void MainWindow::on_pb_recalculate_clicked()
         // Convertir tiempo a segundos del día (SoD)
         double sod = static_cast<double>(echo->time) * 1.0e-9;
 
-        // 4. LLAMADA AL MOTOR (Geometría + Troposfera)
         long long predicted_total_ps = predictor.calculateTwoWayTOF(echo->mjd, sod);
 
-        if (predicted_total_ps > 0) {
-            // 5. FÓRMULA FINAL (Del Encargado)
-            // Residuo = Observado - (Predicho + Tropo) - Calibración
+        if (predicted_total_ps > 0)
+        {
             echo->difference = echo->flight_time - predicted_total_ps - calibration_ps;
         }
 
@@ -782,14 +766,14 @@ void MainWindow::on_pb_recalculate_clicked()
     }
     progress.setValue(m_trackingData->listAll().size());
 
-    // 6. Refrescar Gráficas
+
     updatePlots();
     onFilterChanged(); // Recalcula estadísticas
 
     ui->lbl_sessionID->setText("Recalculated: " + QFileInfo(m_cpfPath).fileName());
     DegorasInformation::showInfo("Recalculation", "Residuals updated.\n(New CPF + Tropo - Calibration)", "", this);
 }
-//adición MARIO: cargar CPF
+
 void MainWindow::on_pb_loadCPF_clicked()
 {
     // 1. Gestión de Settings (Ruta anterior)

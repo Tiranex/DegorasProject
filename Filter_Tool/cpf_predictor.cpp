@@ -8,18 +8,15 @@
 #include <QRegularExpression>
 #include <QUuid>
 
-// --- NAMESPACES ---
 using namespace dpbase::timing::dates;
 using namespace dpbase::timing::types;
 using namespace dpslr::geo::types;
 using namespace dpslr::geo::meteo;
 
-// --- CONSTANTES ---
 const double SEC_TO_PS = 1.0e12;
 const double PI = 3.14159265358979323846;
 const double DEG_TO_RAD = PI / 180.0;
 
-// --- FUNCIÓN AUXILIAR MATEMÁTICA ---
 void toGeocentricWGS84(const GeodeticPointDeg& geo, GeocentricPoint& outXyz)
 {
     const double a = 6378137.0;
@@ -36,7 +33,6 @@ void toGeocentricWGS84(const GeodeticPointDeg& geo, GeocentricPoint& outXyz)
     outXyz.z = (N * (1.0 - e2) + alt_m) * sin_lat;
 }
 
-// =========================================================
 
 CPFPredictor::CPFPredictor() {
     setStationCoordinates(36.4624, -6.2062, 197.0);
@@ -50,7 +46,7 @@ void CPFPredictor::setStationCoordinates(double lat_deg, double lon_deg, double 
     m_stationGeodetic.alt = alt_m;
 }
 
-// --- VERSIÓN: RECONSTRUCCIÓN TOTAL DE ALINEACIÓN ---
+
 bool CPFPredictor::load(const QString& filePath) {
     QString tempFilePath;
 
@@ -64,7 +60,7 @@ bool CPFPredictor::load(const QString& filePath) {
         }
         QTextStream in(&file);
 
-        // Archivo temporal BINARIO (para controlar los \n)
+        // Archivo temporal BINARIO
         tempFilePath = QDir::tempPath() + "/cpf_align_" + QUuid::createUuid().toString(QUuid::Id128) + ".cpf";
         QFile outFile(tempFilePath);
         if (!outFile.open(QIODevice::WriteOnly)) {
