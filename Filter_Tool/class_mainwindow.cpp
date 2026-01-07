@@ -689,6 +689,12 @@ void MainWindow::on_pb_calcStats_clicked()
         }
     }
 
+    if (rd.size() < 5)
+    {
+        QMessageBox::warning(this, "Statistics", "Selection too small.\nPlease select at least 5 points.");
+        return;
+    }
+
     int global_bin_size = static_cast<int>(max_time - min_time) + 100;
 
     // Calcular
