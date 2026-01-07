@@ -1,13 +1,23 @@
 /***********************************************************************************************************************
+
  * Copyright (C) 2025 Degoras Project Team
+
  *
+
  * Authors:
+
  * Ángel Vera Herrera
+
  * <avera@roa.es>
+
  * <angelvh.engr@gmail.com>
+
  * Jesús Relinque Madroñal
+
  *
+
  * Licensed under the MIT License.
+
  **********************************************************************************************************************/
 
 #ifndef LOGGER_SETUP_H
@@ -28,7 +38,7 @@
  * @brief Global configuration for spdlog asynchronous logging.
  *
  * This structure holds settings that affect the shared async thread pool
- * and the periodic flushing policy.
+ * and the periodic flushing policy used by all async loggers.
  */
 struct SpdlogGlobalConfig
 {
@@ -42,7 +52,7 @@ struct SpdlogGlobalConfig
         use_flush_every(true)
     {}
 
-    std::size_t queue_size;              ///< Global async thread pool queue size.
+    std::size_t queue_size;              ///< Global async thread pool queue size (power of 2 recommended).
     std::size_t thread_count;            ///< Global async thread pool worker thread count.
     std::chrono::seconds flush_interval; ///< Interval used for spdlog::flush_every().
     bool use_flush_every;                ///< Enable periodic flushing with flush_every().
@@ -51,8 +61,8 @@ struct SpdlogGlobalConfig
 /**
  * @brief Per-logger configuration for spdlog asynchronous loggers.
  *
- * This structure holds settings for each individual logger: sinks, levels
- * and overflow policy.
+ * This structure holds settings for each individual logger instance, including
+ * sink types (file/console), log levels, and formatting patterns.
  */
 struct SpdlogLogConfig
 {
@@ -74,43 +84,49 @@ struct SpdlogLogConfig
         use_daily_file(true)
     {}
 
-    std::string logger_name;                     ///< Logger name (used in spdlog registry).
-    std::string file_path;                       ///< Path to the log file (daily or basic sink).
-    std::string log_pattern;                     ///< Pattern for the logs.
-    bool enable_console;                         ///< Enable console sink.
-    bool enable_file;                            ///< Enable file sink.
-    bool set_default;                            ///< Set this logger as the global default logger.
-    spdlog::level::level_enum console_level;     ///< Minimum log level for console sink.
-    spdlog::level::level_enum file_level;        ///< Minimum log level for file sink.
-    spdlog::level::level_enum logger_level;      ///< Minimum log level accepted by the logger.
-    spdlog::level::level_enum flush_on;          ///< Force flush when log >= this level.
-    spdlog::async_overflow_policy overflow_pol;  ///< Overflow handling when queue is full.
-    bool use_daily_file;                         ///< Use daily_file_sink_mt (true) or basic_file_sink_mt (false).
+    std::string logger_name;                         ///< Unique name for the logger (key in spdlog registry).
+    std::string file_path;                           ///< Full path to the log file.
+    std::string log_pattern;                         ///< Formatting pattern for log messages.
+    bool enable_console;                             ///< Enable logging to standard output (stdout/stderr).
+    bool enable_file;                                ///< Enable logging to a file.
+    bool set_default;                                ///< If true, sets this logger as the global default logger.
+    spdlog::level::level_enum console_level;         ///< Minimum log level for the console sink.
+    spdlog::level::level_enum file_level;            ///< Minimum log level for the file sink.
+    spdlog::level::level_enum logger_level;          ///< Global minimum log level accepted by the logger.
+    spdlog::level::level_enum flush_on;              ///< Severity level that triggers an immediate flush to disk.
+    spdlog::async_overflow_policy overflow_pol;      ///< Policy when the message queue is full (block vs drop).
+    bool use_daily_file;                             ///< True for daily rotation, False for simple append mode.
 };
 
 // FUNCTION DECLARATIONS
 
 /**
- * @brief Initialize global spdlog async thread pool and time behavior.
+ * @brief Initializes the global spdlog async thread pool.
  *
- * @param cfg Global configuration for async logging.
+ * This must be called once at application startup before creating any async loggers.
+ *
+ * @param cfg Global configuration structure.
  */
 void initSpdlog(const SpdlogGlobalConfig& cfg);
 
 /**
- * @brief Create and register an asynchronous spdlog logger using SpdlogLogConfig.
+ * @brief Creates and registers a new asynchronous spdlog logger.
  *
- * Uses the global async thread pool initialized by initSpdlog().
+ * Configures sinks (file, console) based on the provided configuration
+ * and registers the logger with the spdlog global registry.
  *
  * @param cfg Per-logger configuration structure.
- * @return std::shared_ptr<spdlog::logger> The created logger, or nullptr if no sinks are enabled.
+ * @return std::shared_ptr<spdlog::logger> Shared pointer to the created logger, or nullptr on failure.
  */
 std::shared_ptr<spdlog::logger> registerSpdlogLogger(const SpdlogLogConfig& cfg);
 
 /**
- * @brief Get the directory of the current executable.
- * @return std::filesystem::path Path to the executable directory.
+ * @brief Retrieves the absolute directory path of the current executable.
+ *
+ * Used to construct reliable paths for log files and plugins relative to the binary location.
+ *
+ * @return std::filesystem::path Path to the executable's directory.
  */
 std::filesystem::path getExecutableDir();
 
-#endif
+#endif // LOGGER_SETUP_H

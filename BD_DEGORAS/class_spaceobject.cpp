@@ -5,10 +5,12 @@
 #include <QDebug>
 #include <QRegularExpression>
 
-SpaceObjectSet::SpaceObjectSet(const QString &name, const QStringList &enabled) : name(name), list_enabled(enabled)
+SpaceObjectSet::SpaceObjectSet(const QString &name, const QStringList &enabled)
+    : name(name), list_enabled(enabled)
 {
 }
 
+// Initialization of static maps for Enums
 const QMap<SpaceObject::EnablementPolicy, QString> SpaceObject::EnablementPolicyStringMap = {
     {SpaceObject::EnablementPolicy::NO_ENABLEMENT_POLICY, "No Policy"},
     {SpaceObject::EnablementPolicy::DISABLED, "Disabled"},
@@ -25,16 +27,16 @@ const QMap<QString, SpaceObject::EnablementPolicy> SpaceObject::EnablementPolicy
     {"Always Enabled", SpaceObject::EnablementPolicy::ALWAYS_ENABLED}
 };
 
-const QMap<SpaceObject::TrackPolicy, QString> SpaceObject::TrackPolicyStringMap =
-    {
-        {SpaceObject::TrackPolicy::NO_TRACK_POLICY, "No Policy"},
-        {SpaceObject::TrackPolicy::TRACK_ALWAYS, "Always"},
-        {SpaceObject::TrackPolicy::TRACK_ONLY_IF_VISIBLE, "Only If Visible"},
-        {SpaceObject::TrackPolicy::TRACK_ONLY_AT_NIGHT, "Only At Night"},
-        {SpaceObject::TrackPolicy::CUSTOM_TRACK_POLICY_1, "Custom Policy 1"},
-        {SpaceObject::TrackPolicy::CUSTOM_TRACK_POLICY_2, "Custom Policy 2"}
+const QMap<SpaceObject::TrackPolicy, QString> SpaceObject::TrackPolicyStringMap = {
+    {SpaceObject::TrackPolicy::NO_TRACK_POLICY, "No Policy"},
+    {SpaceObject::TrackPolicy::TRACK_ALWAYS, "Always"},
+    {SpaceObject::TrackPolicy::TRACK_ONLY_IF_VISIBLE, "Only If Visible"},
+    {SpaceObject::TrackPolicy::TRACK_ONLY_AT_NIGHT, "Only At Night"},
+    {SpaceObject::TrackPolicy::CUSTOM_TRACK_POLICY_1, "Custom Policy 1"},
+    {SpaceObject::TrackPolicy::CUSTOM_TRACK_POLICY_2, "Custom Policy 2"}
 };
 
+// Full Constructor
 SpaceObject::SpaceObject(QString name, QString ILRSname, QString alias, QString cospar, QString ILRScospar,
                          QString norad, QString sic, QString classification, QString laserid, QString detectorid,
                          QString counterid, QString cpfprovider, QString picture, QString comments,
@@ -52,6 +54,7 @@ SpaceObject::SpaceObject(QString name, QString ILRSname, QString alias, QString 
 {
 }
 
+// Default Constructor
 SpaceObject::SpaceObject()
     : name(""), ILRSname(""), alias(""), cospar(""), ILRSID(""), norad(""), sic(""), classification(""),
     laserid(""), detectorid(""), counterid(""), cpfprovider(""), picture(""), comments(""),
@@ -64,6 +67,8 @@ SpaceObject::SpaceObject()
 const QJsonObject SpaceObject::toJson() const
 {
     QJsonObject object;
+
+    // Lambda to insert non-empty values or explicit nulls
     auto insertSafe = [&](const QString& key, const QString& val) {
         if (val.isEmpty()) object.insert(key, QJsonValue::Null);
         else object.insert(key, val);
@@ -83,8 +88,10 @@ const QJsonObject SpaceObject::toJson() const
     insertSafe("ProviderCPF", cpfprovider);
     insertSafe("Comments", comments);
 
+    // Cast enums to int for serialization
     object.insert("TrackPolicy", static_cast<int>(this->trackpolicy));
     object.insert("EnablementPolicy", static_cast<int>(this->enablementpolicy));
+
     object.insert("NormalPointIndicator", this->npi);
     object.insert("BinSize", this->bs);
     object.insert("Altitude", this->altitude);
@@ -95,6 +102,7 @@ const QJsonObject SpaceObject::toJson() const
     object.insert("LaserRetroReflector", this->lrr);
     object.insert("IsDebris", this->debris);
 
+    // Serialize map of extra parameters
     QJsonObject extra;
     QMapIterator<QString, QString> i(this->extraparameters);
     while (i.hasNext()) {
@@ -157,6 +165,7 @@ SpaceObject::SpaceObject(const QJsonValue &json_value, const QStringList &extrak
         this->llr_checked = true;
         this->debris_checked = true;
 
+        // Parse Extra Parameters map
         if (obj.contains("ExtraParameters")) {
             QJsonObject extraObj = obj["ExtraParameters"].toObject();
             for(auto key : extraObj.keys()) {
@@ -164,6 +173,7 @@ SpaceObject::SpaceObject(const QJsonValue &json_value, const QStringList &extrak
             }
         }
 
+        // Dynamically add specified extra keys if they exist in root JSON
         for (const QString &key : extrakeys) {
             if (obj.contains(key) && !this->extraparameters.contains(key)) {
                 this->extraparameters.insert(key, obj[key].toString());

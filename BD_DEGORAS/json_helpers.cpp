@@ -1,11 +1,6 @@
 #include "json_helpers.h"
-#include <QStringList> // Necesario para QStringList
+#include <QStringList>
 
-
-/**
- * @brief Convierte de forma segura un valor JSON a un QString.
- * (Esta es la ÚNICA definición que debe estar aquí).
- */
 QString jsonValueToQString(const nlohmann::json& value)
 {
     if (value.is_string()) {
@@ -15,6 +10,7 @@ QString jsonValueToQString(const nlohmann::json& value)
         return QString::number(value.get<double>());
     }
     if (value.is_boolean()) {
+        // Return 1/0 for boolean to match Qt checkbox logic often used in tables
         return value.get<bool>() ? "1" : "0";
     }
     if (value.is_null()) {
@@ -22,13 +18,17 @@ QString jsonValueToQString(const nlohmann::json& value)
     }
     if (value.is_array()) {
         QStringList list;
+        // Iterate through array items
         for (const auto& item : value) {
+            // Currently only supports flat arrays of strings (e.g., Groups, Sets)
             if (item.is_string()) {
                 list.append(QString::fromStdString(item.get<std::string>()));
             }
         }
+        // Join with comma for display in a single table cell
         return list.join(", ");
     }
 
+    // Return empty string for Objects or unknown types to avoid crashes
     return QString();
 }

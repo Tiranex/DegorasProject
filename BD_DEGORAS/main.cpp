@@ -1,24 +1,41 @@
+/**
+ * @file main.cpp
+ * @brief Entry point for the Degoras Space Object Manager application.
+ *
+ * Initializes the MongoDB driver instance, Qt application, global logging (spdlog),
+ * and loads available plugins before launching the main window.
+ */
+
 #include "mainwindow.h"
-#include "LoggerSetup.h"
+#include "loggersetup.h"
+#include "pluginmanager.h"
 #include <QApplication>
 #include <QStyleFactory>
 #include <QPalette>
 #include <QColor>
 #include <mongocxx/instance.hpp>
 #include <iostream>
-#include "pluginmanager.h"
 
-
+/// Global logger name constant used throughout the application.
 constexpr std::string_view kLogger1 = "DegorasMainLogger";
 
+/**
+ * @brief Main execution function.
+ * * 1. Initializes MongoDB C++ Driver.
+ * 2. Configures Qt Application style (Dark Fusion Theme).
+ * 3. Sets up Asynchronous Logging (Spdlog).
+ * 4. Loads Plugins via PluginManager.
+ * 5. Launches MainWindow.
+ */
 int main(int argc, char *argv[])
 {
-
+    // The mongocxx::instance constructor initializes the driver.
+    // It must be created once and exist for the lifetime of the application.
     mongocxx::instance instance{};
-
 
     QApplication a(argc, argv);
 
+    // --- UI THEME SETUP (Dark Fusion) ---
     a.setStyle(QStyleFactory::create("Fusion"));
 
     QPalette darkPalette;
@@ -38,19 +55,22 @@ int main(int argc, char *argv[])
 
     a.setPalette(darkPalette);
 
+    // --- LOGGING SETUP ---
+    // Ensure logs are stored next to the executable
     std::string logs_dir = getExecutableDir().string() + "/logs";
+
     SpdlogGlobalConfig gcfg;
-    gcfg.queue_size     = 8192;
-    gcfg.thread_count   = 1;
+    gcfg.queue_size      = 8192;
+    gcfg.thread_count    = 1;
     gcfg.flush_interval = std::chrono::seconds{5};
     gcfg.use_flush_every = true;
 
     SpdlogLogConfig cfg1;
     cfg1.logger_name    = std::string(kLogger1);
-    cfg1.file_path = logs_dir + "/" + std::string(kLogger1) + ".log";
+    cfg1.file_path      = logs_dir + "/" + std::string(kLogger1) + ".log";
     cfg1.enable_console = true;
     cfg1.enable_file    = true;
-    cfg1.set_default    = true;
+    cfg1.set_default    = true; // Can be accessed via spdlog::info() directly
     cfg1.console_level  = spdlog::level::info;
     cfg1.file_level     = spdlog::level::debug;
     cfg1.logger_level   = spdlog::level::trace;
@@ -69,7 +89,8 @@ int main(int argc, char *argv[])
     spdlog::info("Global logger [{}] initialized.", kLogger1);
     spdlog::info("Starting Degoras Application...");
 
-    PluginManager::instance().loadPlugins(); // Busca en la carpeta /plugins junto al .exe
+    // --- PLUGIN LOADING ---
+    PluginManager::instance().loadPlugins(); // Scans 'plugins' folder
     spdlog::info("Plugins loaded: {}", PluginManager::instance().getLoadedEngines().join(", ").toStdString());
 
     int exitCode = 0;
@@ -77,16 +98,14 @@ int main(int argc, char *argv[])
     try {
         MainWindow w;
         w.show();
-
         exitCode = a.exec();
-
     } catch (const std::exception& e) {
         spdlog::critical("Fatal error at startup: {}", e.what());
         return 1;
     }
 
     spdlog::info("Shutting down Degoras Application with code: {}", exitCode);
-    spdlog::shutdown();
+    spdlog::shutdown(); // Flush pending logs
 
     return exitCode;
 }
