@@ -702,7 +702,7 @@ void MainWindow::on_pb_calcStats_clicked()
     auto res_error = dpslr::ilrs::algorithms::calculateResidualsStats(global_bin_size, rd, resid);
 
     if (res_error != dpslr::ilrs::algorithms::ResiStatsCalcErr::NOT_ERROR) {
-        DegorasInformation::showWarning("Statistics", "Error Code: " + QString::number((int)res_error), "", this);
+        DegorasInformation::showWarning("Statistics", "Error: number of maximum iterations reached");
         return;
     }
 
