@@ -190,8 +190,10 @@ void MainWindow::setupShortcuts()
 
     // ADD CUSTOM SHORTCUTS HERE
     ShortcutManager::instance().registerButton("load_dptr_file", ui->pb_load, "Ctrl+L");
-
-
+    ShortcutManager::instance().registerAction("save_dptr_file", ui->actionSave, "Ctrl+S");
+    ShortcutManager::instance().registerAction("exit_program", ui->actionExit, "Alt+F4");
+    ShortcutManager::instance().registerButton("undo", ui->undoButton, "Ctrl+Z");
+    ShortcutManager::instance().registerButton("redo", ui->redoButton, "Ctrl+Y");
 
 }
 
