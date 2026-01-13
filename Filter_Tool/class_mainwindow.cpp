@@ -29,6 +29,7 @@
 // Keyboard shortcuts
 #include "shortcutmanager.h"
 // <QLabel> already present
+#include <QScrollArea>
 #include <QKeySequenceEdit>
 
 #include <Tracking/trackingfilemanager.h>
@@ -50,14 +51,14 @@ m_isChanged(false)
     setupConnections();
 
     // Keyboard shortcuts
-    ui->dockShortcuts->hide();
+    //ui->dockShortcuts->hide();
     setupShortcuts();
 
     // Creamos una lista con todos los labels que queremos hacer "interactivos"
     QList<QLabel*> statLabels = {
         // Columna 1
         ui->lbl_rms_ps, ui->lbl_mean_ps, ui->lbl_peak_ps,
-        // Columna 2 (Asegúrate de que existen en el .ui, si alguno falla, quítalo de la lista)
+        // Columna 2
         ui->lbl_stderr, ui->lbl_skew, ui->lbl_kurt, ui->lbl_snr,
         // Columna 3
         ui->lbl_returns, ui->lbl_echoes, ui->lbl_noise
@@ -117,12 +118,8 @@ void MainWindow::setupConnections()
         applyFilter(FilterOptions::MovingAverage);
     });
 
-    // Keyboard Shortcuts Layout Panel
-    connect(ui->actionConfigure_Keyboard_Shortcuts, &QAction::triggered, this, [=](){
-        buildShortcutsUI();
-        ui->dockShortcuts->show();
-        ui->dockShortcuts->raise();
-    });
+    // Keyboard Shortcuts Dialog
+    connect(ui->actionConfigure_Keyboard_Shortcuts, &QAction::triggered, this, &MainWindow::showShortcutsDialog);
 
     QwtSLRPlotMagnifier* magFilter = ui->filterPlot->magnifier;
     QwtSLRPlotMagnifier* magErrorFilter = ui->realHistogramPlot->magnifier;
@@ -197,46 +194,108 @@ void MainWindow::setupShortcuts()
 
 }
 
-void MainWindow::buildShortcutsUI()
+void MainWindow::showShortcutsDialog()
 {
-    //auto& manager = ShortcutManager::instance();
+    // Setup the Main Pop-up Window
+    QDialog dlg(this);
+    dlg.setWindowTitle("Configure Shortcuts");
+    dlg.resize(500, 600);
 
-    // --- CLEANUP STEP ---
-        // Remove existing rows so we don't stack duplicates if clicked twice.
-        // ui->shortcutsLayout must be the QFormLayout, not the QScrollArea.
-        while (ui->shortcutsLayout->count() > 0) {
-        QLayoutItem* item = ui->shortcutsLayout->takeAt(0);
-        if (QWidget* w = item->widget()) {
-            delete w; // Delete the label/editor
-        }
-        delete item;
-    }
+    QVBoxLayout* mainLayout = new QVBoxLayout(&dlg);
 
-    // Loop through all registered IDs
-    for (const QString& id : ShortcutManager::instance().getRegisteredIds()) {
+    // Add instructions at the top
+    QLabel* instructions = new QLabel(
+        "<b>How to edit:</b> Click the <i>Edit</i> button next to an action.<br>"
+        "A popup will appear. Press your desired key combination once.<br>", &dlg);
+    instructions->setTextFormat(Qt::RichText);
+    mainLayout->addWidget(instructions);
 
-        // 1. Beautify ID
+    // Setup Scroll Area (mainLayout will hold it later):
+    QScrollArea* scrollArea = new QScrollArea(&dlg);
+    scrollArea->setWidgetResizable(true);
+
+    QWidget* container = new QWidget();
+    // QGridLayout: Col 0=Label, Col 1=Display, Col 2=Edit Button
+    QGridLayout* gridLayout = new QGridLayout(container);
+    gridLayout->setColumnStretch(1, 1); // Make the text box stretch to fill space
+
+    // Populate the List (grid)
+    auto& manager = ShortcutManager::instance();
+    QList<QString> ids = manager.getRegisteredIds();
+
+    for (int i = 0; i < ids.size(); ++i) {
+        QString id = ids[i];
+
+        // Create Name Label
         QString labelText = id;
         labelText.replace("_", " ");
         if (!labelText.isEmpty()) labelText[0] = labelText[0].toUpper();
+        QLabel* nameLabel = new QLabel(labelText, container);
 
-        // 2. Create UI elements
-        QLabel* label = new QLabel(labelText, this);
-
-        QAction* act = ShortcutManager::instance().getAction(id);
+        // Create Read-Only Display
+        QAction* act = manager.getAction(id);
         QKeySequence currentSeq = act ? act->shortcut() : QKeySequence();
-        QKeySequenceEdit* editor = new QKeySequenceEdit(currentSeq, this);
 
-        // 3. Connect: When user changes key, update Manager + .ini file
-        connect(editor, &QKeySequenceEdit::editingFinished, [=](){
-            ShortcutManager::instance().setShortcut(id, editor->keySequence());
-            // Optional: Set focus back to main window so shortcuts work immediately
-            this->setFocus();
+        QLineEdit* displayBox = new QLineEdit(currentSeq.toString(), container);
+        displayBox->setReadOnly(true); // read only
+        displayBox->setStyleSheet("color: #333; background-color: #f0f0f0;"); // Make it look disabled
+
+        // Create Edit Button
+        QPushButton* btnEdit = new QPushButton("Edit", container);
+        connect(btnEdit, &QPushButton::clicked, [id, displayBox, &dlg](){
+            // Create a capture dialog
+            QDialog captureDlg(&dlg); // Parent is the main dialog
+            captureDlg.setWindowTitle("Press New Key");
+            captureDlg.resize(300, 150);
+
+            QVBoxLayout* capLayout = new QVBoxLayout(&captureDlg);
+            capLayout->addWidget(new QLabel("Press the new key combination now...", &captureDlg));
+
+            // Setup editor that captures the key
+            QKeySequenceEdit* keyEditor = new QKeySequenceEdit(&captureDlg);
+            keyEditor->setMaximumSequenceLength(1); // only accept 1 key combination
+
+            // Focus the editor immediately so user just has to type
+            keyEditor->setFocus();
+            capLayout->addWidget(keyEditor);
+
+            // Add Ok/Cancel buttons
+            QDialogButtonBox* capBtns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &captureDlg);
+            connect(capBtns, &QDialogButtonBox::accepted, &captureDlg, &QDialog::accept);
+            connect(capBtns, &QDialogButtonBox::rejected, &captureDlg, &QDialog::reject);
+            capLayout->addWidget(capBtns);
+
+            // Execute Capture Dialog
+            if (captureDlg.exec() == QDialog::Accepted) {
+                // If user clicked OK, save the result
+                QKeySequence newSeq = keyEditor->keySequence();
+                ShortcutManager::instance().setShortcut(id, newSeq);
+
+                // Update Display Box to show the new ky combination
+                displayBox->setText(newSeq.toString());
+            }
         });
 
-        // 4. Add to the layout defined in your .ui file
-        ui->shortcutsLayout->addRow(label, editor);
+        // Add to Grid
+        gridLayout->addWidget(nameLabel, i, 0);
+        gridLayout->addWidget(displayBox, i, 1);
+        gridLayout->addWidget(btnEdit, i, 2);
     }
+
+    // Finalize Layout
+    // Add a spacer at the bottom so rows push up to the top
+    gridLayout->setRowStretch(ids.size(), 1);
+
+    container->setLayout(gridLayout);
+    scrollArea->setWidget(container);
+    mainLayout->addWidget(scrollArea);
+
+    // Close Button for the Main Window
+    QDialogButtonBox* mainBtnBox = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
+    connect(mainBtnBox, &QDialogButtonBox::rejected, &dlg, &QDialog::accept);
+    mainLayout->addWidget(mainBtnBox);
+
+    dlg.exec();
 }
 
 void MainWindow::on_pb_load_clicked()
