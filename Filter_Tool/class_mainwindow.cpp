@@ -20,6 +20,7 @@
 #include <QTemporaryFile>
 #include <QTextStream>
 #include <QFile>
+#include <qwt/qwt_scale_widget.h> // only used to sync realHistogramPlot and filterPlot
 
 // Last Save/Load Directory Settings
 #include "degoras_settings.h"
@@ -120,6 +121,17 @@ void MainWindow::setupConnections()
     connect(ui->actionMovingAverage, &QAction::triggered, this, [this]() {
 
         applyFilter(FilterOptions::MovingAverage);
+    });
+
+    // Sync axis between filterplot and realHistogramPlot
+    connect(ui->filterPlot->axisWidget(QwtPlot::yLeft), &QwtScaleWidget::scaleDivChanged, [this]() {
+
+        // Get the current Y interval from the Main Plot
+        QwtInterval interval = ui->filterPlot->axisInterval(QwtPlot::yLeft);
+
+        // Apply it to the Center Plot
+        ui->realHistogramPlot->setAxisScale(QwtPlot::yLeft, interval.minValue(), interval.maxValue());
+        ui->realHistogramPlot->replot();
     });
 
     // Keyboard Shortcuts Dialog
@@ -443,6 +455,11 @@ void MainWindow::onPlotPickingFinished()
 {
     ui->histogramPlot->setPickingEnabled(true);
     onFilterChanged();
+
+    // Save filter plot state to undo stack if points were selected in histogramplot
+    if (sender() == ui->histogramPlot) {
+        ui->filterPlot->pushCurrentStateToUndo();
+    }
 
     // When main plot finishes picking, selection might have changed, so we update the histogram
     auto error_samples = ui->histogramPlot->getSelectedSamples();
