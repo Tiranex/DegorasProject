@@ -91,8 +91,12 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupConnections()
 {
-    // Connections from plots
+    // Connections for plots
     connect(ui->filterPlot, &Plot::selectionChanged, this, &MainWindow::onPlotSelectionChanged);
+
+    // update histogram plot when polynomial fit calculation ends, as it is asynchronus
+    connect(ui->filterPlot, &Plot::fitCalculated, this, &MainWindow::onPlotSelectionChanged);
+
     connect(ui->histogramPlot, &ErrorPlot::selectionChanged, this, &MainWindow::onPlotPickingFinished);
 
     connect(ui->filterPlot, &Plot::startedPicking, this, &MainWindow::onPlotPickingStarted);
@@ -150,8 +154,7 @@ void MainWindow::setupConnections()
     // Handle busy state while calculating polynomial fit of FilterPlot
     connect(ui->filterPlot, &Plot::workingStateChanged, this, [this](bool isBusy){
 
-        // Disable the "Tools" groupbox (Select, Remove, Undo, Redo)
-        // Adjust the name 'gb_tools' to whatever your UI file calls that container
+        // Disable the manual filter tools groupbox
         ui->gb_tools->setEnabled(!isBusy);
 
         // Disable Load Button
