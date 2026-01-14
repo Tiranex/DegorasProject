@@ -52,8 +52,12 @@ m_isChanged(false)
     setupConnections();
 
     // Keyboard shortcuts
-    //ui->dockShortcuts->hide();
     setupShortcuts();
+
+    // Match the default Plot navigation mode with its button.
+    if(ui->selectNavMode->isChecked()){
+        on_selectNavMode_clicked();
+    }
 
     // Creamos una lista con todos los labels que queremos hacer "interactivos"
     QList<QLabel*> statLabels = {
@@ -391,6 +395,9 @@ void MainWindow::loadTrackingData(const QString& filePath)
     ui->le_filePath->setText(m_currentFilePath);
     ui->lbl_sessionID->setText(m_trackingData->satel_name);
 
+    ui->filterPlot->clearHistory();
+    ui->histogramPlot->clearHistory();
+
     updatePlots();
     updateUIState(true);
     onFilterSaved(); // Reset changed state
@@ -428,6 +435,8 @@ void MainWindow::updatePlots()
 
 void MainWindow::onPlotSelectionChanged()
 {
+    if(!m_trackingData) return; // Do nothing if no file has been loaded
+
     auto fit_errors = ui->filterPlot->getFitErrors();
     auto selected = ui->filterPlot->getSelectedSamples();
     ui->histogramPlot->setSamples(fit_errors);
@@ -488,6 +497,8 @@ void MainWindow::onHistogramPickingFinished()
 
 void MainWindow::onFilterChanged()
 {
+    if(!m_trackingData) return; // Do nothing if no file is loaded
+
     m_isChanged = true;
     ui->actionSave->setEnabled(true);
 }

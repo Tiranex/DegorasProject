@@ -391,6 +391,12 @@ public:
         return this->panner;
     }
 
+    void clearHistory()
+    {
+        m_undoStack.clear();
+        m_redoStack.clear();
+    }
+
     // --- Public Curves/Items (exposed for derived classes or UI) ---
     QwtPlotCurve *selected_curve; ///< @brief Curve displaying currently selected/filtered points (inliers).
     QwtPlotCurve *error_curve;    ///< @brief Curve possibly dedicated to displaying errors or outliers (less used in base Plot).
