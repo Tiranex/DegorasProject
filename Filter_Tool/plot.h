@@ -27,6 +27,8 @@
 #include <QPointF>
 #include <QDateTime>
 #include <QStack>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
 
 #include <qwt/qwt_symbol.h>
 #include <qwt/qwt_scale_draw.h>
@@ -337,7 +339,17 @@ public:
     void resetSelection();
 
     /**
+     * @brief Helper struct to hold results from the background thread that calculates the polynomial fit
+     */
+    struct FitResult {
+        QVector<QPointF> fitSamples;
+        QVector<QPointF> errorSamples;
+    };
+
+    /**
      * @brief Triggers the calculation and display of the polynomial fit for the selected data.
+     * It blocks the UI while calculating the fit to avoid app freezing. This can be reworked if
+     * the polynomial fit in LibDegorasBase implements concurrency.
      */
     void updateFit();
 
@@ -391,6 +403,14 @@ public slots:
     void setPickingEnabled(bool enabled);
 
 signals:
+
+    /**
+     * @brief Signal to lock/unlock the UI in mainwindow while polynomial fit is being calculated
+     * so no additional action freezes the app.
+     * @param isBusy true if calculations are running
+     */
+    void workingStateChanged(bool isBusy);
+
     /**
      * @brief Signal emitted after a new polynomial fit has been calculated.
      * @param fit The vector of points representing the new fit curve.
@@ -436,6 +456,19 @@ protected:
     ///@}
 
     int bin_size; ///< @brief Current bin size parameter used for certain data operations.
+
+    /**
+     * @brief Watcher to handle the background thread that calculates the polynomial fit
+     */
+    QFutureWatcher<FitResult> m_fitWatcher;
+
+    /**
+     * @brief static function that calculates polynomial fit in background thread
+     * @param samples, points in each segment
+     * @param binSize, length of data segments
+     * @return Polynomial Fit Results struct for later plotting with 'updateFit()'
+     */
+    static Plot::FitResult calculateFit(QVector<QPointF> samples, int binSize);
 
     /** @name Undo/Redo Stacks */
     ///@{

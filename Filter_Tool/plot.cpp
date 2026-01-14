@@ -303,6 +303,33 @@ Plot::Plot(QWidget *parent, QString title):
     });
 
     QObject::connect(picker, &QwtSLRPlotPicker::selected, this,  &Plot::selectPoints);
+
+    // --- Polynomial Fit Calculation Watcher ---
+    connect(&m_fitWatcher, &QFutureWatcher<FitResult>::finished, [this]() {
+        // Get the result
+        FitResult result = m_fitWatcher.result();
+
+        // Update Fit Curve
+        auto* fitt_data = static_cast<QwtSLRArraySeriesData*>(this->adjust_curve->data());
+        fitt_data->clear();
+        fitt_data->setSamples(result.fitSamples);
+
+        // Update Errors
+        this->points_fiterrors = result.errorSamples;
+
+        // Notify MainWindow and Redraw
+        emit this->fitCalculated(result.fitSamples);
+        this->replot();
+
+        // Enable UI back
+        this->canvas()->setCursor(Qt::CrossCursor);
+
+        // Restore Picker ONLY if we are in Selection/Deletion mode
+        bool shouldEnablePicker = (this->currentMode != PlotMode::Navigation);
+        this->picker->setEnabled(shouldEnablePicker);
+
+        emit workingStateChanged(false);
+    });
 }
 
 
@@ -480,38 +507,31 @@ void Plot::setSamples(const QVector<QPointF> &samples)
     this->replot();
 }
 
-void Plot::updateFit()
+Plot::FitResult Plot::calculateFit(QVector<QPointF> samples, int binSize)
 {
-    QwtSLRArraySeriesData *curve_data = static_cast<QwtSLRArraySeriesData *>(this->plot_curve->data());
-    QwtSLRArraySeriesData *fitt_data = static_cast<QwtSLRArraySeriesData *>(this->adjust_curve->data());
+    Plot::FitResult result;
 
-    fitt_data->clear();
+    std::sort(samples.begin(), samples.end(), [](const QPointF& a, const QPointF& b){
+        return a.x() < b.x();
+    });
 
-    auto curve_samples = curve_data->samples();
-    // Sort samples by X (Time) to ensure fit works correctly
-    std::sort(curve_samples.begin(), curve_samples.end(), [](const auto& a, const auto& b){return a.x() < b.x();});
+    if(samples.isEmpty()) return result;
 
     QVector<QPointF> oY;
-    // removed unused oY_original variable for clarity, though you can keep it if used elsewhere
-
     std::vector<double> xbin, ybin;
+    double time_orig = samples.front().x();
+    int _degree_ = 9;
 
-    // Safety check
-    if(curve_samples.isEmpty()) {
-        this->replot();
-        return;
-    }
-
-    double time_orig = curve_samples.front().x();
-
-    for (const auto& p : std::as_const(curve_samples))
+    // Calculate
+    for (const auto& p : samples)
     {
-        if (p.x() - time_orig > this->bin_size * 1e9)
+        if (p.x() - time_orig > binSize * 1e9)
         {
             if (!xbin.empty() && !ybin.empty()) {
-                auto coefs = dpbase::stats::polynomialFit(xbin, ybin, 9);
-                for (auto it_x = xbin.begin(), it_y = ybin.begin(); it_x != xbin.end() && it_y != ybin.end(); ++it_x, ++it_y)
-                {
+                auto coefs = dpbase::stats::polynomialFit(xbin, ybin, _degree_, {},
+                                                          dpbase::stats::types::PolyFitRobustMethod::BISQUARE_WEIGHTS);
+
+                for (auto it_x = xbin.begin(); it_x != xbin.end(); ++it_x) {
                     oY.append({*it_x, dpbase::stats::applyPolynomial(coefs, *it_x)});
                 }
             }
@@ -519,35 +539,62 @@ void Plot::updateFit()
             ybin.clear();
             time_orig = p.x();
         }
-
         xbin.push_back(p.x());
         ybin.push_back(p.y());
     }
 
-    // Process the last bin
-    if (!xbin.empty() && !ybin.empty())
-    {
-        auto coefs = dpbase::stats::polynomialFit(xbin, ybin, 9);
-        for (auto it_x = xbin.begin(), it_y = ybin.begin(); it_x != xbin.end() && it_y != ybin.end(); ++it_x, ++it_y)
-        {
+    // Process last bin
+    if (!xbin.empty() && !ybin.empty()) {
+        auto coefs = dpbase::stats::polynomialFit(xbin, ybin, _degree_, {},
+                                                  dpbase::stats::types::PolyFitRobustMethod::BISQUARE_WEIGHTS);
+        for (auto it_x = xbin.begin(); it_x != xbin.end(); ++it_x) {
             oY.append({*it_x, dpbase::stats::applyPolynomial(coefs, *it_x)});
         }
     }
 
-    fitt_data->append(oY);
+    result.fitSamples = oY;
 
-    this->points_fiterrors.clear();
-
-    // Calculate errors
-    // Note: curve_data might be larger or differently ordered if not careful,
-    // but since we rebuilt fitt_data from curve_data, sizes usually match
-    // IF curve_data was already sorted. Ideally, iterate strictly.
-    for(int i = 0; i < oY.size() && i < curve_samples.size(); i++)
+    // Calculate Errors
+    // Note: oY and samples might differ slightly in size if bins were skipped,
+    // but assuming standard logic, we match index i.
+    for(int i = 0; i < oY.size() && i < samples.size(); i++)
     {
-        double error = curve_samples[i].y() - fitt_data->samples()[i].y();
-        this->points_fiterrors.append(QPointF(curve_samples[i].x(),
-                                              std::isnan(error) ? curve_samples[i].y() : error));
+        double error = samples[i].y() - oY[i].y();
+        result.errorSamples.append(QPointF(samples[i].x(),
+                                           std::isnan(error) ? samples[i].y() : error));
     }
 
-    emit this->fitCalculated(fitt_data->samples());
+    return result;
+}
+
+void Plot::updateFit()
+{
+    // Cancel any previous running calculation to avoid app freezing.
+    // This is a failsafe, the UI should already be locked if a calculation is in process
+    if (m_fitWatcher.isRunning()) {
+        return;
+    }
+
+    // Get the current data from the main window
+    QwtSLRArraySeriesData *curve_data = static_cast<QwtSLRArraySeriesData *>(this->plot_curve->data());
+    QVector<QPointF> currentSamples = curve_data->samples();
+
+    if (currentSamples.isEmpty()) {
+        static_cast<QwtSLRArraySeriesData *>(this->adjust_curve->data())->clear();
+        this->replot();
+        return;
+    }
+
+    // Disable internal picker in UI so no selection while calculating freezes the app
+    this->picker->setEnabled(false);
+    // Set cursor to loading (visual)
+    this->canvas()->setCursor(Qt::WaitCursor);
+
+    // Tell main window to disable buttons
+    // Plot constructor will enable them back when calculation is finished.
+    emit workingStateChanged(true);
+
+    // calculation in a background thread
+    QFuture<Plot::FitResult> future = QtConcurrent::run(&Plot::calculateFit, currentSamples, this->bin_size);
+    m_fitWatcher.setFuture(future);
 }

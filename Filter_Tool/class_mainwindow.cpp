@@ -146,6 +146,25 @@ void MainWindow::setupConnections()
     QObject::connect(magErrorFilter, &QwtSLRPlotMagnifier::zoomed,
                      magHistogramPlot, &QwtSLRPlotMagnifier::applySharedZoom);
 
+
+    // Handle busy state while calculating polynomial fit of FilterPlot
+    connect(ui->filterPlot, &Plot::workingStateChanged, this, [this](bool isBusy){
+
+        // Disable the "Tools" groupbox (Select, Remove, Undo, Redo)
+        // Adjust the name 'gb_tools' to whatever your UI file calls that container
+        ui->gb_tools->setEnabled(!isBusy);
+
+        // Disable Load Button
+        ui->pb_load->setEnabled(!isBusy);
+
+        // status bar
+        if (isBusy) {
+            ui->statusbar->showMessage("Calculating Robust Fit... Please wait.");
+        } else {
+            ui->statusbar->clearMessage();
+        }
+    });
+
 }
 
 QwtSLRPlotMagnifier::QwtSLRPlotMagnifier(QWidget *canvas)
@@ -375,10 +394,11 @@ void MainWindow::updatePlots()
     }
 
     //ui->filterPlot->setTitle("Tracking: "+ m_trackingData->satel_name);
-    ui->filterPlot->setSamples(all_samples);
     ui->filterPlot->setBinSize(m_trackingData->data.obj_bs);
     ui->histogramPlot->setBinSize(m_trackingData->data.obj_bs);
     ui->realHistogramPlot->setNumBins(m_trackingData->data.obj_bs);
+
+    ui->filterPlot->setSamples(all_samples);
 
     QVector<double> errors;
     for (const auto& p : all_samples) {
