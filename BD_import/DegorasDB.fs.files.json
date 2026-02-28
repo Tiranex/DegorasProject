@@ -1,0 +1,2795 @@
+[{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8d7"
+  },
+  "filename": "COSMOS2501.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "66642"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.051Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8d9"
+  },
+  "filename": "ADEOS.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "75353"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.068Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8db"
+  },
+  "filename": "REFLECTOR.png",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "24310"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.071Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8dd"
+  },
+  "filename": "METEOR221.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "23075"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.078Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8df"
+  },
+  "filename": "ENVISAT.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "157447"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.085Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8e1"
+  },
+  "filename": "EXPLORER27.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40679"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.091Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8e3"
+  },
+  "filename": "COSMOS1782.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "13572"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.098Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8e5"
+  },
+  "filename": "ARIANE1-2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "56088"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.105Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8e7"
+  },
+  "filename": "DELTA1-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "45669"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.112Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8e9"
+  },
+  "filename": "LAGEOS1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "729574"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.152Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8ed"
+  },
+  "filename": "SARAL.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "315173"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.171Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8f0"
+  },
+  "filename": "SOHLA1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "28008"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.178Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8f2"
+  },
+  "filename": "DIADEME2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "37510"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.184Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8f4"
+  },
+  "filename": "CRYOSAT2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40550"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.191Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8f6"
+  },
+  "filename": "SENTINEL3A.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "2021108"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.230Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef8ff"
+  },
+  "filename": "SENTINEL3B.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "2021108"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.262Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef908"
+  },
+  "filename": "ALOS.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "41765"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.270Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef90a"
+  },
+  "filename": "BEIDOU24.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "19158"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.276Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef90c"
+  },
+  "filename": "ERS1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "100262"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.283Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef90e"
+  },
+  "filename": "ERS2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "57865"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.289Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef910"
+  },
+  "filename": "METEOR3M.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "11024"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.295Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef912"
+  },
+  "filename": "OICETS.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "58776"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.301Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef914"
+  },
+  "filename": "ADEOS2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "18801"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.307Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef916"
+  },
+  "filename": "ARIANE5-1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "82762"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.313Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef918"
+  },
+  "filename": "SWARMA.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "262288"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.335Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef91b"
+  },
+  "filename": "SWARMB.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "262288"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.346Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef91e"
+  },
+  "filename": "SWARMC.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "262288"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.357Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef921"
+  },
+  "filename": "TANDEMX.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "158214"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.366Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef923"
+  },
+  "filename": "TERRASARX.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "478703"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.376Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef926"
+  },
+  "filename": "STARLETTE.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "15861"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.383Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef928"
+  },
+  "filename": "STELLA.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "15861"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.390Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef92a"
+  },
+  "filename": "PAZ.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "60213"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.397Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef92c"
+  },
+  "filename": "LARETS.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "20574"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.404Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef92e"
+  },
+  "filename": "LARES.png",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "477097"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.430Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef931"
+  },
+  "filename": "HAIYANG2A.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "116272"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.439Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef933"
+  },
+  "filename": "HAIYANG2B.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "116272"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.446Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef935"
+  },
+  "filename": "TECHNOSAT.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "29819"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.453Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef937"
+  },
+  "filename": "ETS8.jpeg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "82687"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.459Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef939"
+  },
+  "filename": "GEOS3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "4168"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.467Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef93b"
+  },
+  "filename": "METEOR36.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "36802"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.469Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef93d"
+  },
+  "filename": "PROBA2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "134285"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.477Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef93f"
+  },
+  "filename": "RESURSO1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "11675"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.484Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef941"
+  },
+  "filename": "SEASAT1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "75754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.491Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef943"
+  },
+  "filename": "TOPEX.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "186816"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.498Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef945"
+  },
+  "filename": "ZY3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "35208"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.505Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef947"
+  },
+  "filename": "SUNSAT.jpeg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "50751"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.512Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef949"
+  },
+  "filename": "NAVSTAR34.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "96598"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.518Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef94b"
+  },
+  "filename": "NAVSTAR36.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "96598"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.525Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef94d"
+  },
+  "filename": "JASON2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "108849"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.532Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef94f"
+  },
+  "filename": "JASON3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "223775"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.541Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef951"
+  },
+  "filename": "COSMOS2476.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.548Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef953"
+  },
+  "filename": "COSMOS2485.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.555Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef955"
+  },
+  "filename": "COSMOS2492.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "25855"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.561Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef957"
+  },
+  "filename": "COSMOS2500.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.567Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef959"
+  },
+  "filename": "COSMOS2514.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.573Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef95b"
+  },
+  "filename": "COSMOS2516.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.579Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef95d"
+  },
+  "filename": "GALILEOPFM.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "26241"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.586Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef95f"
+  },
+  "filename": "GALILEOFM2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "26241"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.592Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef961"
+  },
+  "filename": "DIADEME1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "37510"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.599Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef963"
+  },
+  "filename": "CZ4-06.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10638"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.605Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef965"
+  },
+  "filename": "COSMOS1987.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.607Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef967"
+  },
+  "filename": "COSMOS1988.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.610Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef969"
+  },
+  "filename": "COSMOS2079.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.613Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef96b"
+  },
+  "filename": "COSMOS2109.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.617Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef96d"
+  },
+  "filename": "COSMOS2111.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.620Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef96f"
+  },
+  "filename": "DELTA2-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "114726"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.628Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef971"
+  },
+  "filename": "ARIANE40-2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40131"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.635Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef973"
+  },
+  "filename": "ARGOS.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "21931"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.637Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef975"
+  },
+  "filename": "IDEFIX.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "7471"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.644Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef977"
+  },
+  "filename": "MONITORE.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "13067"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.650Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef979"
+  },
+  "filename": "N2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "45724"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.657Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef97b"
+  },
+  "filename": "OKEAN1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "16586"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.664Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef97d"
+  },
+  "filename": "OKEAN2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "16586"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.671Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef97f"
+  },
+  "filename": "OKEAN3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "16586"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.677Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef981"
+  },
+  "filename": "OKEAN4.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "16586"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.684Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef983"
+  },
+  "filename": "OKEANO1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "20769"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.690Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef985"
+  },
+  "filename": "RUBIN3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "14523"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.698Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef987"
+  },
+  "filename": "RUBIN4.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "5180"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.704Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef989"
+  },
+  "filename": "RUBIN8.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "28629"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.711Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef98b"
+  },
+  "filename": "RUBIN9.1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "25628"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.717Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef98d"
+  },
+  "filename": "AQUARIUS.png",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "121826"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.723Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef98f"
+  },
+  "filename": "SPOT1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "199350"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.731Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef991"
+  },
+  "filename": "SPOT2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "199350"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.738Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef993"
+  },
+  "filename": "SPOT3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "199350"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.745Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef995"
+  },
+  "filename": "SPOT4.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "199350"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.753Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef997"
+  },
+  "filename": "SPOT5.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "199350"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.761Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef999"
+  },
+  "filename": "SNETC.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "25967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.767Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef99b"
+  },
+  "filename": "SNETD.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "25967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.773Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef99d"
+  },
+  "filename": "SNETB.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "25967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.779Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef99f"
+  },
+  "filename": "SNETA.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "25967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.785Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9a1"
+  },
+  "filename": "ARIANE1-1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "56088"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.794Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9a3"
+  },
+  "filename": "ARIANE40-1.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40131"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.800Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9a5"
+  },
+  "filename": "ARIANE40-3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40131"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.807Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9a7"
+  },
+  "filename": "ARIANE40-4.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40131"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.813Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9a9"
+  },
+  "filename": "ARIANE40-5.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40131"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.819Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9ab"
+  },
+  "filename": "ARIANE40+.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40131"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.825Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9ad"
+  },
+  "filename": "ARIANE40+3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "40131"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.831Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9af"
+  },
+  "filename": "ARIANE5-2.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "82762"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.837Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9b1"
+  },
+  "filename": "ARIANE5-3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "82762"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.843Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9b3"
+  },
+  "filename": "DELTA1-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "13663"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.851Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9b5"
+  },
+  "filename": "DELTA1-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "13663"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.857Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9b7"
+  },
+  "filename": "DELTA1-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "18563"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.863Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9b9"
+  },
+  "filename": "DELTA2-05.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "114726"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.870Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9bb"
+  },
+  "filename": "DELTA2-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "114726"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.877Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9bd"
+  },
+  "filename": "DELTA2-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "114726"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.884Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9bf"
+  },
+  "filename": "DELTA2-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "114726"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.891Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9c1"
+  },
+  "filename": "PSLV-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.906Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9c3"
+  },
+  "filename": "PSLV-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.913Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9c5"
+  },
+  "filename": "PSLV-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.920Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9c7"
+  },
+  "filename": "PSLV-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.926Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9c9"
+  },
+  "filename": "PSLV-05.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.933Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9cb"
+  },
+  "filename": "PSLV-06.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.939Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9cd"
+  },
+  "filename": "PSLV-07.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.946Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9cf"
+  },
+  "filename": "PSLV-08.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.956Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9d1"
+  },
+  "filename": "PSLV-09.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.962Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9d3"
+  },
+  "filename": "PSLV-10.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.969Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9d5"
+  },
+  "filename": "PSLV-11.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.975Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9d7"
+  },
+  "filename": "PSLV-12.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.981Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9d9"
+  },
+  "filename": "PSLV-13.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.987Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9db"
+  },
+  "filename": "PSLV-14.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.993Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8d67a93ccc4adef9dd"
+  },
+  "filename": "PSLV-15.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:17.999Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9df"
+  },
+  "filename": "PSLV-16.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.006Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9e1"
+  },
+  "filename": "PSLV-17.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "72967"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.012Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9e3"
+  },
+  "filename": "CZ4-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10638"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.018Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9e5"
+  },
+  "filename": "CZ4-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10638"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.023Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9e7"
+  },
+  "filename": "CZ4-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10638"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.029Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9e9"
+  },
+  "filename": "CZ4B-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.035Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9eb"
+  },
+  "filename": "CZ4B-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.041Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9ed"
+  },
+  "filename": "CZ4B-08.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.047Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9ef"
+  },
+  "filename": "CZ4B-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.053Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9f1"
+  },
+  "filename": "CZ4-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10638"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.059Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9f3"
+  },
+  "filename": "CZ4B-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.064Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9f5"
+  },
+  "filename": "CZ4-05.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10638"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.070Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9f7"
+  },
+  "filename": "CZ4B-05.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.076Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9f9"
+  },
+  "filename": "CZ4-07.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10638"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.082Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9fb"
+  },
+  "filename": "CZ4B-06.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.087Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9fd"
+  },
+  "filename": "CZ4B-07.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.093Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adef9ff"
+  },
+  "filename": "CZ4B-09.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.099Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa01"
+  },
+  "filename": "CZ4B-10.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.104Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa03"
+  },
+  "filename": "CZ4C-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.111Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa05"
+  },
+  "filename": "CZ4C-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.116Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa07"
+  },
+  "filename": "CZ4C-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.122Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa09"
+  },
+  "filename": "CZ4C-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.127Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa0b"
+  },
+  "filename": "CZ4C-05.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.133Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa0d"
+  },
+  "filename": "CZ4C-08.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.139Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa0f"
+  },
+  "filename": "CZ4C-09.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.145Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa11"
+  },
+  "filename": "CZ4C-06.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.150Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa13"
+  },
+  "filename": "CZ4B-11.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.156Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa15"
+  },
+  "filename": "CZ4B-12.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "10308"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.162Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa17"
+  },
+  "filename": "CZ2C-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.170Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa1a"
+  },
+  "filename": "CZ2C-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.178Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa1d"
+  },
+  "filename": "CZ2C-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.187Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa20"
+  },
+  "filename": "CZ2C-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.195Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa23"
+  },
+  "filename": "CZ2C-05.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.204Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa26"
+  },
+  "filename": "CZ2C-06.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.213Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa29"
+  },
+  "filename": "CZ2C-07.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.222Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa2c"
+  },
+  "filename": "CZ2C-08.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.230Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa2f"
+  },
+  "filename": "CZ2C-09.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.239Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa32"
+  },
+  "filename": "CZ2C-10.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.248Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa35"
+  },
+  "filename": "CZ2C-11.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "283754"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.263Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa38"
+  },
+  "filename": "CZ4C-07.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32705"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.270Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa3a"
+  },
+  "filename": "CZ2D-01.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "54532"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.276Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa3c"
+  },
+  "filename": "CZ2D-02.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "54532"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.282Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa3e"
+  },
+  "filename": "CZ2D-03.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "54532"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.289Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa40"
+  },
+  "filename": "CZ2D-04.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "54532"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.295Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa42"
+  },
+  "filename": "CZ2D-05.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "54532"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.301Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa44"
+  },
+  "filename": "BEIDOU3.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "11750"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.309Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa46"
+  },
+  "filename": "BEIDOU8.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "11034"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.315Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa48"
+  },
+  "filename": "BEIDOU10.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "11034"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.321Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa4a"
+  },
+  "filename": "BEIDOU22.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "11034"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.327Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa4c"
+  },
+  "filename": "COSMOS2517.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "111809"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.333Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa4e"
+  },
+  "filename": "TIANGONG2.PNG",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "222399"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.341Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa50"
+  },
+  "filename": "COSMOS2522.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.349Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa52"
+  },
+  "filename": "BEIDOU25.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "19158"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.355Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa54"
+  },
+  "filename": "BEIDOU29.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "19158"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.361Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa56"
+  },
+  "filename": "BEIDOU30.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "19064"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.366Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa58"
+  },
+  "filename": "BEIDOU31.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "19064"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.372Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa5a"
+  },
+  "filename": "COSMOS2529.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.379Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa5c"
+  },
+  "filename": "COSMOS2139.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.382Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa5e"
+  },
+  "filename": "COSMOS2177.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.384Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa60"
+  },
+  "filename": "COSMOS2206.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.387Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa62"
+  },
+  "filename": "COSMOS2204.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.389Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa64"
+  },
+  "filename": "COSMOS2276.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.392Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa66"
+  },
+  "filename": "COSMOS2277.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.395Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa68"
+  },
+  "filename": "COSMOS2275.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.397Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa6a"
+  },
+  "filename": "COSMOS2287.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.400Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa6c"
+  },
+  "filename": "COSMOS2289.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.403Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa6e"
+  },
+  "filename": "COSMOS2288.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.406Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa70"
+  },
+  "filename": "COSMOS2295.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.408Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa72"
+  },
+  "filename": "COSMOS2296.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.411Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa74"
+  },
+  "filename": "COSMOS2294.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.414Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa76"
+  },
+  "filename": "COSMOS2307.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.416Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa78"
+  },
+  "filename": "COSMOS2308.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.419Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa7a"
+  },
+  "filename": "COSMOS2309.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.422Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa7c"
+  },
+  "filename": "COSMOS2317.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.424Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa7e"
+  },
+  "filename": "COSMOS2318.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.427Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa80"
+  },
+  "filename": "COSMOS2325.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.429Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa82"
+  },
+  "filename": "COSMOS2324.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.432Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa84"
+  },
+  "filename": "COSMOS2323.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.435Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa86"
+  },
+  "filename": "COSMOS2364.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.437Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa88"
+  },
+  "filename": "COSMOS2363.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.440Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa8a"
+  },
+  "filename": "COSMOS2362.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.442Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa8c"
+  },
+  "filename": "COSMOS2376.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.445Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa8e"
+  },
+  "filename": "COSMOS2382.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "59491"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.453Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa90"
+  },
+  "filename": "COSMOS2381.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.455Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa92"
+  },
+  "filename": "COSMOS2396.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.458Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa94"
+  },
+  "filename": "COSMOS2395.gif",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "102019"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.461Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa96"
+  },
+  "filename": "BLITS.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "18561"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.468Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa98"
+  },
+  "filename": "BEIDOU9.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "11034"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.475Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa9a"
+  },
+  "filename": "BEIDOU17.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "14215"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.482Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa9c"
+  },
+  "filename": "BEIDOU21.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "19064"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.487Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefa9e"
+  },
+  "filename": "MVL300.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "21517"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.494Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefaa0"
+  },
+  "filename": "CHEFSAT.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "32202"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.500Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69177b8e67a93ccc4adefaa2"
+  },
+  "filename": "AVUM.jpg",
+  "chunkSize": 261120,
+  "length": {
+    "$numberLong": "242531"
+  },
+  "uploadDate": {
+    "$date": "2025-11-14T18:57:18.509Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69417c14f3ce289a78018902"
+  },
+  "length": {
+    "$numberLong": "104469"
+  },
+  "chunkSize": 261120,
+  "uploadDate": {
+    "$date": "2025-12-16T15:34:44.540Z"
+  },
+  "filename": "pistachito.jpg"
+}]
